@@ -1,0 +1,34 @@
+Future of Work Report 2025
+McKinsey & Company
+
+Executive Summary
+
+The workplace landscape continues to evolve rapidly as organizations adapt to technological advancements and shifting employee expectations. This report examines key trends shaping employment in 2025.
+
+Key Findings:
+
+1. Remote Work Adoption
+- 65% of knowledge workers now operate in hybrid or fully remote arrangements
+- Companies report 23% increase in productivity for remote-eligible roles
+- Geographic barriers to hiring continue to diminish
+
+2. AI Integration
+- 78% of organizations have implemented AI tools in at least one department
+- Workers spending average of 4.5 hours per week using AI assistants
+- New job categories emerging around AI management and prompt engineering
+
+3. Skills Gap Challenges
+- Critical shortage in data analysis and digital literacy skills
+- 89% of employers investing in upskilling programs
+- Median time to fill technical positions increased to 52 days
+
+4. Compensation Trends
+- Tech sector salaries increased 8.2% year-over-year
+- Benefits packages expanding to include mental health and wellness support
+- Flexible work arrangements now considered equivalent to 15% salary premium
+
+Recommendations:
+
+Organizations should prioritize investment in employee development, embrace flexible work models, and integrate AI thoughtfully to remain competitive in attracting and retaining talent.
+
+For full methodology and detailed analysis, see appendices A-D.

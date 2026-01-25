@@ -1,0 +1,7 @@
+{
+  "name": "CareerCompass",
+  "description": "A comprehensive career development platform providing personalized news, courses, and AI-powered path suggestions based on your location and role.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

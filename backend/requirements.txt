@@ -1,0 +1,3 @@
+# Currently no Python dependencies needed
+# Backend uses Node.js for all functionality
+
