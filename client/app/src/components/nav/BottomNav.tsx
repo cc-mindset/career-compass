@@ -18,7 +18,7 @@ interface BottomNavProps {
 const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate }) => {
   return (
     <nav
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#111] border-t border-slate-200 dark:border-slate-800 transition-colors pt-2"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 pt-2"
       style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="flex items-stretch justify-around px-1">
@@ -31,8 +31,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate }) => {
               onClick={() => onNavigate(item.id)}
               className={`min-w-0 flex-1 flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-200 ${
                 isActive
-                  ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 active:scale-95'
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'text-slate-500 hover:bg-slate-50 active:scale-95'
               }`}
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}

@@ -43,7 +43,7 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
       {/* Icon and Category */}
       {category && (
         <div className="flex items-center gap-2 sm:gap-3 mb-4 md:mb-6 relative z-10">
-          <div className="p-2.5 md:p-3 rounded-xl md:rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+          <div className="p-2.5 md:p-3 rounded-xl md:rounded-2xl bg-indigo-50 text-indigo-600 flex-shrink-0">
             {icon}
           </div>
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
@@ -53,12 +53,12 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
       )}
 
       {/* Title */}
-      <h3 className="text-lg md:text-xl font-extrabold mb-3 md:mb-4 text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors relative z-10">
+      <h3 className="text-lg md:text-xl font-extrabold mb-3 md:mb-4 text-slate-900 group-hover:text-indigo-600 transition-colors relative z-10">
         {title}
       </h3>
 
       {/* Description */}
-      <p className="text-slate-500 dark:text-slate-400 leading-relaxed mb-6 md:mb-8 text-sm md:text-base relative z-10">
+      <p className="text-slate-500 leading-relaxed mb-6 md:mb-8 text-sm md:text-base relative z-10">
         {description}
       </p>
 

@@ -201,7 +201,7 @@ export const TOP_SKILLS_DATA = [
     skills: ["TensorFlow", "PyTorch", "Scikit-learn"],
     note: "Increasing demand due to tech industry growth.",
     insights: "AI startups in San Francisco are driving demand for AI expertise. Consider online courses and certifications in AI to boost your employability in this thriving sector.",
-    color: "border-emerald-200 dark:border-emerald-500/30",
+    color: "border-emerald-200",
     badge: "bg-indigo-600 text-white",
     icon: Rocket,
     iconColor: "bg-emerald-500"
@@ -216,7 +216,7 @@ export const TOP_SKILLS_DATA = [
     skills: ["AWS", "Azure", "Google Cloud"],
     note: "Steady demand with growing emphasis on cloud integration.",
     insights: "Cloud platforms are essential for scalable tech solutions in San Francisco. Gain familiarity with one or more cloud platforms through hands-on projects and certifications.",
-    color: "border-purple-200 dark:border-purple-500/30",
+    color: "border-purple-200",
     badge: "bg-indigo-600 text-white",
     icon: Star,
     iconColor: "bg-purple-500"
@@ -231,7 +231,7 @@ export const TOP_SKILLS_DATA = [
     skills: ["Tableau", "SQL", "Excel"],
     note: "Sustained demand as companies focus on data-driven decisions.",
     insights: "Data analytics is crucial for strategic planning in tech companies. Enhance your data skills through practical courses and real-world data projects.",
-    color: "border-blue-200 dark:border-blue-500/30",
+    color: "border-blue-200",
     badge: "bg-amber-600 text-white",
     icon: Target,
     iconColor: "bg-blue-500"
@@ -246,7 +246,7 @@ export const TOP_SKILLS_DATA = [
     skills: ["Penetration Testing", "Network Security", "Incident Response"],
     note: "Growing due to increased cyber threats.",
     insights: "San Francisco's tech companies prioritize cybersecurity to protect innovations. Pursue cybersecurity certifications and stay updated on industry best practices to capitalize on this demand.",
-    color: "border-slate-200 dark:border-slate-700/50",
+    color: "border-slate-200",
     badge: "bg-indigo-600 text-white",
     icon: Wrench,
     iconColor: "bg-slate-500"

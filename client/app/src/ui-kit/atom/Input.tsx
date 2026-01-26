@@ -32,8 +32,8 @@ const Input: React.FC<InputProps> = ({
   const baseClasses = `
     w-full
     px-4 py-2
-    bg-white dark:bg-slate-900
-    border border-slate-200 dark:border-slate-700
+    bg-white
+    border border-slate-200
     rounded-xl
     text-sm font-medium
     focus:outline-none
@@ -55,7 +55,7 @@ const Input: React.FC<InputProps> = ({
         disabled={disabled}
         className={`
           w-full h-2
-          bg-slate-100 dark:bg-slate-800
+          bg-slate-100
           rounded-lg
           appearance-none
           cursor-pointer

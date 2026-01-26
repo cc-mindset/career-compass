@@ -30,8 +30,8 @@ const Button: React.FC<ButtonProps> = ({
     secondary: 'bg-slate-900 text-white hover:bg-slate-800',
     ghost: 'bg-transparent text-indigo-600 hover:bg-indigo-50',
     outline: 'border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50',
-    indigo: 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/50',
-    slate: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700',
+    indigo: 'bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100',
+    slate: 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100',
     white: 'bg-white text-indigo-600 hover:bg-indigo-50',
   };
 

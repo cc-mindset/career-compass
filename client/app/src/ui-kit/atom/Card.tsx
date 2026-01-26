@@ -9,7 +9,6 @@ export interface CardProps {
   rounded?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
   border?: boolean;
   shadow?: boolean;
-  dark?: boolean;
 }
 
 const Card: React.FC<CardProps> = ({
@@ -21,7 +20,6 @@ const Card: React.FC<CardProps> = ({
   rounded = 'xl',
   border = true,
   shadow = false,
-  dark = false,
 }) => {
   const paddingClasses = {
     sm: 'p-4',
@@ -39,8 +37,8 @@ const Card: React.FC<CardProps> = ({
   };
 
   const baseClasses = `
-    bg-white ${dark ? 'dark:bg-[#111]' : ''}
-    ${border ? 'border border-slate-200 dark:border-slate-800' : ''}
+    bg-white
+    ${border ? 'border border-slate-200' : ''}
     ${roundedClasses[rounded]}
     ${paddingClasses[padding]}
     ${shadow ? 'shadow-sm' : ''}

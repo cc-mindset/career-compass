@@ -14,18 +14,7 @@ import LandingPageView from './components/views/LandingPageView';
 const App: React.FC = () => {
   const [hasStarted, setHasStarted] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('market-insights');
-  const [darkMode, setDarkMode] = useState(false);
   const [user, setUser] = useState<UserProfile>(INITIAL_USER);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
-
-  const toggleDarkMode = () => setDarkMode(!darkMode);
 
   const handleStartJourney = (profileData: UserProfile) => {
     setUser(profileData);
@@ -54,11 +43,9 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden">
+    <div className="flex flex-col h-screen bg-slate-50 text-slate-900 overflow-hidden">
       <Navbar 
         user={user} 
-        darkMode={darkMode} 
-        toggleDarkMode={toggleDarkMode} 
         onProfileClick={() => setCurrentView('profile')}
       />
       
@@ -69,7 +56,7 @@ const App: React.FC = () => {
           user={user}
         />
         
-        <main className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 dark:bg-[#0a0a0a]">
+        <main className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50">
           <div className="max-w-[1400px] mx-auto pt-6 px-4 md:px-8 pb-20 lg:pb-8">
             {renderView()}
           </div>

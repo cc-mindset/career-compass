@@ -11,7 +11,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
   return (
-    <aside className="hidden lg:flex flex-col w-72 bg-white dark:bg-[#111] border-r border-slate-200 dark:border-slate-800 h-full p-6 pt-6 transition-colors duration-300">
+    <aside className="hidden lg:flex flex-col w-72 bg-white border-r border-slate-200 h-full p-6 pt-6">
       {/* Location Card - Deepened Indigo-Slate Gradient */}
       <div className="mb-8 bg-gradient-to-br from-indigo-500 via-indigo-700 to-slate-900 border border-indigo-400/30 p-5 rounded-3xl text-white relative overflow-hidden group lg:h-[160px] flex flex-col justify-center shadow-xl shadow-indigo-900/10">
         <div className="relative z-10">
@@ -45,8 +45,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
               onClick={() => onNavigate(item.id as AppView)}
               className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-200 group ${
                 isActive 
-                  ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-100 dark:border-indigo-900/50' 
-                  : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 border border-transparent'
+                  ? 'bg-indigo-50 text-indigo-600 font-bold border border-indigo-100' 
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600 border border-transparent'
               }`}
             >
               <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
@@ -57,14 +57,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
         })}
       </nav>
 
-      <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-2">
+      <div className="pt-6 border-t border-slate-100 space-y-2">
         {BOTTOM_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.id}
               onClick={() => onNavigate(item.id as AppView)}
-              className="w-full flex items-center gap-4 px-5 py-3 rounded-2xl text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
+              className="w-full flex items-center gap-4 px-5 py-3 rounded-2xl text-slate-500 hover:bg-slate-50 transition-all group"
             >
               <Icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
               <span className="text-base">{item.label}</span>

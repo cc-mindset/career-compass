@@ -27,8 +27,8 @@ const MenuItem: React.FC<MenuItemProps> = ({
         transition-all duration-200 group
         ${
           active
-            ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-100 dark:border-indigo-900/50'
-            : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 border border-transparent'
+            ? 'bg-indigo-50 text-indigo-600 font-bold border border-indigo-100'
+            : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600 border border-transparent'
         }
         ${className}
       `}
