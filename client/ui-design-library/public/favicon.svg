@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background rounded square with shadow effect -->
+  <defs>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.25"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Shadow beneath the icon -->
+  <ellipse cx="32" cy="66" rx="28" ry="3" fill="#000000" opacity="0.2"/>
+  
+  <!-- Background rounded square (purple/violet matching the logo) -->
+  <rect width="64" height="64" rx="18" fill="#5A45FF" filter="url(#shadow)"/>
+  
+  <!-- Briefcase icon with centered rectangular handle (white outline, centered) - larger and thicker -->
+  <g transform="translate(16, 12)" stroke="white" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Main briefcase body (rectangular box) - wider and taller, centered -->
+    <rect x="2" y="12" width="28" height="20" rx="2"/>
+    
+    <!-- Top horizontal line of handle (slightly wider) -->
+    <line x1="11" y1="6" x2="21" y2="6" stroke-width="4.5"/>
+    
+    <!-- Left line from handle end all the way down to bottom of box -->
+    <line x1="11" y1="6" x2="11" y2="32" stroke-width="4.5"/>
+    
+    <!-- Right line from handle end all the way down to bottom of box -->
+    <line x1="21" y1="6" x2="21" y2="32" stroke-width="4.5"/>
+  </g>
+</svg>
