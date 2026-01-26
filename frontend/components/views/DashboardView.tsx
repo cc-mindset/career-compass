@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../types';
 import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA } from '../../constants';
-import { Lightbulb, MapPin, ArrowRight, ChevronsRight, Plus, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench } from 'lucide-react';
+import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench } from 'lucide-react';
 
 interface DashboardViewProps {
   user: UserProfile;
@@ -12,10 +12,211 @@ interface DashboardViewProps {
 const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
   const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
   const [selectedTrendId, setSelectedTrendId] = useState<string | null>(null);
+  const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
+  const [currentTrendIndex, setCurrentTrendIndex] = useState(0);
   
   const newsSectionRef = useRef<HTMLDivElement>(null);
   const trendsSectionRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const newsScrollRef = useRef<HTMLDivElement>(null);
+  const trendsScrollRef = useRef<HTMLDivElement>(null);
+  
+  // Swipe detection for mobile news cards
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [trendTouchStart, setTrendTouchStart] = useState<number | null>(null);
+  const [trendTouchEnd, setTrendTouchEnd] = useState<number | null>(null);
+
+  const totalNewsCards = MOCK_NEWS.length;
+  const totalTrendCards = TREND_REPORTS.length;
+
+  // Navigate to next/previous card on mobile
+  const goToNextCard = () => {
+    if (currentNewsIndex < totalNewsCards - 1 && newsScrollRef.current) {
+      const newIndex = currentNewsIndex + 1;
+      setCurrentNewsIndex(newIndex);
+      // Find the target card element and scroll to it
+      const cards = newsScrollRef.current.children;
+      if (cards[newIndex]) {
+        (cards[newIndex] as HTMLElement).scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'start'
+        });
+      }
+    }
+  };
+
+  const goToPrevCard = () => {
+    if (currentNewsIndex > 0 && newsScrollRef.current) {
+      const newIndex = currentNewsIndex - 1;
+      setCurrentNewsIndex(newIndex);
+      // Find the target card element and scroll to it
+      const cards = newsScrollRef.current.children;
+      if (cards[newIndex]) {
+        (cards[newIndex] as HTMLElement).scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'start'
+        });
+      }
+    }
+  };
+
+  // Swipe handlers
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && currentNewsIndex < totalNewsCards - 1) {
+      goToNextCard();
+    }
+    if (isRightSwipe && currentNewsIndex > 0) {
+      goToPrevCard();
+    }
+  };
+
+  // Navigate to next/previous trend card on mobile
+  const goToNextTrend = () => {
+    if (currentTrendIndex < totalTrendCards - 1 && trendsScrollRef.current) {
+      const newIndex = currentTrendIndex + 1;
+      setCurrentTrendIndex(newIndex);
+      const cards = trendsScrollRef.current.children;
+      if (cards[newIndex]) {
+        (cards[newIndex] as HTMLElement).scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'start'
+        });
+      }
+    }
+  };
+
+  const goToPrevTrend = () => {
+    if (currentTrendIndex > 0 && trendsScrollRef.current) {
+      const newIndex = currentTrendIndex - 1;
+      setCurrentTrendIndex(newIndex);
+      const cards = trendsScrollRef.current.children;
+      if (cards[newIndex]) {
+        (cards[newIndex] as HTMLElement).scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'start'
+        });
+      }
+    }
+  };
+
+  // Swipe handlers for trends
+  const onTrendTouchStart = (e: React.TouchEvent) => {
+    setTrendTouchEnd(null);
+    setTrendTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTrendTouchMove = (e: React.TouchEvent) => {
+    setTrendTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTrendTouchEnd = () => {
+    if (!trendTouchStart || !trendTouchEnd) return;
+    const distance = trendTouchStart - trendTouchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && currentTrendIndex < totalTrendCards - 1) {
+      goToNextTrend();
+    }
+    if (isRightSwipe && currentTrendIndex > 0) {
+      goToPrevTrend();
+    }
+  };
+
+  // Sync scroll position with current index on mobile
+  useEffect(() => {
+    if (newsScrollRef.current && window.innerWidth < 768) {
+      const handleScroll = () => {
+        if (!newsScrollRef.current) return;
+        const scrollLeft = newsScrollRef.current.scrollLeft;
+        const containerWidth = newsScrollRef.current.offsetWidth;
+        const cards = Array.from(newsScrollRef.current.children) as HTMLElement[];
+        
+        // Find which card is most visible
+        let newIndex = 0;
+        let maxVisible = 0;
+        
+        cards.forEach((card, index) => {
+          const cardLeft = card.offsetLeft;
+          const cardWidth = card.offsetWidth;
+          const visibleLeft = Math.max(0, scrollLeft - cardLeft);
+          const visibleRight = Math.min(cardWidth, scrollLeft + containerWidth - cardLeft);
+          const visible = Math.max(0, visibleRight - visibleLeft);
+          
+          if (visible > maxVisible) {
+            maxVisible = visible;
+            newIndex = index;
+          }
+        });
+        
+        if (newIndex !== currentNewsIndex && newIndex >= 0 && newIndex < totalNewsCards) {
+          setCurrentNewsIndex(newIndex);
+        }
+      };
+      
+      const scrollContainer = newsScrollRef.current;
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    }
+  }, [currentNewsIndex, totalNewsCards]);
+
+  // Sync trends scroll position with current index on mobile
+  useEffect(() => {
+    if (trendsScrollRef.current && window.innerWidth < 768) {
+      const handleScroll = () => {
+        if (!trendsScrollRef.current) return;
+        const scrollLeft = trendsScrollRef.current.scrollLeft;
+        const containerWidth = trendsScrollRef.current.offsetWidth;
+        const cards = Array.from(trendsScrollRef.current.children) as HTMLElement[];
+        
+        // Find which card is most visible
+        let newIndex = 0;
+        let maxVisible = 0;
+        
+        cards.forEach((card, index) => {
+          const cardLeft = card.offsetLeft;
+          const cardWidth = card.offsetWidth;
+          const visibleLeft = Math.max(0, scrollLeft - cardLeft);
+          const visibleRight = Math.min(cardWidth, scrollLeft + containerWidth - cardLeft);
+          const visible = Math.max(0, visibleRight - visibleLeft);
+          
+          if (visible > maxVisible) {
+            maxVisible = visible;
+            newIndex = index;
+          }
+        });
+        
+        if (newIndex !== currentTrendIndex && newIndex >= 0 && newIndex < totalTrendCards) {
+          setCurrentTrendIndex(newIndex);
+        }
+      };
+      
+      const scrollContainer = trendsScrollRef.current;
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    }
+  }, [currentTrendIndex, totalTrendCards]);
 
   // Scroll to the respective section when a detail is opened
   useEffect(() => {
@@ -194,22 +395,22 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
               </div>
               <p className="text-slate-500 dark:text-slate-400 font-medium">Potential challenges and mitigation strategies for your career path</p>
             </div>
-            <div className="overflow-hidden bg-white dark:bg-[#0a0a0a] rounded-[2.5rem] border-[1.5px] border-amber-500 dark:border-amber-500/50 shadow-md">
-              <div className="overflow-x-auto">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="min-w-[640px] overflow-hidden bg-white dark:bg-[#0a0a0a] rounded-[1.5rem] md:rounded-[2.5rem] border-[1.5px] border-amber-500 dark:border-amber-500/50 shadow-md">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                     <tr>
-                      <th className="px-8 py-5 text-[10px] font-extrabold uppercase text-slate-900 dark:text-white tracking-widest">Severity</th>
-                      <th className="px-8 py-5 text-[10px] font-extrabold uppercase text-slate-900 dark:text-white tracking-widest">Risk</th>
-                      <th className="px-8 py-5 text-[10px] font-extrabold uppercase text-slate-900 dark:text-white tracking-widest">Affected Sectors</th>
-                      <th className="px-8 py-5 text-[10px] font-extrabold uppercase text-slate-900 dark:text-white tracking-widest">Mitigation Strategy</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 dark:text-white tracking-widest whitespace-nowrap">Severity</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 dark:text-white tracking-widest whitespace-nowrap">Risk</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 dark:text-white tracking-widest whitespace-nowrap">Sectors</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 dark:text-white tracking-widest whitespace-nowrap">Strategy</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {MARKET_RISKS_DATA.map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                        <td className="px-8 py-6 w-[15%]">
-                          <span className={`px-4 py-1.5 rounded-xl text-[10px] font-extrabold uppercase border ${
+                        <td className="px-4 py-4 md:px-8 md:py-6 w-[15%]">
+                          <span className={`px-3 py-1 md:px-4 md:py-1.5 rounded-lg md:rounded-xl text-[10px] font-extrabold uppercase border ${
                             row.severity === 'High' ? 'border-rose-500/30 text-rose-600 bg-rose-50 dark:bg-rose-950/20' : 
                             row.severity === 'Medium' ? 'border-amber-500/30 text-amber-600 bg-amber-50 dark:bg-amber-950/20' : 
                             'border-indigo-500/30 text-indigo-600 bg-indigo-50 dark:bg-indigo-950/20'
@@ -217,17 +418,17 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
                             {row.severity}
                           </span>
                         </td>
-                        <td className="px-8 py-6 font-bold text-slate-900 dark:text-white text-lg w-[20%]">{row.risk}</td>
-                        <td className="px-8 py-6 w-[20%]">
-                          <div className="flex flex-wrap gap-2">
+                        <td className="px-4 py-4 md:px-8 md:py-6 font-bold text-slate-900 dark:text-white text-base md:text-lg w-[20%] min-w-[140px]">{row.risk}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 w-[20%]">
+                          <div className="flex flex-wrap gap-1.5 md:gap-2">
                             {row.sectors.map((s, sIdx) => (
-                              <span key={sIdx} className="px-3 py-1.5 bg-white dark:bg-[#111] border-0 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 shadow-sm transition-all cursor-default">
+                              <span key={sIdx} className="px-2 py-1 md:px-3 md:py-1.5 bg-white dark:bg-[#111] border-0 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold text-slate-700 dark:text-slate-300 shadow-sm transition-all cursor-default">
                                 {s}
                               </span>
                             ))}
                           </div>
                         </td>
-                        <td className="px-8 py-6 text-slate-700 dark:text-slate-300 leading-relaxed text-lg w-[45%]">{row.strategy}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 dark:text-slate-300 leading-relaxed text-sm md:text-lg w-[45%] min-w-[180px]">{row.strategy}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -246,18 +447,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
       case '1':
         return (
           <div className="space-y-12 animate-in fade-in duration-500">
-            <div className="bg-indigo-50/50 dark:bg-indigo-950/10 p-8 rounded-3xl border border-indigo-100 dark:border-indigo-900/50">
-              <div className="flex items-center gap-3 mb-2">
-                <MapPin className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Market Intelligence Report</h2>
+            <div className="bg-indigo-50/50 dark:bg-indigo-950/10 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-indigo-100 dark:border-indigo-900/50">
+              <div className="flex items-center gap-2 md:gap-3 mb-2">
+                <MapPin className="w-6 h-6 md:w-8 md:h-8 text-indigo-600 dark:text-indigo-400" />
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white">Market Intelligence Report</h2>
               </div>
-              <p className="text-indigo-900 dark:text-indigo-300 font-bold mb-1">{location}, {country}</p>
-              <p className="text-slate-500 dark:text-slate-400 font-medium">Your personalized career intelligence based on real labor market data</p>
+              <p className="text-indigo-900 dark:text-indigo-300 font-bold mb-1 text-sm md:text-base">{location}, {country}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-sm md:text-base">Your personalized career intelligence based on real labor market data</p>
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-black dark:text-indigo-400 mb-6">Market News Summary (Based on the Last 2 Months)</h3>
-              <div className="space-y-6 text-slate-700 dark:text-slate-300 leading-relaxed text-lg">
+              <h3 className="text-lg md:text-xl font-bold text-black dark:text-indigo-400 mb-4 md:mb-6">Market News Summary (Based on the Last 2 Months)</h3>
+              <div className="space-y-4 md:space-y-6 text-slate-700 dark:text-slate-300 leading-relaxed text-base md:text-lg">
                 <p>Over the next 3–10 years, {location} and the Bay Area will stay a global jobs hotspot, but the centre of gravity is shifting. The region is still the core hub for AI engineering and advanced tech roles, even after several waves of layoffs. Reports show a massive increase in demand for AI engineers, with the Bay Area as the "center of gravity" for those jobs, even as traditional software roles grow more slowly.</p>
                 <p>At the same time, the Bay Area has seen repeated rounds of tech layoffs in 2024–2025, with thousands of jobs cut as big firms restructure around AI and cost savings. This means mid-level, routine-heavy tech, admin, and customer support roles are under real pressure, while specialised AI, product, data, security, climate-tech, and health-related jobs are gaining ground.</p>
                 <p>For job seekers, the key truth is: the problem is often not you, it's the market. Some roles in the Bay Area are shrinking or being automated. That means you need a strategic pivot, not just a "better CV." At the same time, there are fast-growing paths in AI & data, green/clean energy, climate and sustainability, digital health, and public-interest tech, where your skills can be repurposed with targeted learning.</p>
@@ -265,37 +466,37 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-8 rounded-[2rem] bg-white dark:bg-[#0a0a0a] border-[1.5px] border-emerald-500 shadow-sm">
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold mb-4">
-                  <TrendingUp className="w-5 h-5" />
-                  <span className="uppercase tracking-widest text-xs">Strongest Opportunity</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white dark:bg-[#0a0a0a] border-[1.5px] border-emerald-500 shadow-sm">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold mb-3 md:mb-4">
+                  <TrendingUp className="w-4 h-4 md:w-5 md:h-5" />
+                  <span className="uppercase tracking-widest text-[10px] md:text-xs">Strongest Opportunity</span>
                 </div>
-                <p className="text-xl font-bold text-slate-900 dark:text-white leading-tight">AI & Machine Learning Roles - Driven by tech sector growth and startup expansions in {location}.</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 dark:text-white leading-tight">AI & Machine Learning Roles - Driven by tech sector growth and startup expansions in {location}.</p>
               </div>
               
-              <div className="p-8 rounded-[2rem] bg-white dark:bg-[#0a0a0a] border-[1.5px] border-rose-500 shadow-sm">
-                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold mb-4">
-                  <AlertTriangle className="w-5 h-5" />
-                  <span className="uppercase tracking-widest text-xs">Highest Risk Sector</span>
+              <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white dark:bg-[#0a0a0a] border-[1.5px] border-rose-500 shadow-sm">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold mb-3 md:mb-4">
+                  <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" />
+                  <span className="uppercase tracking-widest text-[10px] md:text-xs">Highest Risk Sector</span>
                 </div>
-                <p className="text-xl font-bold text-slate-900 dark:text-white leading-tight">Trade-Dependent Industries - Impacted by international trade policies on local industries.</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 dark:text-white leading-tight">Trade-Dependent Industries - Impacted by international trade policies on local industries.</p>
               </div>
               
-              <div className="p-8 rounded-[2rem] bg-white dark:bg-[#0a0a0a] border-[1.5px] border-indigo-500 shadow-sm">
-                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold mb-4">
-                  <Target className="w-5 h-5" />
-                  <span className="uppercase tracking-widest text-xs">Top Skill Demand</span>
+              <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white dark:bg-[#0a0a0a] border-[1.5px] border-indigo-500 shadow-sm">
+                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold mb-3 md:mb-4">
+                  <Target className="w-4 h-4 md:w-5 md:h-5" />
+                  <span className="uppercase tracking-widest text-[10px] md:text-xs">Top Skill Demand</span>
                 </div>
-                <p className="text-xl font-bold text-slate-900 dark:text-white leading-tight">AI & Machine Learning expertise</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 dark:text-white leading-tight">AI & Machine Learning expertise</p>
               </div>
               
-              <div className="p-8 rounded-[2rem] bg-white dark:bg-[#0a0a0a] border-[1.5px] border-lime-500 shadow-sm">
-                <div className="flex items-center gap-2 text-lime-600 dark:text-lime-400 font-bold mb-4">
-                  <RefreshCw className="w-5 h-5" />
-                  <span className="uppercase tracking-widest text-xs">Pivot Necessity</span>
+              <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white dark:bg-[#0a0a0a] border-[1.5px] border-lime-500 shadow-sm">
+                <div className="flex items-center gap-2 text-lime-600 dark:text-lime-400 font-bold mb-3 md:mb-4">
+                  <RefreshCw className="w-4 h-4 md:w-5 md:h-5" />
+                  <span className="uppercase tracking-widest text-[10px] md:text-xs">Pivot Necessity</span>
                 </div>
-                <p className="text-xl font-bold text-slate-900 dark:text-white leading-tight">Moderate</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 dark:text-white leading-tight">Moderate</p>
               </div>
             </div>
           </div>
@@ -303,15 +504,15 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
       case '2':
         return (
           <div className="space-y-12 animate-in fade-in duration-500">
-            <div className="bg-sky-50 dark:bg-sky-950/20 p-8 rounded-3xl border border-sky-100 dark:border-sky-900/50">
-              <div className="flex items-center gap-3 mb-2">
-                <BarChart2 className="w-8 h-8 text-sky-600 dark:text-sky-400" />
-                <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Labour Market Snapshot</h2>
+            <div className="bg-sky-50 dark:bg-sky-950/20 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-sky-100 dark:border-sky-900/50">
+              <div className="flex items-center gap-2 md:gap-3 mb-2">
+                <BarChart2 className="w-6 h-6 md:w-8 md:h-8 text-sky-600 dark:text-sky-400" />
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white">Labour Market Snapshot</h2>
               </div>
-              <p className="text-slate-500 dark:text-slate-400 font-medium">Current state of the job market in {location}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-sm md:text-base">Current state of the job market in {location}</p>
             </div>
             
-            <div className="space-y-8 text-lg text-slate-700 dark:text-slate-300 leading-relaxed">
+            <div className="space-y-6 md:space-y-8 text-base md:text-lg text-slate-700 dark:text-slate-300 leading-relaxed">
               <p>The employment rate for software publishers in {location} showed a slight decline from 409.9 in June 2025 to 401.1 in August 2025 (BLS Employment Data). This trend reflects broader market adjustments, with tech roles continuing to be a significant part of the employment landscape. Nationally, similar trends in tech employment suggest a stabilization rather than marked growth.</p>
               <p>Comparatively, {location} remains a competitive market, especially for tech professionals, despite national cooling trends. The city's focus on innovation and high-tech industries continues to drive demand for skilled workers, although the overall market health shows signs of slowing growth.</p>
             </div>
@@ -319,8 +520,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
             <InsightBox text="San Francisco's tech-driven market remains more resilient compared to national averages, which are experiencing broader contractions in various sectors. The local emphasis on AI and tech innovation offers a buffer against national economic pressures." />
             
             <div>
-              <p className="font-bold text-slate-900 dark:text-white mb-6">Major Market Drivers:</p>
-              <div className="flex flex-wrap gap-3">
+              <p className="font-bold text-slate-900 dark:text-white mb-4 md:mb-6 text-sm md:text-base">Major Market Drivers:</p>
+              <div className="flex flex-wrap gap-2 md:gap-3">
                 {[
                   "AI startup expansion in San Francisco",
                   "High cost of living and competitive hiring benefits",
@@ -330,7 +531,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
                 ].map((tag, i) => (
                   <div 
                     key={i} 
-                    className="px-5 py-3 bg-white dark:bg-[#111] border border-slate-200 dark:border-slate-800 rounded-[1rem] text-sm font-bold uppercase text-slate-700 dark:text-slate-300 transition-all cursor-default"
+                    className="px-4 py-2 md:px-5 md:py-3 bg-white dark:bg-[#111] border border-slate-200 dark:border-slate-800 rounded-lg md:rounded-[1rem] text-xs md:text-sm font-bold uppercase text-slate-700 dark:text-slate-300 transition-all cursor-default"
                   >
                     {tag}
                   </div>
@@ -338,18 +539,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="p-8 rounded-[2.5rem] text-center border-[1.5px] border-emerald-500 bg-transparent">
-                <p className="text-slate-900 dark:text-white text-xs font-bold uppercase mb-2">Employment Rate</p>
-                <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">4.1% to 4.3% (mid-2025)</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+              <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-emerald-500 bg-transparent">
+                <p className="text-slate-900 dark:text-white text-[10px] md:text-xs font-bold uppercase mb-2">Employment Rate</p>
+                <p className="text-xl md:text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">4.1% to 4.3% (mid-2025)</p>
               </div>
-              <div className="p-8 rounded-[2.5rem] text-center border-[1.5px] border-rose-500 bg-transparent">
-                <p className="text-slate-900 dark:text-white text-xs font-bold uppercase mb-2">Job Growth Rate</p>
-                <p className="text-2xl font-extrabold text-rose-600 dark:text-rose-400">Declining</p>
+              <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-rose-500 bg-transparent">
+                <p className="text-slate-900 dark:text-white text-[10px] md:text-xs font-bold uppercase mb-2">Job Growth Rate</p>
+                <p className="text-xl md:text-2xl font-extrabold text-rose-600 dark:text-rose-400">Declining</p>
               </div>
-              <div className="p-8 rounded-[2.5rem] text-center border-[1.5px] border-indigo-500 bg-transparent">
-                <p className="text-slate-900 dark:text-white text-xs font-bold uppercase mb-2">Overall Trend</p>
-                <p className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">Stable</p>
+              <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-indigo-500 bg-transparent">
+                <p className="text-slate-900 dark:text-white text-[10px] md:text-xs font-bold uppercase mb-2">Overall Trend</p>
+                <p className="text-xl md:text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">Stable</p>
               </div>
             </div>
           </div>
@@ -357,59 +558,61 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
       case '3':
         return (
           <div className="space-y-12 animate-in fade-in duration-500">
-            <div className="bg-amber-50 dark:bg-amber-950/20 p-8 rounded-3xl border border-amber-100 dark:border-indigo-900/50">
-              <div className="flex items-center gap-3 mb-2">
-                <MapPin className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">{location} vs Broader Region</h2>
+            <div className="bg-amber-50 dark:bg-amber-950/20 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-amber-100 dark:border-indigo-900/50">
+              <div className="flex items-center gap-2 md:gap-3 mb-2">
+                <MapPin className="w-6 h-6 md:w-8 md:h-8 text-indigo-600 dark:text-indigo-400" />
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white">{location} vs Broader Region</h2>
               </div>
-              <p className="text-slate-500 dark:text-slate-400 font-medium">How your city compares to the wider region</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-sm md:text-base">How your city compares to the wider region</p>
             </div>
             
-            <div className="overflow-hidden bg-white dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-200 dark:border-slate-800">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="px-8 py-5 text-sm font-bold text-slate-900 dark:text-white">Factor</th>
-                    <th className="px-8 py-5 text-sm font-bold text-amber-600 dark:text-amber-400">{location}</th>
-                    <th className="px-8 py-5 text-sm font-bold text-amber-600 dark:text-amber-400">Wider Region</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {[
-                    { 
-                      f: "Overall job market trend", 
-                      l: "High-skill, high-volatility – strong demand in AI, frontier tech, finance, product, design; repeated restructuring in big tech and startups.", 
-                      w: "Mixed but resilient – strong in healthcare, education, logistics, clean energy, advanced manufacturing and public services, with tech distributed across the region." 
-                    },
-                    { 
-                      f: "Remote / hybrid work trend", 
-                      l: "Prevalent in tech and startups; hybrid arrangements are common to attract talent.", 
-                      w: "Varies by industry; manufacturing and logistics are more on-site, while tech and services offer hybrid options." 
-                    },
-                    { 
-                      f: "Notable structural shifts", 
-                      l: "AI startups leasing luxury apartments and offering benefits to attract talent (News 3, News 4).", 
-                      w: "Less reliant on such incentives; broader range of sectors not as tech-centric." 
-                    },
-                    { 
-                      f: "Cost of living / compensation", 
-                      l: "High cost of living offset by competitive tech salaries and benefits.", 
-                      w: "Lower cost of living with salaries adjusted accordingly; less pressure on housing costs." 
-                    },
-                    { 
-                      f: "Industry distribution", 
-                      l: "Dominated by tech, finance, and innovative sectors.", 
-                      w: `Diverse with ${location} holding strong presence in healthcare, education, and manufacturing.` 
-                    }
-                  ].map((row, i) => (
-                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                      <td className="px-8 py-6 font-bold text-slate-900 dark:text-white w-[25%]">{row.f}</td>
-                      <td className="px-8 py-6 text-slate-700 dark:text-slate-300 leading-relaxed text-lg w-[37.5%]">{row.l}</td>
-                      <td className="px-8 py-6 text-slate-700 dark:text-slate-300 leading-relaxed text-lg w-[37.5%]">{row.w}</td>
+            <div className="overflow-x-auto -mx-4 sm:mx-0 sm:overflow-visible">
+              <div className="min-w-[640px] overflow-hidden bg-white dark:bg-slate-900/50 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-slate-900 dark:text-white">Factor</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-amber-600 dark:text-amber-400">{location}</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-amber-600 dark:text-amber-400">Wider Region</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {[
+                      { 
+                        f: "Overall job market trend", 
+                        l: "High-skill, high-volatility – strong demand in AI, frontier tech, finance, product, design; repeated restructuring in big tech and startups.", 
+                        w: "Mixed but resilient – strong in healthcare, education, logistics, clean energy, advanced manufacturing and public services, with tech distributed across the region." 
+                      },
+                      { 
+                        f: "Remote / hybrid work trend", 
+                        l: "Prevalent in tech and startups; hybrid arrangements are common to attract talent.", 
+                        w: "Varies by industry; manufacturing and logistics are more on-site, while tech and services offer hybrid options." 
+                      },
+                      { 
+                        f: "Notable structural shifts", 
+                        l: "AI startups leasing luxury apartments and offering benefits to attract talent (News 3, News 4).", 
+                        w: "Less reliant on such incentives; broader range of sectors not as tech-centric." 
+                      },
+                      { 
+                        f: "Cost of living / compensation", 
+                        l: "High cost of living offset by competitive tech salaries and benefits.", 
+                        w: "Lower cost of living with salaries adjusted accordingly; less pressure on housing costs." 
+                      },
+                      { 
+                        f: "Industry distribution", 
+                        l: "Dominated by tech, finance, and innovative sectors.", 
+                        w: `Diverse with ${location} holding strong presence in healthcare, education, and manufacturing.` 
+                      }
+                    ].map((row, i) => (
+                      <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                        <td className="px-4 py-4 md:px-8 md:py-6 font-bold text-slate-900 dark:text-white w-[25%] text-xs md:text-base">{row.f}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 dark:text-slate-300 leading-relaxed text-xs md:text-lg w-[37.5%]">{row.l}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 dark:text-slate-300 leading-relaxed text-xs md:text-lg w-[37.5%]">{row.w}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
             
             <InsightBox text="Understanding these regional differences helps you position yourself strategically. Your city may have different opportunities, compensation levels, and work arrangements than the broader region." />
@@ -471,17 +674,17 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
               <h1 className="text-2xl md:text-4xl font-extrabold mb-1 flex items-center gap-3 tracking-tight text-white">
                 Welcome back, {user.name.split(' ')[0]}! 👋
               </h1>
-              <p className="text-indigo-50 text-sm md:text-lg font-medium tracking-tight opacity-90">Here's what's happening in your industry today</p>
+              <p className="text-indigo-50 text-base md:text-lg font-medium tracking-tight opacity-90">Here's what's happening in your industry today</p>
             </div>
             
             <div className="flex flex-wrap items-center gap-3">
-              <div className="bg-white/10 backdrop-blur-xl px-5 py-2.5 rounded-2xl border border-white/20 flex items-center gap-3 transition-transform hover:scale-105 shadow-sm text-white">
-                <Briefcase className="w-4 h-4 text-indigo-100" />
-                <span className="text-xs font-bold uppercase tracking-widest">{user.role}</span>
+              <div className="bg-white/10 backdrop-blur-xl px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl border border-white/20 flex items-center gap-2 md:gap-3 transition-transform hover:scale-105 shadow-sm text-white">
+                <Briefcase className="w-3 h-3 md:w-4 md:h-4 text-indigo-100" />
+                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">{user.role}</span>
               </div>
-              <div className="bg-white/10 backdrop-blur-xl px-5 py-2.5 rounded-2xl border border-white/20 flex items-center gap-3 transition-transform hover:scale-105 shadow-sm text-white">
-                <GraduationCap className="w-4 h-4 text-indigo-100" />
-                <span className="text-xs font-bold uppercase tracking-widest">{user.experience} Experience</span>
+              <div className="bg-white/10 backdrop-blur-xl px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl border border-white/20 flex items-center gap-2 md:gap-3 transition-transform hover:scale-105 shadow-sm text-white">
+                <GraduationCap className="w-3 h-3 md:w-4 md:h-4 text-indigo-100" />
+                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">{user.experience.replace(/\s*\([^)]*\)\s*/g, '').trim()}</span>
               </div>
             </div>
           </div>
@@ -496,31 +699,52 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
         <section ref={newsSectionRef} className="relative transition-all duration-500 scroll-mt-24">
           {!selectedNewsId ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="flex items-center justify-between mb-8 px-2">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Market Report</h2>
+              <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">Market Report</h2>
                 </div>
-                <div className="text-indigo-600 dark:text-indigo-400">
-                  <ChevronsRight className="w-6 h-6 animate-pulse" />
+                <div className="flex items-center gap-2">
+                  {/* Mobile navigation arrows */}
+                  <div className="flex items-center gap-1 md:hidden">
+                    <button
+                      onClick={goToPrevCard}
+                      disabled={currentNewsIndex === 0}
+                      className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all touch-manipulation"
+                      aria-label="Previous card"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={goToNextCard}
+                      disabled={currentNewsIndex >= totalNewsCards - 1}
+                      className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all touch-manipulation"
+                      aria-label="Next card"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Desktop indicator */}
+                  <div className="hidden md:block text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+                    <ChevronsRight className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
+                  </div>
                 </div>
               </div>
               
-              <div className="flex overflow-x-auto gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory">
-                {MOCK_NEWS.map(article => (
-                  <div key={article.id} className="min-w-[85%] md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start">
+              <div 
+                ref={newsScrollRef}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+                className="flex overflow-x-auto gap-4 md:gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory md:snap-none"
+              >
+                {MOCK_NEWS.map((article, index) => (
+                  <div 
+                    key={article.id} 
+                    className="min-w-full md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start"
+                  >
                     <NewsCard article={article} onClick={() => setSelectedNewsId(article.id)} />
                   </div>
                 ))}
-                
-                <div className="min-w-[85%] md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start">
-                  <div 
-                    onClick={() => onNavigate('news')}
-                    className="h-full group bg-slate-100 dark:bg-slate-900/50 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center p-8 text-center hover:border-indigo-500 transition-all cursor-pointer"
-                  >
-                    <Plus className="w-8 h-8 text-indigo-600 mb-4" />
-                    <h3 className="font-bold text-lg">Discover More</h3>
-                  </div>
-                </div>
               </div>
             </div>
           ) : (
@@ -528,7 +752,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
               <button onClick={closeNewsDetail} className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold mb-8 hover:gap-3 transition-all">
                 <ArrowLeft className="w-5 h-5" /> Back to Market Report
               </button>
-              <div className="bg-white dark:bg-[#111] rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-8 md:p-12 shadow-sm ring-1 ring-slate-200/50 dark:ring-slate-800/50">
+              <div className="bg-white dark:bg-[#111] rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-6 md:p-8 lg:p-12 shadow-sm ring-1 ring-slate-200/50 dark:ring-slate-800/50">
                 {renderArticleContent(selectedNewsId, user.location, user.country)}
               </div>
             </div>
@@ -539,18 +763,46 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
         <section ref={trendsSectionRef} className="relative transition-all duration-500 scroll-mt-24">
           {!selectedTrendId ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="flex items-center justify-between mb-8 px-2">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Industry Growth and Decline Trends</h2>
+              <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white line-clamp-2 sm:line-clamp-1">Industry Growth and Decline Trends</h2>
                 </div>
-                <div className="text-indigo-600 dark:text-indigo-400">
-                  <ChevronsRight className="w-6 h-6 animate-pulse" />
+                <div className="flex items-center gap-2">
+                  {/* Mobile navigation arrows */}
+                  <div className="flex items-center gap-1 md:hidden">
+                    <button
+                      onClick={goToPrevTrend}
+                      disabled={currentTrendIndex === 0}
+                      className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all touch-manipulation"
+                      aria-label="Previous trend"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={goToNextTrend}
+                      disabled={currentTrendIndex >= totalTrendCards - 1}
+                      className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all touch-manipulation"
+                      aria-label="Next trend"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Desktop indicator */}
+                  <div className="hidden md:block text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+                    <ChevronsRight className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
+                  </div>
                 </div>
               </div>
               
-              <div className="flex overflow-x-auto gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory">
+              <div 
+                ref={trendsScrollRef}
+                onTouchStart={onTrendTouchStart}
+                onTouchMove={onTrendTouchMove}
+                onTouchEnd={onTrendTouchEnd}
+                className="flex overflow-x-auto gap-4 md:gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory md:snap-none"
+              >
                 {TREND_REPORTS.map(report => (
-                  <div key={report.id} className="min-w-[85%] md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start">
+                  <div key={report.id} className="min-w-full md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start">
                     <TrendCard report={report} onClick={() => setSelectedTrendId(report.id)} />
                   </div>
                 ))}
@@ -561,7 +813,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
               <button onClick={closeTrendDetail} className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold mb-8 hover:gap-3 transition-all">
                 <ArrowLeft className="w-5 h-5" /> Back to Industry Trends
               </button>
-              <div className="bg-white dark:bg-[#111] rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-8 md:p-12 shadow-sm ring-1 ring-slate-200/50 dark:ring-slate-800/50 min-h-[500px]">
+              <div className="bg-white dark:bg-[#111] rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-6 md:p-8 lg:p-12 shadow-sm ring-1 ring-slate-200/50 dark:ring-slate-800/50 min-h-[400px] md:min-h-[500px]">
                 {renderTrendDetail(selectedTrendId, user.location)}
               </div>
             </div>
@@ -572,22 +824,22 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
         {!selectedNewsId && !selectedTrendId && (
           <section className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
             {/* Title Section with GREEN PULSE */}
-            <div className="mb-8 px-2 flex items-center gap-3">
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Recent Market News</h2>
-              <div className="relative flex h-2.5 w-2.5">
+            <div className="mb-6 md:mb-8 px-2 flex items-center gap-3">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Recent Market News</h2>
+              <div className="relative flex h-2.5 w-2.5 flex-shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </div>
             </div>
             
             {/* Unified White Background Card Container with Graffiti Pattern - 1rem BORDER RADIUS */}
-            <div className="relative graffiti-pattern rounded-[1rem] p-6 md:p-10 shadow-xl shadow-indigo-500/5 overflow-hidden group-marquee">
+            <div className="relative graffiti-pattern rounded-[1rem] p-4 sm:p-6 md:p-10 shadow-xl shadow-indigo-500/5 overflow-hidden group-marquee">
               {/* Manual scroll container - uses JS scroll hijacking to loop infinitely */}
               <div 
                 ref={scrollContainerRef}
-                className="relative -mx-10 overflow-x-auto py-4 hide-scrollbar transition-all duration-300 snap-none"
+                className="relative -mx-4 sm:-mx-6 md:-mx-10 overflow-x-auto py-4 hide-scrollbar transition-all duration-300 snap-none"
               >
-                <div className="animate-marquee-cards gap-12">
+                <div className="animate-marquee-cards gap-4 sm:gap-6 md:gap-12">
                   {/* Triple buffer for absolute seamless infinite loop: Set A | Set A | Set A */}
                   {[...RECENT_NEWS_DATA, ...RECENT_NEWS_DATA, ...RECENT_NEWS_DATA].map((news, index) => (
                     <RecentNewsCard key={`${news.id}-${index}`} news={news} />
@@ -595,8 +847,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
                 </div>
                 
                 {/* Horizontal Fade Overlays: ensure they are within the container and blend with the background */}
-                <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#ffffff] dark:from-[#0c0e17] to-transparent pointer-events-none z-10" />
-                <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#ffffff] dark:from-[#0c0e17] to-transparent pointer-events-none z-10" />
+                <div className="absolute inset-y-0 left-0 w-16 sm:w-24 md:w-32 bg-gradient-to-r from-[#ffffff] dark:from-[#0c0e17] to-transparent pointer-events-none z-10" />
+                <div className="absolute inset-y-0 right-0 w-16 sm:w-24 md:w-32 bg-gradient-to-l from-[#ffffff] dark:from-[#0c0e17] to-transparent pointer-events-none z-10" />
               </div>
             </div>
           </section>
@@ -608,13 +860,13 @@ const DashboardView: React.FC<DashboardViewProps> = ({ user, onNavigate }) => {
 
 const RecentNewsCard: React.FC<{ news: RecentNewsArticle }> = ({ news }) => {
   return (
-    <div className="w-[480px] md:w-[540px] bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-sm border border-indigo-600/50 dark:border-indigo-400/50 rounded-[1.5rem] p-8 transition-all duration-300 hover:bg-white dark:hover:bg-[#222] hover:scale-[1.02] shadow-none">
+    <div className="min-w-[280px] w-[85vw] sm:min-w-[360px] sm:w-[400px] md:w-[480px] lg:w-[540px] flex-shrink-0 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-sm border border-indigo-600/50 dark:border-indigo-400/50 rounded-[1.5rem] p-6 md:p-8 transition-all duration-300 hover:bg-white dark:hover:bg-[#222] hover:scale-[1.02] shadow-none">
       {/* 1PX INDIGO BORDER, BOX SHADOWS REMOVED */}
-      <div className="flex justify-between items-start mb-6">
-        <h3 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white leading-tight flex-1 mr-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-4 md:mb-6">
+        <h3 className="text-lg sm:text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white leading-tight flex-1 min-w-0">
           {news.title}
         </h3>
-        <span className={`px-4 py-1.5 rounded-2xl text-[10px] font-extrabold uppercase tracking-widest flex-shrink-0 ${
+        <span className={`px-3 py-1.5 rounded-xl md:rounded-2xl text-[10px] font-extrabold uppercase tracking-widest flex-shrink-0 w-fit ${
           news.sentiment === 'Positive' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-500/20' :
           news.sentiment === 'Negative' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 border border-rose-500/20' :
           'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700'
@@ -623,13 +875,13 @@ const RecentNewsCard: React.FC<{ news: RecentNewsArticle }> = ({ news }) => {
         </span>
       </div>
 
-      <p className="text-slate-600 dark:text-slate-400 text-base md:text-lg leading-relaxed mb-8 line-clamp-2 font-medium">
+      <p className="text-slate-600 dark:text-slate-400 text-sm md:text-base lg:text-lg leading-relaxed mb-6 md:mb-8 line-clamp-2 font-medium">
         {news.excerpt}
       </p>
 
       {/* CONSOLIDATED FOOTER: REPLACED LIVE WEB WITH RELEVANCE METER */}
-      <div className="pt-6 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-6">
+      <div className="pt-4 md:pt-6 border-t border-slate-200/60 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
               <Calendar className="w-3.5 h-3.5" />
@@ -641,21 +893,21 @@ const RecentNewsCard: React.FC<{ news: RecentNewsArticle }> = ({ news }) => {
             <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
               <Library className="w-3.5 h-3.5" />
             </div>
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{news.source}</span>
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 truncate max-w-[120px] sm:max-w-none">{news.source}</span>
           </div>
         </div>
 
         {/* UPDATED RELEVANCE METER: GAUGE ICON ON THE LEFT */}
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 shadow-sm">
-            <Gauge className="w-4 h-4" />
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="p-1.5 sm:p-2 bg-indigo-50 dark:bg-indigo-950/30 rounded-lg sm:rounded-xl border border-indigo-200 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 shadow-sm flex-shrink-0">
+            <Gauge className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1 min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest whitespace-nowrap">Relevance to Profile</span>
-              <span className="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400">{news.relevance * 10}%</span>
+              <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-widest whitespace-nowrap">Relevance</span>
+              <span className="text-[10px] sm:text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 flex-shrink-0">{news.relevance * 10}%</span>
             </div>
-            <div className="h-1.5 w-32 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200/40 dark:border-slate-700/40">
+            <div className="h-1.5 w-24 sm:w-32 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200/40 dark:border-slate-700/40">
               <div 
                 className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(99,102,241,0.4)]"
                 style={{ width: `${news.relevance * 10}%` }}
@@ -756,12 +1008,18 @@ const TrendCard: React.FC<{ report: any; onClick: () => void }> = ({ report, onC
 };
 
 const InsightBox: React.FC<{ text: string; compact?: boolean; forceBaseSize?: boolean }> = ({ text, compact = false, forceBaseSize = false }) => (
-  <div className={`bg-amber-50/50 dark:bg-amber-950/15 rounded-[2rem] flex gap-4 animate-in fade-in slide-in-from-left-2 duration-300 border border-amber-400/60 dark:border-amber-400/50 shadow-sm ${compact && !forceBaseSize ? 'p-5 md:p-6' : 'p-6 md:p-8'}`}>
+  <div className={`bg-amber-50/50 dark:bg-amber-950/15 rounded-[1.5rem] md:rounded-[2rem] flex gap-3 md:gap-4 animate-in fade-in slide-in-from-left-2 duration-300 border border-amber-400/60 dark:border-amber-400/50 shadow-sm ${compact && !forceBaseSize ? 'p-4 md:p-5 lg:p-6' : 'p-5 md:p-6 lg:p-8'}`}>
     <div className="pt-1">
-      <Lightbulb className={`${compact && !forceBaseSize ? 'w-4 h-4' : 'w-6 h-6'} text-amber-600 dark:text-amber-400 flex-shrink-0`} />
+      <Lightbulb className={`${compact && !forceBaseSize ? 'w-4 h-4' : 'w-5 h-5 md:w-6 md:h-6'} text-amber-600 dark:text-amber-400 flex-shrink-0`} />
     </div>
     <div>
-      <p className={`text-slate-700 dark:text-slate-300 leading-relaxed italic ${forceBaseSize ? 'text-base' : compact ? 'text-sm' : 'text-lg'}`}>
+      <p className={`text-slate-700 dark:text-slate-300 leading-relaxed italic ${
+        forceBaseSize 
+          ? 'text-sm md:text-base' 
+          : compact 
+            ? 'text-xs md:text-sm' 
+            : 'text-base md:text-lg'
+      }`}>
         <span className="font-bold text-slate-900 dark:text-white not-italic">Insights:</span> {text}
       </p>
     </div>

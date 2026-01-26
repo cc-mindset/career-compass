@@ -48,6 +48,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [openFeatureIndex, setOpenFeatureIndex] = useState<number | null>(null);
 
   const activeStep = STEPS[currentStep];
   const filteredOptions = activeStep.options.filter(opt => 
@@ -107,7 +108,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       company: formData.employers,
       location: formData.location,
       country: formData.location.includes(',') ? formData.location.split(',')[1].trim() : "United States",
-      experience: formData.seniority,
+      experience: formData.seniority ? formData.seniority.replace(/\s*\([^)]*\)\s*/g, '').trim() : '',
       // 'avataaars' with 'smile' mouth mouth provides a professional and friendly look
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name || 'User')}&mouth=smile&backgroundColor=E0E7FF`,
       skills: formData.skills,
@@ -126,34 +127,39 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       if (formData.skills.length === 0) return activeStep.label;
       return `${formData.skills.length} skills selected`;
     }
-    return (formData as any)[activeStep.key] || activeStep.label;
+    const value = (formData as any)[activeStep.key] || activeStep.label;
+    // Remove the "(0-2 Yrs)" part from seniority values
+    if (activeStep.key === 'seniority' && value && value !== activeStep.label) {
+      return value.replace(/\s*\([^)]*\)\s*/g, '').trim();
+    }
+    return value;
   };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-indigo-100 overflow-x-hidden flex flex-col">
       {/* Header */}
-      <header className="max-w-7xl mx-auto w-full px-6 h-20 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-600/20">
-            <Briefcase className="w-5 h-5 text-white" />
+      <header className="max-w-7xl mx-auto w-full px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="bg-indigo-600 p-1.5 sm:p-2 rounded-xl shadow-lg shadow-indigo-600/20 flex-shrink-0">
+            <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">CareerCompass</h1>
+          <h1 className="text-base sm:text-xl font-bold tracking-tight text-slate-900 truncate">CareerCompass</h1>
         </div>
         <button 
-          className="text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors"
+          className="text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors flex-shrink-0 touch-manipulation"
         >
           Sign In
         </button>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto px-6 pt-0 pb-12 flex flex-col items-center justify-center text-center">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 pt-0 pb-12 flex flex-col items-center justify-center text-center">
         {/* Hero Content */}
-        <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 mb-12 -mt-28 md:-mt-36">
-          <h1 className="text-4xl md:text-7xl font-extrabold mb-8 tracking-tight leading-[1.05] text-slate-950 max-w-5xl mx-auto">
+        <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 mb-6 md:mb-12 -mt-12 md:-mt-36">
+          <h1 className="text-4xl md:text-7xl font-extrabold mb-4 md:mb-8 tracking-tight leading-[1.05] text-slate-950 max-w-5xl mx-auto">
             Your AI-Powered <br />
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">Career Guide</span>
           </h1>
-          <p className="max-w-2xl mx-auto text-slate-500 text-base md:text-xl font-normal leading-relaxed mb-12">
+          <p className="max-w-2xl mx-auto text-slate-500 text-base md:text-xl font-normal leading-relaxed mb-4 md:mb-12">
             Navigate your career journey with personalized recommendations, skill gap analysis, and real-time job market insights.
           </p>
         </div>
@@ -179,7 +185,11 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
                   onClick={() => setIsOpen(!isOpen)}
                   className="group flex items-center justify-between cursor-pointer"
                 >
-                  <h3 className="text-base md:text-lg font-bold text-slate-900 truncate">
+                  <h3 className={`font-bold text-slate-900 truncate ${
+                    (activeStep.key === 'role' || activeStep.key === 'seniority') 
+                      ? 'text-sm md:text-lg' 
+                      : 'text-base md:text-lg'
+                  }`}>
                     {currentStepValue()}
                   </h3>
                   <ChevronRight className={`w-4 h-4 text-slate-300 transition-transform duration-300 ml-2 ${isOpen ? 'rotate-90' : ''}`} />
@@ -333,21 +343,30 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
         )}
 
         {/* Feature Highlights */}
-        <div className="mt-32 flex flex-wrap justify-center gap-10 md:gap-20 w-full max-w-4xl animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
+        <div className="mt-24 md:mt-32 flex flex-wrap justify-center gap-y-16 gap-x-10 md:gap-20 w-full max-w-4xl animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
           <FeatureHoverItem 
+            index={0}
             icon={<Target className="w-6 h-6" />}
             title="Career Matching"
             description="Find roles that align with your profile and ambitions using intelligent matching algorithms."
+            isOpen={openFeatureIndex === 0}
+            onToggle={() => setOpenFeatureIndex(openFeatureIndex === 0 ? null : 0)}
           />
           <FeatureHoverItem 
+            index={1}
             icon={<BarChart3 className="w-6 h-6" />}
             title="Market Insights"
             description="Stay informed with trends, demand signals, and salary benchmarks for your target roles."
+            isOpen={openFeatureIndex === 1}
+            onToggle={() => setOpenFeatureIndex(openFeatureIndex === 1 ? null : 1)}
           />
           <FeatureHoverItem 
+            index={2}
             icon={<GraduationCap className="w-6 h-6" />}
             title="Skill Development"
             description="Target learning paths and practice plans to close skill gaps and grow your career readiness."
+            isOpen={openFeatureIndex === 2}
+            onToggle={() => setOpenFeatureIndex(openFeatureIndex === 2 ? null : 2)}
           />
         </div>
       </main>
@@ -355,19 +374,78 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   );
 };
 
-const FeatureHoverItem = ({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) => (
-  <div className="group relative flex flex-col items-center">
-    <div className="p-6 rounded-[1.75rem] bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 hover:scale-110 hover:bg-indigo-100 transition-all duration-300 cursor-pointer shadow-lg shadow-indigo-600/5">
-      {icon}
+interface FeatureHoverItemProps {
+  index: number;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+const FeatureHoverItem: React.FC<FeatureHoverItemProps> = ({ index, icon, title, description, isOpen, onToggle }) => {
+  const featureRef = useRef<HTMLDivElement>(null);
+  
+  // Shift popup towards center on mobile for first (0) and third (2) icons
+  const getMobilePosition = () => {
+    if (index === 0) {
+      // First icon: shift right (towards center) - increased shift
+      return 'sm:left-1/2 sm:-translate-x-1/2 left-[calc(50%+4rem)] -translate-x-1/2';
+    } else if (index === 2) {
+      // Third icon: shift left (towards center) - increased shift
+      return 'sm:left-1/2 sm:-translate-x-1/2 left-[calc(50%-4rem)] -translate-x-1/2';
+    }
+    return 'left-1/2 -translate-x-1/2';
+  };
+
+  // Close popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (featureRef.current && !featureRef.current.contains(event.target as Node)) {
+        if (isOpen) {
+          onToggle();
+        }
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isOpen, onToggle]);
+
+  return (
+    <div ref={featureRef} className="group relative flex flex-col items-center">
+      <button
+        onClick={onToggle}
+        className={`p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[1.75rem] bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 transition-all duration-300 cursor-pointer shadow-lg shadow-indigo-600/5 touch-manipulation ${
+          isOpen 
+            ? 'scale-110 bg-indigo-100 dark:bg-indigo-900/50' 
+            : 'hover:scale-110 hover:bg-indigo-100'
+        }`}
+        aria-expanded={isOpen}
+        aria-label={`${title} - ${description}`}
+      >
+        {icon}
+      </button>
+      
+      {/* Detail: shown on click (mobile) or hover (desktop) */}
+      <div className={`absolute bottom-full mb-4 sm:mb-6 ${getMobilePosition()} w-64 p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl shadow-indigo-500/10 z-50 transition-all duration-300 ${
+        isOpen 
+          ? 'opacity-100 visible transform translate-y-0 pointer-events-auto' 
+          : 'opacity-0 invisible transform translate-y-2 pointer-events-none md:group-hover:opacity-100 md:group-hover:visible md:group-hover:translate-y-0 md:group-hover:pointer-events-auto'
+      }`}>
+        <h4 className="font-bold text-slate-900 dark:text-white mb-1.5 sm:mb-2 text-sm">{title}</h4>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">{description}</p>
+        <div className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-3 h-3 bg-white dark:bg-slate-900 border-r border-b border-slate-200 dark:border-slate-700 rotate-45" />
+      </div>
     </div>
-    
-    {/* Detail Popover on Hover */}
-    <div className="absolute bottom-full mb-6 w-64 p-5 bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-indigo-500/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 pointer-events-none transform translate-y-2 group-hover:translate-y-0">
-      <h4 className="font-bold text-slate-900 mb-2 text-sm">{title}</h4>
-      <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{description}</p>
-      <div className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-3 h-3 bg-white border-r border-b border-slate-200 rotate-45" />
-    </div>
-  </div>
-);
+  );
+};
 
 export default LandingPageView;

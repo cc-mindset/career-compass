@@ -26,22 +26,22 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-      <div className="mb-12">
-        <h1 className="text-3xl font-extrabold tracking-tight mb-2 flex items-center gap-3">
-          Career Eco Simulator <BarChart3 className="w-6 h-6 text-indigo-600" />
+      <div className="mb-8 md:mb-12">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1 sm:mb-2 flex items-center gap-2 sm:gap-3 text-slate-900 dark:text-white">
+          Career Eco Simulator <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 flex-shrink-0" />
         </h1>
-        <p className="text-slate-500 dark:text-slate-400">Model the impact of global economic variables on your role as a {user.role}</p>
+        <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base">Model the impact of global economic variables on your role as a {user.role}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12">
         {/* Controls Section */}
-        <div className="lg:col-span-1 space-y-10">
-          <div className="bg-white dark:bg-[#111] p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
-            <h2 className="text-lg font-bold mb-8 flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-500" /> Variables
+        <div className="lg:col-span-1 space-y-6 md:space-y-10">
+          <div className="bg-white dark:bg-[#111] p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+            <h2 className="text-base md:text-lg font-bold mb-6 md:mb-8 flex items-center gap-2 text-slate-900 dark:text-white">
+              <Zap className="w-4 h-4 text-amber-500 flex-shrink-0" /> Variables
             </h2>
             
-            <div className="space-y-10">
+            <div className="space-y-8 md:space-y-10">
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <label className="text-sm font-bold text-slate-700 dark:text-slate-300">AI Adoption Level</label>
@@ -86,59 +86,59 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
             </div>
           </div>
 
-          <div className="p-6 bg-indigo-600 rounded-[2rem] text-white">
-            <div className="flex items-start gap-4">
-              <Info className="w-5 h-5 flex-shrink-0 mt-1" />
-              <div>
-                <p className="font-bold mb-1 text-sm">Pro Tip</p>
-                <p className="text-xs text-indigo-100 leading-relaxed">Increasing your Upskilling Velocity is the single most effective way to counter high Market Volatility.</p>
+          <div className="p-4 md:p-6 bg-indigo-600 rounded-xl md:rounded-[2rem] text-white">
+            <div className="flex items-start gap-3 md:gap-4">
+              <Info className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0 mt-0.5 md:mt-1" />
+              <div className="min-w-0">
+                <p className="font-bold mb-1 text-xs sm:text-sm">Pro Tip</p>
+                <p className="text-[11px] sm:text-xs text-indigo-100 leading-relaxed">Increasing your Upskilling Velocity is the single most effective way to counter high Market Volatility.</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Results Section */}
-        <div className="lg:col-span-2 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white dark:bg-[#111] p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center">
-              <div className={`p-4 rounded-3xl ${resiliency.bg} mb-6`}>
-                <ShieldCheck className={`w-8 h-8 ${resiliency.color}`} />
+        <div className="lg:col-span-2 space-y-6 md:space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+            <div className="bg-white dark:bg-[#111] p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center">
+              <div className={`p-3 md:p-4 rounded-2xl md:rounded-3xl ${resiliency.bg} mb-4 md:mb-6`}>
+                <ShieldCheck className={`w-6 h-6 md:w-8 md:h-8 ${resiliency.color}`} />
               </div>
-              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">Market Resiliency</p>
-              <h3 className={`text-4xl font-extrabold ${resiliency.color} mb-2`}>{Math.round(resiliencyScore)}%</h3>
-              <p className="text-slate-500 text-sm font-medium">Status: {resiliency.label}</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5 md:mb-2">Market Resiliency</p>
+              <h3 className={`text-3xl md:text-4xl font-extrabold ${resiliency.color} mb-1.5 md:mb-2`}>{Math.round(resiliencyScore)}%</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium">Status: {resiliency.label}</p>
             </div>
 
-            <div className="bg-white dark:bg-[#111] p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center">
-              <div className={`p-4 rounded-3xl ${demand.bg} mb-6`}>
-                <TrendingUp className={`w-8 h-8 ${demand.color}`} />
+            <div className="bg-white dark:bg-[#111] p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center">
+              <div className={`p-3 md:p-4 rounded-2xl md:rounded-3xl ${demand.bg} mb-4 md:mb-6`}>
+                <TrendingUp className={`w-6 h-6 md:w-8 md:h-8 ${demand.color}`} />
               </div>
-              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">Career Demand</p>
-              <h3 className={`text-4xl font-extrabold ${demand.color} mb-2`}>{Math.round(marketDemand)}%</h3>
-              <p className="text-slate-500 text-sm font-medium">Status: {demand.label}</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5 md:mb-2">Career Demand</p>
+              <h3 className={`text-3xl md:text-4xl font-extrabold ${demand.color} mb-1.5 md:mb-2`}>{Math.round(marketDemand)}%</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium">Status: {demand.label}</p>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#111] p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
-            <h2 className="text-xl font-bold mb-8">Simulation Insights</h2>
-            <div className="space-y-6">
-              <div className="flex gap-6 items-start">
-                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2.5 shrink-0"></div>
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white mb-1 text-lg">AI-Augmented Evolution</h4>
-                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed">As AI adoption reaches {aiImpact}%, routine tasks in your role as a {user.role} will shift towards high-level strategic oversight. You should expect to spend 40% less time on production and 60% more time on AI system orchestration.</p>
+          <div className="bg-white dark:bg-[#111] p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+            <h2 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-slate-900 dark:text-white">Simulation Insights</h2>
+            <div className="space-y-5 md:space-y-6">
+              <div className="flex gap-4 md:gap-6 items-start">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2.5 shrink-0 flex-shrink-0"></div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-900 dark:text-white mb-1 text-base md:text-lg">AI-Augmented Evolution</h4>
+                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-sm md:text-base">As AI adoption reaches {aiImpact}%, routine tasks in your role as a {user.role} will shift towards high-level strategic oversight. You should expect to spend 40% less time on production and 60% more time on AI system orchestration.</p>
                 </div>
               </div>
-              <div className="flex gap-6 items-start">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2.5 shrink-0"></div>
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white mb-1 text-lg">Opportunity Delta</h4>
-                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed">With your current upskilling velocity of {upskillSpeed}%, you are positioned in the top 15% of candidates for roles in "Platform Design" and "AI-Integrator" clusters in {user.location}.</p>
+              <div className="flex gap-4 md:gap-6 items-start">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2.5 shrink-0 flex-shrink-0"></div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-900 dark:text-white mb-1 text-base md:text-lg">Opportunity Delta</h4>
+                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-sm md:text-base">With your current upskilling velocity of {upskillSpeed}%, you are positioned in the top 15% of candidates for roles in "Platform Design" and "AI-Integrator" clusters in {user.location}.</p>
                 </div>
               </div>
             </div>
             
-            <button className="mt-12 w-full py-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl font-bold text-indigo-600 transition-all flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700">
+            <button className="mt-8 md:mt-12 w-full py-3 md:py-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl md:rounded-2xl font-bold text-indigo-600 transition-all flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700 touch-manipulation">
               Download Full Forecast <ChevronRight className="w-4 h-4" />
             </button>
           </div>
