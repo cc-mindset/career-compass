@@ -6,15 +6,15 @@ const OrganismsPage: React.FC = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-extrabold mb-2 text-slate-900 dark:text-white">Organisms</h1>
-        <p className="text-slate-600 dark:text-slate-400">
+        <h1 className="text-3xl font-extrabold mb-2 text-slate-900">Organisms</h1>
+        <p className="text-slate-600">
           Complex components built from atoms and molecules for specific use cases.
         </p>
       </div>
 
       {/* FeatureCard */}
       <section>
-        <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">FeatureCard</h2>
+        <h2 className="text-2xl font-bold mb-4 text-slate-900">FeatureCard</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <FeatureCard
             icon={<Lightbulb />}
@@ -43,7 +43,7 @@ const OrganismsPage: React.FC = () => {
 
       {/* NewsCard */}
       <section>
-        <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">NewsCard</h2>
+        <h2 className="text-2xl font-bold mb-4 text-slate-900">NewsCard</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <NewsCard
             image="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800"
@@ -74,7 +74,7 @@ const OrganismsPage: React.FC = () => {
 
       {/* TrendCard */}
       <section>
-        <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">TrendCard</h2>
+        <h2 className="text-2xl font-bold mb-4 text-slate-900">TrendCard</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <TrendCard
             icon={<Rocket />}
@@ -117,7 +117,7 @@ const OrganismsPage: React.FC = () => {
 
       {/* UnderConstruction */}
       <section>
-        <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">UnderConstruction</h2>
+        <h2 className="text-2xl font-bold mb-4 text-slate-900">UnderConstruction</h2>
         <div className="max-w-2xl">
           <UnderConstruction
             viewName="settings"
