@@ -10,16 +10,25 @@ import CareerIntelView from './components/views/CareerIntelView';
 import EcoSimulatorView from './components/views/EcoSimulatorView';
 import { UnderConstruction } from './ui-kit';
 import LandingPageView from './components/views/LandingPageView';
+import { AppProvider, useAppContext } from './contexts/AppContext';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [hasStarted, setHasStarted] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('market-insights');
   const [user, setUser] = useState<UserProfile>(INITIAL_USER);
+  const { setMarketInsightsLoadingStage } = useAppContext();
 
   const handleStartJourney = (profileData: UserProfile) => {
     setUser(profileData);
     setHasStarted(true);
   };
+
+  // Reset loading state when navigating to market-insights
+  useEffect(() => {
+    if (currentView === 'market-insights' && hasStarted) {
+      setMarketInsightsLoadingStage('idle');
+    }
+  }, [currentView, hasStarted, setMarketInsightsLoadingStage]);
 
   if (!hasStarted) {
     return <LandingPageView onStart={handleStartJourney} />;
@@ -65,6 +74,14 @@ const App: React.FC = () => {
 
       <BottomNav currentView={currentView} onNavigate={setCurrentView} />
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
   );
 };
 

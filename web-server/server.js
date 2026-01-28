@@ -13,6 +13,8 @@ import { generateMarketInsights } from './services/marketInsightsService_multipa
 import { mongodbClient } from './lib/mongodb.js';
 import User from './models/User.js';
 import { parseResume } from './services/resumeParser.js';
+import { enqueueTask } from './lib/redisQueue.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -148,20 +150,19 @@ app.get('/api/test-resume/:which', async (req, res) => {
 app.post('/api/market-insights/generate', async (req, res) => {
   try {
     const { location, userId } = req.body;
-
     // Input validation
     if (!location || typeof location !== 'string') {
       return res.status(400).json({ error: 'Valid location string is required' });
     }
-
     // Sanitize location input (prevent injection attacks)
     const sanitizedLocation = location.trim().substring(0, 500);
-    
     if (sanitizedLocation.length === 0) {
       return res.status(400).json({ error: 'Location cannot be empty' });
     }
-
+  
     console.log(`📊 Generating market insights for ${sanitizedLocation}...`);
+
+    //Redis Infra to handle multiple requests:
 
     const insights = await generateMarketInsights(sanitizedLocation, userId);
     

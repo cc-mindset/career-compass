@@ -64,7 +64,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
   } = options;
 
   try {
-    logger.info(`🔍 Retrieving context for: "${queryText}"`, 'RAG');
+    //logger.info(`🔍 Retrieving context for: "${queryText}"`, 'RAG');
 
     // Check cache first
     const cacheKey = cache.generateKey('context', queryText, ...namespaces);
@@ -205,7 +205,7 @@ export async function generateWithRAG(query: string, systemPrompt: string, optio
   } = options;
 
   try {
-    logger.info(`🤖 Generating RAG response for: "${query}"`, 'RAG');
+    //logger.info(`🤖 Generating RAG response for: "${query}"`, 'RAG');
 
     // Check cache
     const cacheKey = cache.generateKey('rag', query, systemPrompt.substring(0, 50));

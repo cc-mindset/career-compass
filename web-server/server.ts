@@ -4,6 +4,8 @@ dotenv.config();
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import http from 'http';
+import { initializeWebSocket, isWebSocketAvailable } from './lib/websocket.js';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -13,11 +15,15 @@ import { generateMarketInsights } from './services/marketInsightsService_multipa
 import { mongodbClient } from './lib/mongodb.js';
 import User from './models/User.js';
 import { parseResume } from './services/resumeParser.js';
+import redisClient, { connectRedis } from './lib/redis.js';
+import { completeJob, dequeueJob, enqueueJob, getJobResult, getQueueLength, storeJobResult } from './lib/redisQueue.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+const server = http.createServer(app);
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -40,8 +46,63 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Connect to MongoDB on startup
-await mongodbClient.connect();
+const wsEnabled = initializeWebSocket(server); // Initialize WebSocket
+if (!wsEnabled) {
+  console.warn('⚠️  Running without WebSocket support - falling back to polling');
+}
+
+//Connect to Redis and MongoDB on startup
+(async function startServer() {
+  try {
+    console.log('Connecting to MongoDB...');
+    await mongodbClient.connect();
+    console.log('Connected to MongoDB');
+    
+    console.log('Connecting to Redis...');
+    const redisConnected = await connectRedis();
+    if (redisConnected) {
+      console.log('Connected to Redis');
+      console.log('Starting queue processor...');
+      processQueue();
+    } else {
+      console.warn('Redis unavailable. Running without cache and queue.');
+    }
+    
+    // Log final status summary
+    console.log('═══════════════════════════════════════');
+    console.log(`✓ MongoDB: Connected`);
+    console.log(`${redisConnected ? '✓' : '✗'} Redis: ${redisConnected ? 'Connected' : 'Unavailable (using fallback)'}`);
+    console.log(`${wsEnabled ? '✓' : '✗'} WebSocket: ${wsEnabled ? 'Enabled' : 'Disabled (using polling)'}`);
+    console.log('═══════════════════════════════════════');
+    
+  } catch (error) {
+    console.error('Error connecting to databases:', error);
+    process.exit(1);
+  }
+})();
+
+// Queue processor - runs in background
+async function processQueue() {
+  while (true) {
+    try {
+      const job = await dequeueJob();
+      
+      if (job) {
+        console.log(`🔄 Processing queued job: ${job.id} for ${job.location}`);
+        const insights = await generateMarketInsights(job.location, job.userId, job.id);
+        await storeJobResult(job.id, insights);
+        await completeJob(job.id);
+        console.log(`✅ Job ${job.id} completed successfully`);
+      } else {
+        // No jobs, wait 2 seconds before checking again
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    } catch (error) {
+      console.error('Queue processor error:', error);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+  }
+}
 
 // Save location endpoint
 app.post('/api/users/location', async (req: Request, res: Response) => {
@@ -149,26 +210,34 @@ app.post('/api/market-insights/generate', async (req: Request, res: Response) =>
   try {
     const { location, userId } = req.body;
 
-    // Input validation
     if (!location || typeof location !== 'string') {
       return res.status(400).json({ error: 'Valid location string is required' });
     }
 
-    // Sanitize location input (prevent injection attacks)
     const sanitizedLocation = location.trim().substring(0, 500);
     
     if (sanitizedLocation.length === 0) {
       return res.status(400).json({ error: 'Location cannot be empty' });
     }
 
-    console.log(`📊 Generating market insights for ${sanitizedLocation}...`);
-
-    const insights = await generateMarketInsights(sanitizedLocation, userId || '');
+    // Try to queue the job
+    const jobId = await enqueueJob(sanitizedLocation, userId || '');
     
-    // Validate insights structure before sending
-    if (!insights || typeof insights !== 'object') {
-      throw new Error('Invalid insights structure returned');
+    if (jobId) {
+      const queuePos = await getQueueLength();
+      console.log(`📋 Job queued: ${jobId} (position: ${queuePos})`);
+      return res.json({
+        success: true,
+        queued: true,
+        jobId,
+        position: queuePos,
+        message: 'Request queued for processing',
+      });
     }
+
+    // If not queued (Redis down), direct 
+    console.log(`--> Processing directly: ${sanitizedLocation}`);
+    const insights = await generateMarketInsights(sanitizedLocation, userId || '');
     
     res.json({
       success: true,
@@ -179,7 +248,6 @@ app.post('/api/market-insights/generate', async (req: Request, res: Response) =>
     const err = error as Error;
     console.error('Error in market insights endpoint:', err);
     
-    // Don't expose internal errors to client
     const errorMessage = process.env.NODE_ENV === 'production' 
       ? 'Failed to generate market insights. Please try again later.'
       : err.message;
@@ -188,6 +256,31 @@ app.post('/api/market-insights/generate', async (req: Request, res: Response) =>
       error: 'Failed to generate market insights',
       message: errorMessage 
     });
+  }
+});
+
+// Check job status endpoint (NEW)
+app.get('/api/market-insights/status/:jobId', async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const result = await getJobResult(jobId);
+    
+    if (result) {
+      return res.json({
+        success: true,
+        status: 'completed',
+        insights: result,
+      });
+    }
+    
+    res.json({
+      success: true,
+      status: 'processing',
+      message: 'Job is still processing',
+    });
+  } catch (error) {
+    console.error('Error checking job status:', error);
+    res.status(500).json({ error: 'Failed to check status' });
   }
 });
 
@@ -301,6 +394,6 @@ const PORT = process.env.PORT || 5000;
 app.get('/', (req: Request, res: Response) => {
   res.send('Ccmindset api is live 🎉');
 });
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✓ Server running on http://localhost:${PORT}`);
 });

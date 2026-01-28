@@ -1,5 +1,10 @@
 import { generateWithRAG } from './ragService.js';
 import { logger } from '../utils/logger.js';
+import redisClient from "../lib/redis.js";
+import { safeGet, safeSet } from "../lib/redis.js";
+import { emitJobProgress } from '../lib/websocket.js';
+
+
 
 const SYSTEM_PROMPT = `You are a career development coach and labor market analyst. 
 
@@ -11,6 +16,7 @@ CRITICAL RULES:
 5. Use coaching language that normalizes career pivots and validates concerns
 
 Your goal is to provide actionable career guidance based ONLY on the real data provided in the context.`;
+
 
 type MarketInsightsData = Record<string, unknown>;
 
@@ -266,14 +272,43 @@ function validateActionPlan(data: MarketInsightsData): void {
  * @param {string} userId - User ID
  * @returns {Promise<Object>} Combined market insights
  */
-export async function generateMarketInsights(location: string, userId: string): Promise<MarketInsightsData> {
+export async function generateMarketInsights(
+  location: string,userId: string, jobId?: string, error?: string): Promise<MarketInsightsData>{
   try {
     logger.info(`📊 Starting multi-part market insights generation for: ${location}`);
+
+    //Adding redis logging for monitoring
+    const cacheKey = `market_insights:${location.toLowerCase().replace(/\s+/g, "_")}`;
+
+    const cached = await safeGet(cacheKey);
+
+    if (cached) {
+      logger.info(`-->> Redis cache hit for ${location}.`);
+      logger.info(`-->>Cache key: ${cacheKey} hit.`);
+      //use websocket to emit progress if jobId provided
+      if (jobId) {
+        emitJobProgress(jobId, { 
+          stage: 'completed', 
+          insights: JSON.parse(cached) 
+        });
+      }
+      return JSON.parse(cached);
+  }
+
+logger.info(`🧊 Redis cache miss for ${location}. Running full pipeline...`);
 
     // Part 1: Core data and charts (most important)
     logger.info('📊 Part 1/3: Fetching core market data and charts...');
     let coreData: MarketInsightsData;
     try {
+        // Part 1: Core data and charts
+      logger.info('📊 Part 1/3: Fetching core market data...');
+      if (jobId) {
+        emitJobProgress(jobId, { 
+          stage: 'Fetching core market data', 
+          progress: 33 
+        });
+      }
       const result = await generateWithRAG(
         buildCoreDataPrompt(location),
         SYSTEM_PROMPT,
@@ -294,7 +329,16 @@ export async function generateMarketInsights(location: string, userId: string): 
       logger.info('✓ Part 1/3 completed: Core data received');
     } catch (error) {
       const err = error as Error;
+      
       logger.error('❌ Part 1/3 failed:', err.message);
+        // Emit error if jobId exists
+        if (jobId) {
+          emitJobProgress(jobId, {   
+            stage: 'error', 
+            error: 'Failed to fetch core market data' 
+          });
+        }
+  
       // Provide minimal fallback for core data
       coreData = {
         executive_summary_brief: 'Market summary temporarily unavailable. Please try again.',
@@ -327,6 +371,12 @@ export async function generateMarketInsights(location: string, userId: string): 
 
     // Part 2: Opportunities and skills (high value)
     logger.info('📊 Part 2/3: Fetching opportunities and skills analysis...');
+    if (jobId) {
+      emitJobProgress(jobId, { 
+        stage: 'Analyzing opportunities and skills', 
+        progress: 66 
+      });
+    }
     let opportunities: MarketInsightsData;
     try {
       const result = await generateWithRAG(
@@ -350,6 +400,13 @@ export async function generateMarketInsights(location: string, userId: string): 
     } catch (error) {
       const err = error as Error;
       logger.error('❌ Part 2/3 failed:', err.message);
+      // Emit error if jobId exists
+        if (jobId) {
+          emitJobProgress(jobId, {   
+            stage: 'error', 
+            error: 'Failed to fetch opportunities and skills data' 
+          });
+        }
       // Provide minimal fallback
       opportunities = {
         city_vs_region_comparison: { title: 'City vs Region Comparison', data: [] },
@@ -367,6 +424,12 @@ export async function generateMarketInsights(location: string, userId: string): 
     }
 
     // Part 3: Action plans and insights (supplementary)
+    if (jobId) {
+      emitJobProgress(jobId, { 
+        stage: 'Building action plans and insights', 
+        progress: 100 
+      });
+    }
     logger.info('📊 Part 3/3: Fetching action plans and market intelligence...');
     let actionPlan: MarketInsightsData;
     try {
@@ -391,6 +454,13 @@ export async function generateMarketInsights(location: string, userId: string): 
     } catch (error) {
       const err = error as Error;
       logger.error('❌ Part 3/3 failed:', err.message);
+      // Emit error if jobId exists
+      if (jobId) {
+        emitJobProgress(jobId, {   
+          stage: 'error', 
+          error: 'Failed to fetch action plans and insights data' 
+        });
+      }
       // Provide minimal fallback
       actionPlan = {
         strategies_by_profile: {
@@ -440,9 +510,227 @@ export async function generateMarketInsights(location: string, userId: string): 
     logger.info(`📊 Response includes: ${Object.keys(combinedInsights).length} sections`);
     logger.info(`📚 Total sources used: ${(combinedInsights.report_sources as string[]).length}`);
     
+    // Store in Redis cache for 30 minutes
+    const result = await safeSet(cacheKey, JSON.stringify(combinedInsights), 60 * 30);
+    if (result) {
+    logger.info(`-->>Cache key: ${cacheKey} set with 30 min TTL`);
+    logger.info(`-->>Stored market insights in Redis cache for ${location} (30 min TTL)`);
+    }
+    // Send final result via WebSocket
+    if (jobId) {
+      emitJobProgress(jobId, { 
+        stage: 'completed', 
+        insights: combinedInsights 
+      });
+    }
     return combinedInsights;
   } catch (error) {
-    logger.error(`Error generating market insights for ${location}:`, error);
-    throw error;
+      logger.error(`Error generating market insights for ${location}:`, error);
+
+        // Emit error via WebSocket if jobId exists
+        if (jobId) {
+          emitJobProgress(jobId, { 
+            stage: 'error', 
+            error: 'Failed to generate market insights' 
+          });
+        }
+        throw error;
   }
 }
+
+
+// marketInsightsService_multipart.ts with 10 word prompt but same code:
+
+// import { generateWithRAG } from './ragService.js';
+// import { logger } from '../utils/logger.js';
+// import redisClient from "../lib/redis.js";
+// import { safeGet, safeSet } from "../lib/redis.js"; 
+// const SYSTEM_PROMPT = `You are a career development coach and labor market analyst. `;
+// /**
+//  * Generate market insights using multi-part approach
+//  * @param {string} location - User's location
+//  * @param {string} userId - User ID
+//  * @returns {Promise<Object>} Combined market insights
+//  */
+// export async function generateMarketInsights(location: string, userId: string): Promise<MarketInsightsData> {
+//   try {
+//     logger.info(`📊 Starting multi-part market insights generation for: ${location}`)  ;
+//     //Adding redis logging for monitoring
+//     const cacheKey = `market_insights:${location.toLowerCase().replace(/\s+/g, "_")}`;
+//     const cached = await safeGet(cacheKey);
+//     if (cached) {
+//       logger.info(`-->> Redis cache hit for ${location}.`);
+//       logger.info(`-->>Cache key: ${cacheKey} hit.`);
+//       return JSON.parse(cached);
+//   }
+// logger.info(`🧊 Redis cache miss for ${location}. Running full pipeline...`) ;
+//     // Part 1: Core data and charts (most important)
+//     logger.info('📊 Part 1/3: Fetching core market data and charts...') ;
+//     let coreData: MarketInsightsData;
+//     try {
+//       const result = await generateWithRAG(
+//         buildCoreDataPrompt(location),
+//         SYSTEM_PROMPT,
+//         {
+//           namespaces: ['bls-data', 'news-data', 'reports-data'],
+//           topKPerNamespace: {
+//             'bls-data': 12,
+//             'news-data': 10,
+//             'reports-data': 8,
+//           },
+//           responseFormat: 'json',
+//           useCache: true,
+//         }
+//       ) as Record<string, unknown>;
+//       coreData = result;
+//       validateCoreData(coreData);
+//       logger.info('✓ Part 1/3 completed: Core data received') ;
+//     } catch (error) {
+//       const err = error as Error;
+//       logger.error('❌ Part 1/3 failed:', err.message) ;
+//       // Provide minimal fallback for core data
+//       coreData = {
+//         executive_summary_brief: 'Market summary temporarily unavailable. Please try again.',
+//         executive_summary: {
+//           overview: 'Market data temporarily unavailable. Please try again.',
+//           key_stats: {
+//             strongest_opportunity: 'Data pending',
+//             highest_risk_sector: 'Data pending',
+//             top_skill_demand: 'Data pending',
+//             pivot_necessity: 'Low'
+//           }
+//         },
+//         labour_market_snapshot: {
+//           overview: 'Market snapshot temporarily unavailable.',
+//           local_vs_national: 'Data pending',
+//           major_drivers: ['Data temporarily unavailable'],
+//           market_health: {
+//             employment_rate: 'N/A',
+//             job_growth_rate: 'N/A',
+//             trend: 'Stable'
+//           }
+//         },
+//         chart_data: {
+//           job_growth: { title: 'Job Growth', data: [] },
+//           top_skills_demand: { title: 'Skills Demand', data: [] }
+//         }
+//       };
+//       logger.warn('⚠️  Using fallback data for Part 1') ;
+//     }
+//     // Part 2: Opportunities and skills (high value)
+//     logger.info('📊 Part 2/3: Fetching opportunities and skills analysis...') ;
+//     let opportunities: MarketInsightsData;
+//     try {
+//       const result = await generateWithRAG(
+//         buildOpportunitiesPrompt(location),
+//         SYSTEM_PROMPT,
+//         {
+//           namespaces: ['bls-data', 'news-data', 'reports-data'],
+//           topKPerNamespace: {
+//             'bls-data': 8,
+//             'news-data': 8,
+//             'reports-data': 5,
+//           },
+//           responseFormat: 'json',
+//           useCache: true,
+//         }                  
+//       ) as Record<string, unknown>;
+//       opportunities = result;
+//       validateOpportunities(opportunities);
+//       logger.info('✓ Part 2/3 completed: Opportunities data received') ;
+//     } catch (error) {
+//       const err = error as Error;
+//       logger.error('❌ Part 2/3 failed:', err.message) ;
+//       // Provide minimal fallback
+//       opportunities = {
+//         city_vs_region_comparison: { title: 'City vs Region Comparison', data: [] },
+//         high_growth_sectors: [],
+//         at_risk_sectors: [],
+//         career_pathways: [],
+//         strategies_by_profile: {
+//           new_graduates: [],
+//           mid_career_pivoting: [],
+//           newcomers_international: []
+//         },
+//         action_checklist: []           
+//       };
+//       logger.warn('⚠️  Using fallback data for Part 2') ;
+//     }
+//     // Part 3: Action plans and insights (supplementary)
+//     logger.info('📊 Part 3/3: Fetching action plans and market intelligence...') ;
+//     let actionPlan: MarketInsightsData;
+//     try {
+//       const result = await generateWithRAG(
+//         buildActionPlanPrompt(location),
+//         SYSTEM_PROMPT,
+//         {
+//           namespaces: ['news-data', 'bls-data', 'reports-data'],
+//           topKPerNamespace: {
+//             'news-data': 12,
+//             'bls-data': 10,
+//             'reports-data': 8,
+//           },
+//           responseFormat: 'json',
+//           useCache: true,
+//         }
+//       ) as Record<string, unknown>;
+//       actionPlan = result;
+//       validateActionPlan(actionPlan);
+//       logger.info('✓ Part 3/3 completed: Action plan data received') ;
+//     } catch (error) {
+//       const err = error as Error;
+//       logger.error(' ❌ Part 3/3 failed:', err.message) ;      
+//       // Provide minimal fallback
+//       actionPlan = {
+//         strategies_by_profile: {
+//           new_graduates: [],
+//           mid_career_pivoting: [],
+//           newcomers_international: []
+//         },
+//         stop_start_doubledown: {
+//           stop: [],
+//           start: [],
+//           double_down: []
+//         },
+//         action_checklist: [],
+//         key_findings: [],
+//         market_risks: [],
+//         market_news: [],
+//         specific_opportunities: [],
+//         closing_perspective: 'Market insights will be available shortly.',
+//         report_sources: []
+//       };
+//       logger.warn('⚠️  Using fallback data for Part 3') ;
+//     }
+//     // Combine all parts and merge report_sources arrays
+//     const combinedInsights: MarketInsightsData = {
+//       ...coreData,
+//       ...opportunities,
+//       ...actionPlan,
+//     };
+//     // Merge report_sources from all three parts to show ALL sources used
+//     const allSources = new Set<string>();
+//     if   (coreData.report_sources && Array.isArray(coreData.report_sources)) {
+//       (coreData.report_sources as string[]).forEach(source => allSources.add(source));
+//     }    
+//     if (opportunities.report_sources && Array.isArray(opportunities.report_sources)) {
+//       (opportunities.report_sources as string[]).forEach(source => allSources.add(source));
+//     }
+//     if (actionPlan.report_sources && Array.isArray(actionPlan.report_sources)) {
+//       (actionPlan.report_sources as string[]).forEach(source => allSources.add(source));
+//     }
+//     // Update combined insights with all unique sources
+//     combinedInsights.report_sources = Array.from(allSources).filter(s => s && s.trim());
+//     logger.info(`✓ Successfully generated complete market insights for ${location}`) ;
+//     logger.info(`📊 Response includes: ${Object.keys(combinedInsights).length} sections`) ;
+//     logger.info(`📚 Total sources used: ${(combinedInsights.report_sources as string[]).length}`) 
+//   // Store in Redis cache for 30 minutes
+//   await safeSet(cacheKey, JSON.stringify(combinedInsights), 60 * 30)
+//  logger.info(`-->>Cache key: ${cacheKey} set with 30 min TTL`) 
+//   logger.info(`-->>Stored market insights in Redis cache for ${location} (30 min TTL)`) 
+//   return combinedInsights;
+//   } catch (error) {
+//     logger.error(`Error generating market insights for ${location}:`, error) ;
+//     throw error;
+//   }
+// }

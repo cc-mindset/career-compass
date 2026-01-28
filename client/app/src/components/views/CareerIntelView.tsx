@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../../utils/types/types';
-import { getCareerSuggestions } from '../../services/geminiService';
+import { getCareerSuggestions } from '../../providers/gemini/geminiService';
 import { Sparkles, Zap, Target, Lightbulb, RefreshCw, ChevronRight, BrainCircuit, Rocket } from 'lucide-react';
 
 interface CareerIntelViewProps {
