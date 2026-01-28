@@ -10,7 +10,8 @@ import CareerIntelView from './components/views/CareerIntelView';
 import EcoSimulatorView from './components/views/EcoSimulatorView';
 import { UnderConstruction } from './ui-kit';
 import LandingPageView from './components/views/LandingPageView';
-import { AppProvider, useAppContext } from './contexts/AppContext';
+import { AppProvider, useAppContext } from './state/contexts/AppContext';
+import { MarketInsightsProvider } from './state/marketInsights/MarketInsightsContext';
 
 const AppContent: React.FC = () => {
   const [hasStarted, setHasStarted] = useState(false);
@@ -79,9 +80,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <MarketInsightsProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </MarketInsightsProvider>
   );
 };
 

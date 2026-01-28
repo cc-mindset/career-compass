@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-type MarketInsightsLoadingStage = 'idle' | 'first' | 'second' | 'third' | 'complete';
+import React, { createContext, useContext, ReactNode } from 'react';
+import {
+  useMarketInsightsState,
+  MarketInsightsLoadingStage,
+} from '../marketInsights/MarketInsightsContext';
 
 interface AppContextType {
+  // Re‑expose all market insights API + loading state globally
   marketInsightsLoadingStage: MarketInsightsLoadingStage;
   setMarketInsightsLoadingStage: (stage: MarketInsightsLoadingStage) => void;
 }
@@ -22,13 +25,14 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
-  const [marketInsightsLoadingStage, setMarketInsightsLoadingStage] = useState<MarketInsightsLoadingStage>('idle');
+  // Pull all market insights state from its dedicated context
+  const { loadingStage, setLoadingStage } = useMarketInsightsState();
 
   return (
     <AppContext.Provider
       value={{
-        marketInsightsLoadingStage,
-        setMarketInsightsLoadingStage,
+        marketInsightsLoadingStage: loadingStage,
+        setMarketInsightsLoadingStage: setLoadingStage,
       }}
     >
       {children}

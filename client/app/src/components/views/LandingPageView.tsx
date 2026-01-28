@@ -1,6 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../../utils/types/types';
+import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
+import { useWebSocket } from '../../hooks/useWebSocket';
+import { getSocket } from '../../providers/socket/socket';
 import { Briefcase, MapPin, ChevronRight, User, Building2, Sparkles, Search, Check, ArrowLeft, ArrowRight, Target, BarChart3, GraduationCap, X, Plus } from 'lucide-react';
 
 interface LandingPageViewProps {
@@ -50,6 +53,20 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [openFeatureIndex, setOpenFeatureIndex] = useState<number | null>(null);
 
+  const { generateMarketInsights } = useMarketInsightsState();
+  const [hasStartedFilling, setHasStartedFilling] = useState(false);
+  const lastMarketInsightsLocationTriggeredRef = useRef<string | null>(null);
+
+  // Lazily bootstrap WebSocket connection once the user starts interacting with the form
+  const { isConnected } = useWebSocket(); // Hook uses a global singleton; it's safe to call once here.
+  
+  // Log connection status for debugging
+  useEffect(() => {
+    if (hasStartedFilling) {
+      console.log(`[LandingPage] Form interaction started, WebSocket connected: ${isConnected}`);
+    }
+  }, [hasStartedFilling, isConnected]);
+
   const activeStep = STEPS[currentStep];
   const filteredOptions = activeStep.options.filter(opt => 
     opt.toLowerCase().includes(search.toLowerCase())
@@ -68,6 +85,24 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   }, []);
 
   const handleSelect = (val: string) => {
+    if (!hasStartedFilling) {
+      setHasStartedFilling(true);
+    }
+
+    // Kick off websocket + market-insights generation the moment "Location" is selected.
+    // This lets the user see the socket connection immediately and start receiving progress updates.
+    if (activeStep.key === 'location') {
+      // Ensure the socket instance is created and a connection attempt starts ASAP.
+      const socket = getSocket();
+      if (!socket.connected) socket.connect();
+
+      // Avoid re-triggering for the same location unless the user actually changes it.
+      if (lastMarketInsightsLocationTriggeredRef.current !== val) {
+        lastMarketInsightsLocationTriggeredRef.current = val;
+        generateMarketInsights({ location: val });
+      }
+    }
+
     if (activeStep.key === 'skills') {
       setFormData(prev => {
         const isSelected = prev.skills.includes(val);
@@ -95,7 +130,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isCompleted) {
       alert("Please complete all sections to start.");
@@ -115,6 +150,16 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       completedCourses: 0,
       certifications: 0
     };
+
+    // Market insights generation is triggered on Location selection.
+    // Only trigger here if the user changed location after the initial trigger.
+    if (lastMarketInsightsLocationTriggeredRef.current !== newUser.location) {
+      lastMarketInsightsLocationTriggeredRef.current = newUser.location;
+      generateMarketInsights({
+        location: newUser.location,
+        // userId can be wired up and passed later
+      });
+    }
     
     onStart(newUser);
   };

@@ -19,15 +19,23 @@ export function initializeWebSocket(httpServer: HttpServer): boolean {
     });
 
     io.on('connection', (socket) => {
-      logger.info(`WebSocket connected: ${socket.id}`);
+      logger.info(`✓ WebSocket connected: ${socket.id}`);
+      console.log(`✓ WebSocket connected: ${socket.id}`);
 
       socket.on('subscribe', (jobId: string) => {
+        if (!jobId || typeof jobId !== 'string') {
+          logger.warn(`Invalid jobId received for subscription: ${jobId}`);
+          console.warn(`Invalid jobId received for subscription: ${jobId}`);
+          return;
+        }
         socket.join(`job:${jobId}`);
         logger.info(`Socket ${socket.id} subscribed to job:${jobId}`);
+        console.log(`✓ Socket ${socket.id} subscribed to job:${jobId}`);
       });
 
-      socket.on('disconnect', () => {
-        logger.info(`WebSocket disconnected: ${socket.id}`);
+      socket.on('disconnect', (reason) => {
+        logger.info(`WebSocket disconnected: ${socket.id}, reason: ${reason}`);
+        console.log(`✗ WebSocket disconnected: ${socket.id}, reason: ${reason}`);
       });
     });
 
@@ -61,15 +69,28 @@ export function getIO(): Server | null {
  */
 export function emitToJob(jobId: string, event: string, data: any) {
   if (!isWebSocketAvailable()) {
-    // Silently skip if WebSocket not available
+    logger.warn(`WebSocket not available, skipping emit ${event} to job:${jobId}`);
+    console.warn(`⚠️  WebSocket not available, skipping emit ${event} to job:${jobId}`);
+    return;
+  }
+  
+  if (!jobId || typeof jobId !== 'string') {
+    logger.warn(`Invalid jobId for emit: ${jobId}`);
+    console.warn(`⚠️  Invalid jobId for emit: ${jobId}`);
     return;
   }
   
   try {
-    io!.to(`job:${jobId}`).emit(event, data);
-    logger.info(`Emitted ${event} to job:${jobId}`);
+    const room = `job:${jobId}`;
+    const socketsInRoom = io!.sockets.adapter.rooms.get(room);
+    const count = socketsInRoom ? socketsInRoom.size : 0;
+    
+    io!.to(room).emit(event, data);
+    logger.info(`✓ Emitted ${event} to job:${jobId} (${count} socket(s) in room)`);
+    console.log(`✓ Emitted ${event} to job:${jobId} (${count} socket(s) listening)`);
   } catch (error) {
     logger.error(`Failed to emit ${event} to job:${jobId}:`, error);
+    console.error(`✗ Failed to emit ${event} to job:${jobId}:`, error);
   }
 }
 

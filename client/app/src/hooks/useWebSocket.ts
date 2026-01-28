@@ -1,7 +1,7 @@
  ///<reference types="vite/client" />
 import { useEffect, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
-import { getSocket } from '../lib/socket';
+import { getSocket } from '../providers/socket/socket';
 
 export function useWebSocket() {
   //null until mounted
@@ -16,31 +16,42 @@ export function useWebSocket() {
   useEffect(() => {
     // Build url from env
     const url = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+    console.log(`[useWebSocket] Hook mounted, initializing socket connection to: ${url}`);
 
     // Use a global singleton socket to avoid repeated connects/disconnects during React Strict Mode 
     const socket = getSocket();
     socketRef.current = socket;
 
+    // Check if already connected
+    if (socket.connected) {
+      console.log(`[useWebSocket] Socket already connected: ${socket.id}`);
+      setIsConnected(true);
+    }
+
     const onConnect = () => {
-      console.log('✓ WebSocket connected');
+      console.log(`[useWebSocket] ✓ WebSocket connected with ID: ${socket.id}`);
       setIsConnected(true);
     };
     const onDisconnect = (reason?: string) => {
-      console.log('✗ WebSocket disconnected', reason || '');
+      console.log(`[useWebSocket] ✗ WebSocket disconnected: ${reason || 'unknown reason'}`);
       setIsConnected(false);
     };
     const onError = (err: any) => {
-      console.warn('WebSocket connection error:', err && err.message ? err.message : err);
+      console.error(`[useWebSocket] Connection error:`, err && err.message ? err.message : err);
       setIsConnected(false);
     };
 
+    // Register listeners
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('connect_error', onError);
     socket.on('error', onError);
 
-    // Ensure connection
-    socket.connect();
+    // Force connection attempt if not connected
+    if (!socket.connected) {
+      console.log(`[useWebSocket] Forcing connection attempt...`);
+      socket.connect();
+    }
 
     return () => {
       // Clean up listeners on unmount. Do NOT disconnect the singleton socket

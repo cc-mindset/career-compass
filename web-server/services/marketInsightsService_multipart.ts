@@ -327,6 +327,13 @@ logger.info(`🧊 Redis cache miss for ${location}. Running full pipeline...`);
       coreData = result;
       validateCoreData(coreData);
       logger.info('✓ Part 1/3 completed: Core data received');
+      // Emit progress after Part 1 completes successfully
+      if (jobId) {
+        emitJobProgress(jobId, { 
+          stage: 'Core market data received', 
+          progress: 33 
+        });
+      }
     } catch (error) {
       const err = error as Error;
       
@@ -397,6 +404,13 @@ logger.info(`🧊 Redis cache miss for ${location}. Running full pipeline...`);
       opportunities = result;
       validateOpportunities(opportunities);
       logger.info('✓ Part 2/3 completed: Opportunities data received');
+      // Emit progress after Part 2 completes successfully
+      if (jobId) {
+        emitJobProgress(jobId, { 
+          stage: 'Opportunities and skills analysis complete', 
+          progress: 66 
+        });
+      }
     } catch (error) {
       const err = error as Error;
       logger.error('❌ Part 2/3 failed:', err.message);
@@ -424,13 +438,13 @@ logger.info(`🧊 Redis cache miss for ${location}. Running full pipeline...`);
     }
 
     // Part 3: Action plans and insights (supplementary)
+    logger.info('📊 Part 3/3: Fetching action plans and market intelligence...');
     if (jobId) {
       emitJobProgress(jobId, { 
         stage: 'Building action plans and insights', 
-        progress: 100 
+        progress: 90 
       });
     }
-    logger.info('📊 Part 3/3: Fetching action plans and market intelligence...');
     let actionPlan: MarketInsightsData;
     try {
       const result = await generateWithRAG(
@@ -451,6 +465,13 @@ logger.info(`🧊 Redis cache miss for ${location}. Running full pipeline...`);
       actionPlan = result;
       validateActionPlan(actionPlan);
       logger.info('✓ Part 3/3 completed: Action plan data received');
+      // Emit progress after Part 3 completes successfully
+      if (jobId) {
+        emitJobProgress(jobId, { 
+          stage: 'Action plans and insights complete', 
+          progress: 95 
+        });
+      }
     } catch (error) {
       const err = error as Error;
       logger.error('❌ Part 3/3 failed:', err.message);

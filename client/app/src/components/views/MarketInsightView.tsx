@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../utils/types/types';
 import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA } from '../../consts/constants';
 import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench, Loader2 } from 'lucide-react';
-import { useAppContext } from '../../contexts/AppContext';
+import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
 
 interface MarketInsightViewProps {
   user: UserProfile;
@@ -11,7 +11,7 @@ interface MarketInsightViewProps {
 }
 
 const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
-  const { marketInsightsLoadingStage, setMarketInsightsLoadingStage } = useAppContext();
+  const { generateStatus, generateError, progressText } = useMarketInsightsState();
   const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
   const [selectedTrendId, setSelectedTrendId] = useState<string | null>(null);
   const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
@@ -32,51 +32,19 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
   const totalNewsCards = MOCK_NEWS.length;
   const totalTrendCards = TREND_REPORTS.length;
 
-  // Handle loading state transitions (mimicking websocket signals)
-  useEffect(() => {
-    // Start loading sequence when component mounts
-    if (marketInsightsLoadingStage === 'idle') {
-      setMarketInsightsLoadingStage('first');
-    }
-
-    // Set up transitions between loading stages
-    const timers: NodeJS.Timeout[] = [];
-
-    if (marketInsightsLoadingStage === 'first') {
-      const timer = setTimeout(() => {
-        setMarketInsightsLoadingStage('second');
-      }, 3000);
-      timers.push(timer);
-    } else if (marketInsightsLoadingStage === 'second') {
-      const timer = setTimeout(() => {
-        setMarketInsightsLoadingStage('third');
-      }, 3000);
-      timers.push(timer);
-    } else if (marketInsightsLoadingStage === 'third') {
-      const timer = setTimeout(() => {
-        setMarketInsightsLoadingStage('complete');
-      }, 3000);
-      timers.push(timer);
-    }
-
-    return () => {
-      timers.forEach(timer => clearTimeout(timer));
-    };
-  }, [marketInsightsLoadingStage, setMarketInsightsLoadingStage]);
-
   // Loading UI component
   const LoadingUI = () => {
     const getLoadingText = () => {
-      switch (marketInsightsLoadingStage) {
-        case 'first':
-          return 'First stage loading....';
-        case 'second':
-          return 'Second stage loading...';
-        case 'third':
-          return 'Third stage Loading...';
-        default:
-          return 'Loading...';
+      if (generateError) {
+        return generateError;
       }
+      if (progressText) {
+        return progressText;
+      }
+      if (generateStatus === 'in-progress') {
+        return 'Generating your market insights...';
+      }
+      return 'Preparing your dashboard...';
     };
 
     return (
@@ -714,7 +682,12 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
   };
 
   // Conditionally render loading UI or full content (after all hooks)
-  return marketInsightsLoadingStage !== 'complete' ? (
+  // Treat "success" as complete; idle also shows the full view.
+  const isComplete =
+    generateStatus === 'success' ||
+    generateStatus === 'idle';
+
+  return !isComplete ? (
     <LoadingUI />
   ) : (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
