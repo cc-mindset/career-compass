@@ -9,29 +9,49 @@ interface MarketInsightViewProps {
   user: UserProfile;
   onNavigate: (view: AppView) => void;
 }
-
 const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
-  const { generateStatus, generateError, progressText } = useMarketInsightsState();
+  const { generateStatus, generateError, progressText, insights } = useMarketInsightsState();
+
   const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
   const [selectedTrendId, setSelectedTrendId] = useState<string | null>(null);
   const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
   const [currentTrendIndex, setCurrentTrendIndex] = useState(0);
-  
-  const newsSectionRef = useRef<HTMLDivElement>(null);
-  const trendsSectionRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const newsScrollRef = useRef<HTMLDivElement>(null);
-  const trendsScrollRef = useRef<HTMLDivElement>(null);
-  
-  // Swipe detection for mobile news cards
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [trendTouchStart, setTrendTouchStart] = useState<number | null>(null);
   const [trendTouchEnd, setTrendTouchEnd] = useState<number | null>(null);
 
-  const totalNewsCards = MOCK_NEWS.length;
-  const totalTrendCards = TREND_REPORTS.length;
+  const newsSectionRef = useRef<HTMLDivElement>(null);
+  const trendsSectionRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const newsScrollRef = useRef<HTMLDivElement>(null);
+  const trendsScrollRef = useRef<HTMLDivElement>(null);
 
+useEffect(() => {
+  // If we don't have insights yet and we're not already loading, trigger the API call
+  if (!insights && generateStatus === 'idle') {
+    const { generateMarketInsights } = require('../../state/marketInsights/MarketInsightsContext').useMarketInsightsState();
+    generateMarketInsights({ location: user.location });
+  }
+}, [insights, generateStatus, user.location]);
+
+  if (!insights || !insights.newsArticles || !insights.trendReports){
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] py-20">
+        <div className="flex flex-col items-center gap-6">
+          <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+          <p className="text-xl md:text-2xl font-semibold text-slate-900">
+            {progressText || 'Loading your market insights...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const totalNewsCards = insights?.newsArticles?.length;
+  const totalTrendCards = insights?.trendReports?.length;
+
+  
   // Loading UI component
   const LoadingUI = () => {
     const getLoadingText = () => {
@@ -335,7 +355,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
               <p className="text-slate-500 font-medium">Industries with strong hiring momentum in {location}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {HIGH_GROWTH_DATA.map((item, idx) => (
+              {insights.highGrowthSectors.map((item, idx) => (
                 <div key={idx} className="bg-slate-50/50 border-[1.5px] border-emerald-500 rounded-[2.5rem] p-8 flex flex-col h-full shadow-sm">
                   <div className="flex justify-between items-start mb-4">
                     <h3 className="text-2xl font-bold text-slate-900">{item.title}</h3>
@@ -368,7 +388,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
               <p className="text-slate-500 font-medium">Understanding automation, structural shifts, and strategic pivot paths</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {AT_RISK_DATA.map((item, idx) => (
+              {insights.atRiskRoles.map((item, idx) => (
                 <div key={idx} className="bg-white border-[1.5px] border-rose-500 rounded-[2.5rem] p-8 flex flex-col h-full shadow-md">
                   <h3 className="text-2xl font-bold text-slate-900 mb-2">{item.title}</h3>
                   <div className="mb-6">
@@ -399,7 +419,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {TOP_SKILLS_DATA.map((item, idx) => {
+              {insights.topSkills.map((item, idx) => {
                 const IconComponent = item.icon;
                 return (
                   <div key={idx} className={`border-[1.5px] rounded-[2.5rem] p-8 ${item.color} relative overflow-hidden group bg-transparent`}>
@@ -465,7 +485,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {MARKET_RISKS_DATA.map((row, idx) => (
+                    {insights.marketRisks.map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-4 md:px-8 md:py-6 w-[15%]">
                           <span className={`px-3 py-1 md:px-4 md:py-1.5 rounded-lg md:rounded-xl text-[10px] font-extrabold uppercase border ${
@@ -517,10 +537,10 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             <div>
               <h3 className="text-lg md:text-xl font-bold text-black mb-4 md:mb-6">Market News Summary (Based on the Last 2 Months)</h3>
               <div className="space-y-4 md:space-y-6 text-slate-700 leading-relaxed text-base md:text-lg">
-                <p>Over the next 3–10 years, {location} and the Bay Area will stay a global jobs hotspot, but the centre of gravity is shifting. The region is still the core hub for AI engineering and advanced tech roles, even after several waves of layoffs. Reports show a massive increase in demand for AI engineers, with the Bay Area as the "center of gravity" for those jobs, even as traditional software roles grow more slowly.</p>
-                <p>At the same time, the Bay Area has seen repeated rounds of tech layoffs in 2024–2025, with thousands of jobs cut as big firms restructure around AI and cost savings. This means mid-level, routine-heavy tech, admin, and customer support roles are under real pressure, while specialised AI, product, data, security, climate-tech, and health-related jobs are gaining ground.</p>
-                <p>For job seekers, the key truth is: the problem is often not you, it's the market. Some roles in the Bay Area are shrinking or being automated. That means you need a strategic pivot, not just a "better CV." At the same time, there are fast-growing paths in AI & data, green/clean energy, climate and sustainability, digital health, and public-interest tech, where your skills can be repurposed with targeted learning.</p>
-                <p>Your goal is to treat the {location} job market like a chess board, not a slot machine: understand which squares are shrinking, which ones are opening up, and build a 3–6 month plan to stop certain behaviours, start future-proof ones, and double down on your real strengths.</p>
+                <p>{insights?.reportSummary?.paragraph1}</p>
+                <p>{insights?.reportSummary?.paragraph2}</p>
+                <p>{insights?.reportSummary?.paragraph3}</p>
+                <p>{insights?.reportSummary?.paragraph4}</p>
               </div>
             </div>
             
@@ -530,7 +550,9 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                   <TrendingUp className="w-4 h-4 md:w-5 md:h-5" />
                   <span className="uppercase tracking-widest text-[10px] md:text-xs">Strongest Opportunity</span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">AI & Machine Learning Roles - Driven by tech sector growth and startup expansions in {location}.</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
+                  {insights?.reportSummary?.strongestOpportunity} in {insights?.location || location}.
+                </p>
               </div>
               
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white border-[1.5px] border-rose-500 shadow-sm">
@@ -803,7 +825,8 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                 onTouchEnd={onTouchEnd}
                 className="flex overflow-x-auto gap-4 md:gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory md:snap-none"
               >
-                {MOCK_NEWS.map((article, index) => (
+                {/* {(insights?.newsArticles || MOCK_NEWS).map((article, index) => ( */}
+                {insights.newsArticles.map((article, index) => (
                   <div 
                     key={article.id} 
                     className="min-w-full md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start"
@@ -867,7 +890,8 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                 onTouchEnd={onTrendTouchEnd}
                 className="flex overflow-x-auto gap-4 md:gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory md:snap-none"
               >
-                {TREND_REPORTS.map(report => (
+                {/* {(insights?.trendReports || TREND_REPORTS).map(report => ( */}
+                {insights.trendReports.map(report => (
                   <div key={report.id} className="min-w-full md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start">
                     <TrendCard report={report} onClick={() => setSelectedTrendId(report.id)} />
                   </div>
@@ -907,7 +931,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
               >
                 <div className="animate-marquee-cards gap-4 sm:gap-6 md:gap-12">
                   {/* Triple buffer for absolute seamless infinite loop: Set A | Set A | Set A */}
-                  {[...RECENT_NEWS_DATA, ...RECENT_NEWS_DATA, ...RECENT_NEWS_DATA].map((news, index) => (
+                  {[...insights.recentNews, ...insights.recentNews, ...insights.recentNews].map((news, index) => (
                     <RecentNewsCard key={`${news.id}-${index}`} news={news} />
                   ))}
                 </div>

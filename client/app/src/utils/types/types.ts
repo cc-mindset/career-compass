@@ -32,6 +32,15 @@ export interface RecentNewsArticle {
   relevance: number; // 1-10
 }
 
+export interface TrendReport {
+  id: string;
+  title: string;
+  excerpt: string;
+  image?: string;
+  category?: string;
+  color: string;
+}
+
 export interface Course {
   id: string;
   title: string;

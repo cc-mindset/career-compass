@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { ApiState, ApiStatus, createInitialApiState } from '../api/apiTypes';
 import { getSocket, waitForSocketConnection } from '../../providers/socket/socket';
 import { useAppContext } from '../contexts/AppContext';
+import { NewsArticle, TrendReport, RecentNewsArticle } from '../../utils/types/types'; 
+
 
 // Shape of the backend response for /api/market-insights/generate
 export type MarketInsightsLoadingStage = 'idle' | 'first' | 'second' | 'third' | 'complete';
@@ -12,7 +14,29 @@ export interface MarketInsightsGenerateResponse {
   jobId?: string;
   position?: number;
   message?: string;
-  insights?: unknown;
+  insights?: {
+    location: string;
+    country: string;
+    reportSummary: {
+      paragraph1: string;
+      paragraph2: string;
+      paragraph3: string;
+      paragraph4: string;
+      strongestOpportunity: string;
+      highestRiskSector: string;
+      topSkillDemand: string;
+      pivotNecessity: string;
+    };
+    newsArticles: NewsArticle[];
+    trendReports: TrendReport[];
+    highGrowthSectors: any[];
+    atRiskRoles: any[];
+    topSkills: any[];
+    marketRisks: any[];
+    recentNews: RecentNewsArticle[];
+    labourMarketSnapshot: any;
+    locationVsRegion: any[];
+  };
   generated_at?: string;
 }
 
@@ -24,6 +48,7 @@ interface MarketInsightsContextValue {
   loadingStage: MarketInsightsLoadingStage;
   setLoadingStage: (stage: MarketInsightsLoadingStage) => void;
   progressText?: string;
+  insights: MarketInsightsGenerateResponse['insights'] | null;
 }
 
 const MarketInsightsContext = createContext<MarketInsightsContextValue | undefined>(undefined);
@@ -269,7 +294,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         loadingStage,
         setLoadingStage,
         progressText,
-      }}
+      insights: generateState.data?.insights || null,  // ADD THIS LINE
+    }}
     >
       {children}
     </MarketInsightsContext.Provider>
