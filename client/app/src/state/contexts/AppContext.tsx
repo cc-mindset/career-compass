@@ -1,13 +1,12 @@
-import React, { createContext, useContext, ReactNode } from 'react';
-import {
-  useMarketInsightsState,
-  MarketInsightsLoadingStage,
-} from '../marketInsights/MarketInsightsContext';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface AppContextType {
-  // Re‑expose all market insights API + loading state globally
-  marketInsightsLoadingStage: MarketInsightsLoadingStage;
-  setMarketInsightsLoadingStage: (stage: MarketInsightsLoadingStage) => void;
+  /**
+   * Global server availability status.
+   * If false, the app should fall back to static/constants-based content.
+   */
+  serverAvailable: boolean;
+  setServerAvailable: (available: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -25,14 +24,14 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
-  // Pull all market insights state from its dedicated context
-  const { loadingStage, setLoadingStage } = useMarketInsightsState();
+  // Global server availability state
+  const [serverAvailable, setServerAvailable] = useState<boolean>(true);
 
   return (
     <AppContext.Provider
       value={{
-        marketInsightsLoadingStage: loadingStage,
-        setMarketInsightsLoadingStage: setLoadingStage,
+        serverAvailable,
+        setServerAvailable,
       }}
     >
       {children}

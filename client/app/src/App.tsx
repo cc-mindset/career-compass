@@ -10,14 +10,14 @@ import CareerIntelView from './components/views/CareerIntelView';
 import EcoSimulatorView from './components/views/EcoSimulatorView';
 import { UnderConstruction } from './ui-kit';
 import LandingPageView from './components/views/LandingPageView';
-import { AppProvider, useAppContext } from './state/contexts/AppContext';
-import { MarketInsightsProvider } from './state/marketInsights/MarketInsightsContext';
+import { AppProvider } from './state/contexts/AppContext';
+import { MarketInsightsProvider, useMarketInsightsState } from './state/marketInsights/MarketInsightsContext';
 
 const AppContent: React.FC = () => {
   const [hasStarted, setHasStarted] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('market-insights');
   const [user, setUser] = useState<UserProfile>(INITIAL_USER);
-  const { setMarketInsightsLoadingStage } = useAppContext();
+  const { setLoadingStage } = useMarketInsightsState();
 
   const handleStartJourney = (profileData: UserProfile) => {
     setUser(profileData);
@@ -27,9 +27,9 @@ const AppContent: React.FC = () => {
   // Reset loading state when navigating to market-insights
   useEffect(() => {
     if (currentView === 'market-insights' && hasStarted) {
-      setMarketInsightsLoadingStage('idle');
+      setLoadingStage('idle');
     }
-  }, [currentView, hasStarted, setMarketInsightsLoadingStage]);
+  }, [currentView, hasStarted, setLoadingStage]);
 
   if (!hasStarted) {
     return <LandingPageView onStart={handleStartJourney} />;
@@ -80,11 +80,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <MarketInsightsProvider>
-      <AppProvider>
+    <AppProvider>
+      <MarketInsightsProvider>
         <AppContent />
-      </AppProvider>
-    </MarketInsightsProvider>
+      </MarketInsightsProvider>
+    </AppProvider>
   );
 };
 

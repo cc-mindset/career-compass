@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { ApiState, ApiStatus, createInitialApiState } from '../api/apiTypes';
 import { getSocket, waitForSocketConnection } from '../../providers/socket/socket';
+import { useAppContext } from '../contexts/AppContext';
 
 // Shape of the backend response for /api/market-insights/generate
 export type MarketInsightsLoadingStage = 'idle' | 'first' | 'second' | 'third' | 'complete';
@@ -46,16 +47,39 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
   const [loadingStage, setLoadingStage] = useState<MarketInsightsLoadingStage>('idle');
   const [progressText, setProgressText] = useState<string | undefined>(undefined);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  
+  // Get global server availability state from AppContext
+  // MarketInsightsProvider wraps AppProvider, so we can use useAppContext
+  let setServerAvailable: ((available: boolean) => void) | null = null;
+  try {
+    const appContext = useAppContext();
+    setServerAvailable = appContext.setServerAvailable;
+  } catch (e) {
+    // AppContext not available yet (shouldn't happen in normal flow)
+    console.warn('MarketInsightsProvider: AppContext not available');
+  }
+  
+  const updateServerAvailable = (available: boolean) => {
+    if (setServerAvailable) {
+      setServerAvailable(available);
+    }
+  };
 
   const generateMarketInsights = async ({ location, userId }: { location: string; userId?: string }) => {
     const apiBase = import.meta.env.VITE_API_URL || '';
 
     if (!apiBase) {
-      // If API base is not configured, surface a simple error state but don't block UX
-      setGenerateState({
-        status: 'error',
-        error: 'VITE_API_URL is not configured',
-      });
+      // If API base is not configured, treat backend as unavailable and
+      // fall back to the original constants-based page (no blocking error UI).
+      console.error('MarketInsights: VITE_API_URL is not configured – falling back to static content.');
+      updateServerAvailable(false);
+      setGenerateState(prev => ({
+        ...prev,
+        status: 'idle',
+        error: undefined,
+      }));
+      setLoadingStage('complete');
+      setProgressText(undefined);
       return;
     }
 
@@ -129,6 +153,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         }));
       } else {
         // Non-queued path: treat as completed immediately
+        // Server is available since we got a successful response
+        updateServerAvailable(true);
         setGenerateState({
           status: 'success',
           data,
@@ -138,8 +164,33 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         setProgressText('Insights ready');
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+      const isError = error instanceof Error;
+      const message = isError ? error.message : 'Unknown error';
+
       console.error('Failed to call /api/market-insights/generate:', error);
+
+      // If we cannot reach the server at all (network-level failure),
+      // fall back to the original constants-based page instead of
+      // blocking the user with an error screen.
+      const looksLikeNetworkFailure =
+        isError &&
+        /Failed to fetch|NetworkError|TypeError: Network request failed/i.test(message);
+
+      if (looksLikeNetworkFailure) {
+        console.warn('MarketInsights: backend appears unreachable – falling back to static content.');
+        updateServerAvailable(false);
+        setGenerateState(prev => ({
+          ...prev,
+          status: 'idle',
+          error: undefined,
+        }));
+        setLoadingStage('complete');
+        setProgressText(undefined);
+        return;
+      }
+
+      // For non-network errors (backend reachable but failed), keep the explicit error state.
+      updateServerAvailable(true);
       setGenerateState({
         status: 'error',
         error: message,
@@ -173,6 +224,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
       // Completed with insights
       if (payload.stage === 'completed') {
         console.log('[MarketInsights] Job completed, insights received');
+        // Server is available since we received WebSocket data
+        updateServerAvailable(true);
         setGenerateState(prev => ({
           status: 'success',
           data: {
