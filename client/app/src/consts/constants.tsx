@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutGrid, Lightbulb, BarChart3, Settings, User, Newspaper, GraduationCap, MapPin, Rocket, Star, Target, Wrench } from 'lucide-react';
+import { LayoutGrid, Sparkles, BarChart3, Settings, User, Newspaper, GraduationCap, MapPin, Rocket, Star, Target, Wrench } from 'lucide-react';
 import { NewsArticle, Course, UserProfile, CareerMilestone, RecentNewsArticle } from '../utils/types/types';
 
 export const INITIAL_USER: UserProfile = {
@@ -18,7 +18,7 @@ export const INITIAL_USER: UserProfile = {
 
 export const NAVIGATION_ITEMS = [
   { id: 'market-insights', label: 'Market Insights', icon: LayoutGrid },
-  { id: 'career-intel', label: 'Career Intel', icon: Lightbulb },
+  { id: 'career-intel', label: 'Career Intel', icon: Sparkles },
   { id: 'eco-simulator', label: 'Eco Simulator', icon: BarChart3 },
 ];
 

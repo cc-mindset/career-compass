@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../utils/types/types';
 import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA } from '../../consts/constants';
-import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench, Loader2 } from 'lucide-react';
+import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench, Loader2, Newspaper } from 'lucide-react';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
 
 interface MarketInsightViewProps {
@@ -458,10 +458,10 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap">Severity</th>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap">Risk</th>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap">Sectors</th>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap">Strategy</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">Severity</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">Risk</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">Sectors</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">Strategy</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -767,6 +767,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
                 <div className="flex items-center gap-3 min-w-0">
+                  <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
                   <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">Market Report</h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -831,6 +832,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
                 <div className="flex items-center gap-3 min-w-0">
+                  <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
                   <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 line-clamp-2 sm:line-clamp-1">Industry Growth and Decline Trends</h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -891,6 +893,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
           <section className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
             {/* Title Section with GREEN PULSE */}
             <div className="mb-6 md:mb-8 px-2 flex items-center gap-3">
+              <Newspaper className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Recent Market News</h2>
               <div className="relative flex h-2.5 w-2.5 flex-shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

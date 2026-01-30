@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../../utils/types/types';
-import { BarChart3, TrendingUp, AlertTriangle, ShieldCheck, Zap, Info, ChevronRight } from 'lucide-react';
+import { BarChart3, TrendingUp, ShieldCheck, Zap, ChevronRight } from 'lucide-react';
+import { TipCard } from '../../ui-kit';
 
 interface EcoSimulatorViewProps {
   user: UserProfile;
@@ -26,7 +27,7 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-      <div className="mb-8 md:mb-12">
+      <div className="mb-4 md:mb-5">
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1 sm:mb-2 flex items-center gap-2 sm:gap-3 text-slate-900">
           Career Eco Simulator <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 flex-shrink-0" />
         </h1>
@@ -86,15 +87,7 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
             </div>
           </div>
 
-          <div className="p-4 md:p-6 bg-indigo-600 rounded-xl md:rounded-[2rem] text-white">
-            <div className="flex items-start gap-3 md:gap-4">
-              <Info className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0 mt-0.5 md:mt-1" />
-              <div className="min-w-0">
-                <p className="font-bold mb-1 text-xs sm:text-sm">Pro Tip</p>
-                <p className="text-[11px] sm:text-xs text-indigo-100 leading-relaxed">Increasing your Upskilling Velocity is the single most effective way to counter high Market Volatility.</p>
-              </div>
-            </div>
-          </div>
+          <TipCard text="Increasing your Upskilling Velocity is the single most effective way to counter high Market Volatility." compact />
         </div>
 
         {/* Results Section */}
