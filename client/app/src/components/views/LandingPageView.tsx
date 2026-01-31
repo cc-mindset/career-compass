@@ -4,7 +4,7 @@ import { UserProfile } from '../../utils/types/types';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { getSocket } from '../../providers/socket/socket';
-import { Briefcase, MapPin, ChevronRight, User, Building2, Sparkles, Search, Check, ArrowLeft, ArrowRight, Target, BarChart3, GraduationCap, X, Plus } from 'lucide-react';
+import { Briefcase, MapPin, ChevronRight, User, Building2, Sparkles, Search, Check, ArrowLeft, ArrowRight, Target, BarChart3, GraduationCap, X, Plus, Upload, FileText } from 'lucide-react';
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
@@ -32,8 +32,7 @@ const STEPS: StepConfig[] = [
   { key: 'location', label: "Where are you based?", placeholder: "Select Location", icon: <MapPin className="w-5 h-5" />, options: OPTIONS.locations },
   { key: 'role', label: "What is your current title?", placeholder: "Select Role", icon: <Briefcase className="w-5 h-5" />, options: OPTIONS.roles },
   { key: 'seniority', label: "What is your seniority level?", placeholder: "Select Experience", icon: <User className="w-5 h-5" />, options: OPTIONS.seniority },
-  { key: 'employers', label: "Where do you currently work?", placeholder: "Select Employer", icon: <Building2 className="w-5 h-5" />, options: OPTIONS.employers, allowCustom: true },
-  { key: 'skills', label: "What are your top skills?", placeholder: "Select at least 3 skills", icon: <Sparkles className="w-5 h-5" />, options: OPTIONS.skills, allowCustom: true },
+  { key: 'resume', label: "Upload your resume (optional)", placeholder: "Choose file or skip", icon: <Upload className="w-5 h-5" />, options: [] },
   { key: 'name', label: "What name do you like to go by?", placeholder: "Enter your name", icon: <User className="w-5 h-5" />, options: [], allowCustom: true },
 ];
 
@@ -45,13 +44,16 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     role: '',
     seniority: '',
     employers: '',
-    skills: [] as string[]
+    skills: [] as string[],
+    resumeFile: null as File | null,
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [openFeatureIndex, setOpenFeatureIndex] = useState<number | null>(null);
+  const [isDraggingResume, setIsDraggingResume] = useState(false);
 
   const { generateMarketInsights } = useMarketInsightsState();
   const [hasStartedFilling, setHasStartedFilling] = useState(false);
@@ -140,13 +142,12 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     const newUser: UserProfile = {
       name: formData.name || "Explorer",
       role: formData.role,
-      company: formData.employers,
+      company: '',
       location: formData.location,
       country: formData.location.includes(',') ? formData.location.split(',')[1].trim() : "United States",
       experience: formData.seniority ? formData.seniority.replace(/\s*\([^)]*\)\s*/g, '').trim() : '',
-      // 'avataaars' with 'smile' mouth mouth provides a professional and friendly look
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name || 'User')}&mouth=smile&backgroundColor=E0E7FF`,
-      skills: formData.skills,
+      skills: [],
       completedCourses: 0,
       certifications: 0
     };
@@ -165,12 +166,13 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   };
 
   const isLastStep = currentStep === STEPS.length - 1;
-  const isCompleted = formData.name && formData.location && formData.role && formData.seniority && formData.employers && formData.skills.length >= 3;
+  const isCompleted = formData.location && formData.role && formData.seniority;
 
   const currentStepValue = () => {
-    if (activeStep.key === 'skills') {
-      if (formData.skills.length === 0) return activeStep.label;
-      return `${formData.skills.length} skills selected`;
+    if (activeStep.key === 'resume') {
+      return formData.resumeFile
+        ? (formData.resumeFile.name.length > 4 ? formData.resumeFile.name.slice(0, 4) + ".." : formData.resumeFile.name)
+        : activeStep.label;
     }
     const value = (formData as any)[activeStep.key] || activeStep.label;
     // Remove the "(0-2 Yrs)" part from seniority values
@@ -179,6 +181,45 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     }
     return value;
   };
+
+  const RESUME_ACCEPT = ['.pdf', '.doc', '.docx'];
+  const isResumeFile = (file: File) =>
+    RESUME_ACCEPT.some(ext => file.name.toLowerCase().endsWith(ext));
+
+  const applyResumeFile = (file: File) => {
+    if (!isResumeFile(file)) return;
+    setFormData(prev => ({ ...prev, resumeFile: file }));
+    if (currentStep < STEPS.length - 1) {
+      setTimeout(() => setCurrentStep(prev => prev + 1), 300);
+    }
+  };
+
+  const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) applyResumeFile(file);
+    e.target.value = '';
+  };
+
+  const handleResumeDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingResume(true);
+  };
+
+  const handleResumeDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingResume(false);
+  };
+
+  const handleResumeDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingResume(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) applyResumeFile(file);
+  };
+
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-indigo-100 overflow-x-hidden flex flex-col">
@@ -226,6 +267,45 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
                 <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5 ml-1">
                   Question {currentStep + 1} of {STEPS.length}
                 </p>
+                {activeStep.key === 'resume' ? (
+                  <div
+                    onDragOver={handleResumeDragOver}
+                    onDragLeave={handleResumeDragLeave}
+                    onDrop={handleResumeDrop}
+                    className={`flex items-center justify-between w-full gap-3 md:px-2 md:py-1 rounded-xl border-2 border-dashed transition-colors ${
+                      isDraggingResume ? 'border-indigo-400 bg-indigo-50/50' : 'border-transparent'
+                    }`}
+                  >
+                    <h3 className="font-bold text-slate-900 text-base md:text-lg truncate min-w-0">
+                      Upload your resume for the best experience
+                    </h3>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        onChange={handleResumeUpload}
+                        className="hidden"
+                        aria-label="Upload resume"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-200"
+                        title="Upload resume"
+                      >
+                        <Upload className="w-4 h-4" />
+                      </button>
+                      {formData.resumeFile && (
+                        <span className="inline-flex items-center gap-1.5 text-slate-600 text-xs font-medium shrink-0">
+                          <FileText className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          {formData.resumeFile.name.length > 4 ? formData.resumeFile.name.slice(0, 4) + ".." : formData.resumeFile.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
                 <div 
                   onClick={() => setIsOpen(!isOpen)}
                   className="group flex items-center justify-between cursor-pointer md:hover:bg-indigo-50/50 md:hover:text-indigo-600 rounded-lg md:px-2 md:py-1 transition-all duration-200"
@@ -307,20 +387,9 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
                         </div>
                       )}
                     </div>
-                    {activeStep.key === 'skills' && (
-                      <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                          {formData.skills.length < 3 ? `Choose ${3 - formData.skills.length} more` : 'Ready to go!'}
-                        </p>
-                        <button 
-                          onClick={() => setIsOpen(false)}
-                          className="text-xs font-bold text-indigo-600 hover:text-indigo-700"
-                        >
-                          Done
-                        </button>
-                      </div>
-                    )}
                   </div>
+                )}
+                  </>
                 )}
               </div>
             </div>
@@ -339,7 +408,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
               {isLastStep ? (
                 <button 
                   onClick={handleSubmit}
-                  disabled={!(formData as any)[activeStep.key]}
+                  disabled={activeStep.key === 'name' ? false : !(formData as any)[activeStep.key]}
                   className="flex-1 md:flex-none px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xl shadow-indigo-600/20 disabled:opacity-50 disabled:scale-100 group"
                 >
                   Start Journey
@@ -348,10 +417,10 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
               ) : (
                 <button 
                   onClick={() => setCurrentStep(prev => prev + 1)}
-                  disabled={activeStep.key === 'skills' ? formData.skills.length < 3 : !(formData as any)[activeStep.key]}
+                  disabled={activeStep.key === 'resume' || activeStep.key === 'name' ? false : !(formData as any)[activeStep.key]}
                   className="flex-1 md:flex-none px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:bg-slate-100 disabled:text-slate-300 disabled:opacity-80 disabled:scale-100"
                 >
-                  Next
+                  {activeStep.key === 'resume' && !formData.resumeFile ? 'SKIP' : 'Next'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               )}
@@ -371,21 +440,6 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
             ))}
           </div>
         </div>
-
-        {/* Selected Skills Chips */}
-        {activeStep.key === 'skills' && formData.skills.length > 0 && (
-          <div className="mt-6 flex flex-wrap justify-center gap-2 max-w-2xl animate-in fade-in duration-300">
-            {formData.skills.map(skill => (
-              <span key={skill} className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 text-black text-xs font-extrabold rounded-full border border-slate-200 shadow-sm">
-                {skill}
-                <X 
-                  className="w-3 h-3 cursor-pointer text-slate-400 hover:text-black transition-colors" 
-                  onClick={() => handleSelect(skill)} 
-                />
-              </span>
-            ))}
-          </div>
-        )}
 
         {/* Feature Highlights */}
         <div className="mt-24 md:mt-32 flex flex-wrap justify-center gap-y-16 gap-x-10 md:gap-20 w-full max-w-4xl animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">

@@ -167,7 +167,7 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
               </p>
             </div>
 
-            <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 border border-slate-200 shadow-sm">
+            <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 border border-indigo-500 shadow-sm">
               <div className="space-y-4">
               {SORTED_RECOMMENDED_ACTIONS.map((row, idx) => {
                 const { pill } = IMPACT_STYLES[row.impact];
