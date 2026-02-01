@@ -223,6 +223,19 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-indigo-100 overflow-x-hidden flex flex-col">
+      <style>{`
+        .resume-label-marquee {
+          display: inline-flex;
+          white-space: nowrap;
+        }
+        @keyframes resume-sub-marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-12%); }
+        }
+        .group\\/resume-desc:hover .resume-label-marquee {
+          animation: resume-sub-marquee 1.4s linear forwards;
+        }
+      `}</style>
       {/* Header */}
       <header className="max-w-7xl mx-auto w-full px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -272,13 +285,22 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
                     onDragOver={handleResumeDragOver}
                     onDragLeave={handleResumeDragLeave}
                     onDrop={handleResumeDrop}
-                    className={`flex items-center justify-between w-full gap-3 md:px-2 md:py-1 rounded-xl border-2 border-dashed transition-colors ${
+                    className={`group/resume flex items-center justify-between w-full gap-3 md:px-2 md:py-1 rounded-xl border-2 border-dashed transition-colors ${
                       isDraggingResume ? 'border-indigo-400 bg-indigo-50/50' : 'border-transparent'
                     }`}
                   >
-                    <h3 className="font-bold text-slate-900 text-base md:text-lg truncate min-w-0">
-                      Upload your resume for the best experience
-                    </h3>
+                    <div className="relative h-7 overflow-hidden flex-1 min-w-0 flex items-center bg-slate-50/50 rounded-lg w-[11rem] sm:w-[12.5rem] md:w-[14rem] group/resume-desc">
+                      <div className="resume-label-marquee flex items-center">
+                        <span className="font-bold text-slate-900 text-base md:text-lg whitespace-nowrap">
+                          Upload your resume for the best experience
+                        </span>
+                        <span className="w-12 shrink-0 hidden group-hover/resume-desc:inline-block" />
+                        <span className="font-bold text-slate-900 text-base md:text-lg whitespace-nowrap hidden group-hover/resume-desc:block">
+                          Upload your resume for the best experience
+                        </span>
+                      </div>
+                      <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-white via-white/70 to-transparent pointer-events-none z-10" aria-hidden />
+                    </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <input
                         ref={fileInputRef}
@@ -291,7 +313,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-200"
+                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-200"
                         title="Upload resume"
                       >
                         <Upload className="w-4 h-4" />

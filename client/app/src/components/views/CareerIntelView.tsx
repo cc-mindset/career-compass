@@ -8,7 +8,7 @@ import {
   type CareerStageId,
   type ImpactLevel,
 } from '../../consts/careerIntelContent';
-import { Target, Lightbulb, ChevronRight, BrainCircuit, GraduationCap, Briefcase, Globe, Sparkles, ClipboardList } from 'lucide-react';
+import { Target, Lightbulb, ChevronRight, BrainCircuit, GraduationCap, Briefcase, Globe, Sparkles, ClipboardList, Library } from 'lucide-react';
 
 interface CareerIntelViewProps {
   user: UserProfile;
@@ -112,7 +112,12 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
                       <div className="min-w-0">
                         <p className="text-white/95 text-sm md:text-base leading-relaxed">{item.text}</p>
                         {item.source && (
-                          <p className="text-indigo-200/70 text-xs mt-1.5 italic">{item.source}</p>
+                          <p className="flex items-center gap-1.5 text-indigo-200/70 text-xs mt-1.5 italic">
+                            <Library className="w-3.5 h-3.5 text-indigo-300/80 flex-shrink-0" aria-hidden />
+                            {item.source.startsWith('News article:')
+                              ? item.source.slice('News article:'.length).trim()
+                              : item.source}
+                          </p>
                         )}
                       </div>
                     </li>
