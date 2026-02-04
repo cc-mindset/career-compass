@@ -9,6 +9,7 @@ import {
   type ImpactLevel,
 } from '../../consts/careerIntelContent';
 import { Target, Lightbulb, ChevronRight, BrainCircuit, GraduationCap, Briefcase, Globe, Sparkles, ClipboardList, Library } from 'lucide-react';
+import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
 
 interface CareerIntelViewProps {
   user: UserProfile;
@@ -34,6 +35,14 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [guidanceStage, setGuidanceStage] = useState<CareerStageId>('new-graduates');
   const [expandedActionIdx, setExpandedActionIdx] = useState<number | null>(null);
+  
+  // Extract real insights data
+  const { generateState } = useMarketInsightsState();
+  const insights = generateState.data?.insights as any;
+  
+  // Use real data if available, otherwise fall back to mock data
+  const strategiesByProfile = insights?.strategies_by_profile || GUIDANCE_BY_STAGE;
+  const keyFindings = insights?.key_findings || RECOMMENDED_ACTIONS;
 
   const fetchSuggestions = async () => {
     setLoading(true);
@@ -101,7 +110,7 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
                 </div>
 
                 <ul className="space-y-3 md:space-y-4">
-                  {GUIDANCE_BY_STAGE[guidanceStage].map((item, idx) => (
+                  {(strategiesByProfile[guidanceStage] || []).map((item, idx) => (
                     <li
                       key={idx}
                       className="flex gap-4 p-4 md:p-5 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-colors"
@@ -174,8 +183,9 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
 
             <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 border border-indigo-500 shadow-sm">
               <div className="space-y-4">
-              {SORTED_RECOMMENDED_ACTIONS.map((row, idx) => {
-                const { pill } = IMPACT_STYLES[row.impact];
+              {[...keyFindings].sort((a, b) => IMPACT_ORDER[a.impact_level || a.impact] - IMPACT_ORDER[b.impact_level || b.impact]).map((row, idx) => {
+                const impactLevel = row.impact_level || row.impact;
+                const { pill } = IMPACT_STYLES[impactLevel];
                 const isExpanded = expandedActionIdx === idx;
                 return (
                   <div
@@ -188,10 +198,10 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
                       className="w-full text-left p-4 sm:p-5 flex flex-wrap items-start gap-3 sm:gap-4"
                     >
                       <span className={`px-3 py-1 md:px-4 md:py-1.5 rounded-lg md:rounded-xl text-[10px] font-extrabold uppercase border ${pill}`}>
-                        {row.impact.charAt(0).toUpperCase() + row.impact.slice(1)}
+                        {impactLevel.charAt(0).toUpperCase() + impactLevel.slice(1)}
                       </span>
                       <span className="flex-1 min-w-0 text-slate-800 font-medium text-sm md:text-base">
-                        {row.recommendedAction}
+                        {row.action_item || row.recommendedAction}
                       </span>
                       <ChevronRight
                         className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
@@ -201,11 +211,11 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
                       <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0 space-y-3 border-t border-slate-100 bg-slate-50/50">
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Market finding</p>
-                          <p className="text-slate-600 text-sm">{row.marketFinding}</p>
+                          <p className="text-slate-600 text-sm">{row.insight || row.marketFinding}</p>
                         </div>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Driving force</p>
-                          <p className="text-slate-600 text-sm">{row.drivingForce}</p>
+                          <p className="text-slate-600 text-sm">{row.driving_force || row.drivingForce}</p>
                         </div>
                       </div>
                     )}

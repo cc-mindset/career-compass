@@ -11,7 +11,22 @@ interface MarketInsightViewProps {
 }
 
 const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
-  const { generateStatus, generateError, progressText } = useMarketInsightsState();
+  const { generateStatus, generateError, progressText, generateState } = useMarketInsightsState();
+  
+  // Extract real insights data
+  const insights = generateState.data?.insights as any;
+  
+  // Use real data if available, otherwise fall back to mock data
+  const executiveSummaryBrief = insights?.executive_summary_brief || null;
+  const executiveSummary = insights?.executive_summary || null;
+  const labourMarketSnapshot = insights?.labour_market_snapshot || null;
+  const cityVsRegionComparison = insights?.city_vs_region_comparison || null;
+  const highGrowthSectors = insights?.high_growth_sectors || HIGH_GROWTH_DATA;
+  const atRiskSectors = insights?.at_risk_sectors || AT_RISK_DATA;
+  const topSkillsDemand = insights?.top_skills_demand?.categories || TOP_SKILLS_DATA;
+  const marketRisks = insights?.market_risks || MARKET_RISKS_DATA;
+  const marketNews = insights?.market_news || RECENT_NEWS_DATA;
+  
   const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
   const [selectedTrendId, setSelectedTrendId] = useState<string | null>(null);
   const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
@@ -335,7 +350,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
               <p className="text-slate-500 font-medium">Industries with strong hiring momentum in {location}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {HIGH_GROWTH_DATA.map((item, idx) => (
+              {highGrowthSectors.map((item, idx) => (
                 <div key={idx} className="bg-slate-50/50 border-[1.5px] border-emerald-500 rounded-[2.5rem] p-8 flex flex-col h-full shadow-sm">
                   <div className="flex justify-between items-start mb-4">
                     <h3 className="text-2xl font-bold text-slate-900">{item.title}</h3>
@@ -368,7 +383,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
               <p className="text-slate-500 font-medium">Understanding automation, structural shifts, and strategic pivot paths</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {AT_RISK_DATA.map((item, idx) => (
+              {atRiskSectors.map((item, idx) => (
                 <div key={idx} className="bg-white border-[1.5px] border-rose-500 rounded-[2.5rem] p-8 flex flex-col h-full shadow-md">
                   <h3 className="text-2xl font-bold text-slate-900 mb-2">{item.title}</h3>
                   <div className="mb-6">
@@ -399,7 +414,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {TOP_SKILLS_DATA.map((item, idx) => {
+              {topSkillsDemand.map((item, idx) => {
                 const IconComponent = item.icon;
                 return (
                   <div key={idx} className={`border-[1.5px] rounded-[2.5rem] p-8 ${item.color} relative overflow-hidden group bg-transparent`}>
@@ -465,7 +480,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {MARKET_RISKS_DATA.map((row, idx) => (
+                    {marketRisks.map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-4 md:px-8 md:py-6 w-[15%]">
                           <span className={`px-3 py-1 md:px-4 md:py-1.5 rounded-lg md:rounded-xl text-[10px] font-extrabold uppercase border ${
@@ -517,10 +532,16 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             <div>
               <h3 className="text-lg md:text-xl font-bold text-black mb-4 md:mb-6">Market News Summary (Based on the Last 2 Months)</h3>
               <div className="space-y-4 md:space-y-6 text-slate-700 leading-relaxed text-base md:text-lg">
-                <p>Over the next 3–10 years, {location} and the Bay Area will stay a global jobs hotspot, but the centre of gravity is shifting. The region is still the core hub for AI engineering and advanced tech roles, even after several waves of layoffs. Reports show a massive increase in demand for AI engineers, with the Bay Area as the "center of gravity" for those jobs, even as traditional software roles grow more slowly.</p>
-                <p>At the same time, the Bay Area has seen repeated rounds of tech layoffs in 2024–2025, with thousands of jobs cut as big firms restructure around AI and cost savings. This means mid-level, routine-heavy tech, admin, and customer support roles are under real pressure, while specialised AI, product, data, security, climate-tech, and health-related jobs are gaining ground.</p>
-                <p>For job seekers, the key truth is: the problem is often not you, it's the market. Some roles in the Bay Area are shrinking or being automated. That means you need a strategic pivot, not just a "better CV." At the same time, there are fast-growing paths in AI & data, green/clean energy, climate and sustainability, digital health, and public-interest tech, where your skills can be repurposed with targeted learning.</p>
-                <p>Your goal is to treat the {location} job market like a chess board, not a slot machine: understand which squares are shrinking, which ones are opening up, and build a 3–6 month plan to stop certain behaviours, start future-proof ones, and double down on your real strengths.</p>
+                {executiveSummaryBrief ? (
+                  <div dangerouslySetInnerHTML={{ __html: executiveSummaryBrief.split('\n\n').map((p: string) => `<p>${p}</p>`).join('') }} />
+                ) : (
+                  <>
+                    <p>Over the next 3–10 years, {location} and the Bay Area will stay a global jobs hotspot, but the centre of gravity is shifting. The region is still the core hub for AI engineering and advanced tech roles, even after several waves of layoffs. Reports show a massive increase in demand for AI engineers, with the Bay Area as the "center of gravity" for those jobs, even as traditional software roles grow more slowly.</p>
+                    <p>At the same time, the Bay Area has seen repeated rounds of tech layoffs in 2024–2025, with thousands of jobs cut as big firms restructure around AI and cost savings. This means mid-level, routine-heavy tech, admin, and customer support roles are under real pressure, while specialised AI, product, data, security, climate-tech, and health-related jobs are gaining ground.</p>
+                    <p>For job seekers, the key truth is: the problem is often not you, it's the market. Some roles in the Bay Area are shrinking or being automated. That means you need a strategic pivot, not just a "better CV." At the same time, there are fast-growing paths in AI & data, green/clean energy, climate and sustainability, digital health, and public-interest tech, where your skills can be repurposed with targeted learning.</p>
+                    <p>Your goal is to treat the {location} job market like a chess board, not a slot machine: understand which squares are shrinking, which ones are opening up, and build a 3–6 month plan to stop certain behaviours, start future-proof ones, and double down on your real strengths.</p>
+                  </>
+                )}
               </div>
             </div>
             
@@ -530,7 +551,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                   <TrendingUp className="w-4 h-4 md:w-5 md:h-5" />
                   <span className="uppercase tracking-widest text-[10px] md:text-xs">Strongest Opportunity</span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">AI & Machine Learning Roles - Driven by tech sector growth and startup expansions in {location}.</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">{executiveSummary?.key_stats?.strongest_opportunity || `AI & Machine Learning Roles - Driven by tech sector growth and startup expansions in ${location}.`}</p>
               </div>
               
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white border-[1.5px] border-rose-500 shadow-sm">
@@ -538,7 +559,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                   <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" />
                   <span className="uppercase tracking-widest text-[10px] md:text-xs">Highest Risk Sector</span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">Trade-Dependent Industries - Impacted by international trade policies on local industries.</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">{executiveSummary?.key_stats?.highest_risk_sector || 'Trade-Dependent Industries - Impacted by international trade policies on local industries.'}</p>
               </div>
               
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white border-[1.5px] border-indigo-500 shadow-sm">
@@ -546,7 +567,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                   <Target className="w-4 h-4 md:w-5 md:h-5" />
                   <span className="uppercase tracking-widest text-[10px] md:text-xs">Top Skill Demand</span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">AI & Machine Learning expertise</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">{executiveSummary?.key_stats?.top_skill_demand || 'AI & Machine Learning expertise'}</p>
               </div>
               
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white border-[1.5px] border-lime-500 shadow-sm">
@@ -554,7 +575,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                   <RefreshCw className="w-4 h-4 md:w-5 md:h-5" />
                   <span className="uppercase tracking-widest text-[10px] md:text-xs">Pivot Necessity</span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">Moderate</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">{executiveSummary?.key_stats?.pivot_necessity || 'Moderate'}</p>
               </div>
             </div>
           </div>
@@ -571,8 +592,14 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             </div>
             
             <div className="space-y-6 md:space-y-8 text-base md:text-lg text-slate-700 leading-relaxed">
-              <p>The employment rate for software publishers in {location} showed a slight decline from 409.9 in June 2025 to 401.1 in August 2025 (BLS Employment Data). This trend reflects broader market adjustments, with tech roles continuing to be a significant part of the employment landscape. Nationally, similar trends in tech employment suggest a stabilization rather than marked growth.</p>
-              <p>Comparatively, {location} remains a competitive market, especially for tech professionals, despite national cooling trends. The city's focus on innovation and high-tech industries continues to drive demand for skilled workers, although the overall market health shows signs of slowing growth.</p>
+              {labourMarketSnapshot?.overview ? (
+                <div dangerouslySetInnerHTML={{ __html: labourMarketSnapshot.overview.split('\n\n').map((p: string) => `<p>${p}</p>`).join('') }} />
+              ) : (
+                <>
+                  <p>The employment rate for software publishers in {location} showed a slight decline from 409.9 in June 2025 to 401.1 in August 2025 (BLS Employment Data). This trend reflects broader market adjustments, with tech roles continuing to be a significant part of the employment landscape. Nationally, similar trends in tech employment suggest a stabilization rather than marked growth.</p>
+                  <p>Comparatively, {location} remains a competitive market, especially for tech professionals, despite national cooling trends. The city's focus on innovation and high-tech industries continues to drive demand for skilled workers, although the overall market health shows signs of slowing growth.</p>
+                </>
+              )}
             </div>
             
             <InsightBox text="San Francisco's tech-driven market remains more resilient compared to national averages, which are experiencing broader contractions in various sectors. The local emphasis on AI and tech innovation offers a buffer against national economic pressures." />
@@ -580,13 +607,13 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             <div>
               <p className="font-bold text-slate-900 mb-4 md:mb-6 text-sm md:text-base">Major Market Drivers:</p>
               <div className="flex flex-wrap gap-2 md:gap-3">
-                {[
+                {(labourMarketSnapshot?.major_drivers || [
                   "AI startup expansion in San Francisco",
                   "High cost of living and competitive hiring benefits",
                   "Impact of international trade policies on local industries",
                   "Shift from talent hoarding to selective hiring",
                   "Increasing focus on remote and hybrid work models"
-                ].map((tag, i) => (
+                ]).map((tag, i) => (
                   <div 
                     key={i} 
                     className="px-4 py-2 md:px-5 md:py-3 bg-white border border-slate-200 rounded-lg md:rounded-[1rem] text-xs md:text-sm font-bold uppercase text-slate-700 transition-all cursor-default"
@@ -600,15 +627,15 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-emerald-500 bg-transparent">
                 <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">Employment Rate</p>
-                <p className="text-xl md:text-2xl font-extrabold text-emerald-600">4.1% to 4.3% (mid-2025)</p>
+                <p className="text-xl md:text-2xl font-extrabold text-emerald-600">{labourMarketSnapshot?.market_health?.employment_rate || '4.1% to 4.3% (mid-2025)'}</p>
               </div>
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-rose-500 bg-transparent">
                 <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">Job Growth Rate</p>
-                <p className="text-xl md:text-2xl font-extrabold text-rose-600">Declining</p>
+                <p className="text-xl md:text-2xl font-extrabold text-rose-600">{labourMarketSnapshot?.market_health?.job_growth_rate || 'Declining'}</p>
               </div>
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-indigo-500 bg-transparent">
                 <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">Overall Trend</p>
-                <p className="text-xl md:text-2xl font-extrabold text-indigo-600">Stable</p>
+                <p className="text-xl md:text-2xl font-extrabold text-indigo-600">{labourMarketSnapshot?.market_health?.trend || 'Stable'}</p>
               </div>
             </div>
           </div>
@@ -635,37 +662,37 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {[
+                    {(cityVsRegionComparison?.data || [
                       { 
-                        f: "Overall job market trend", 
-                        l: "High-skill, high-volatility – strong demand in AI, frontier tech, finance, product, design; repeated restructuring in big tech and startups.", 
-                        w: "Mixed but resilient – strong in healthcare, education, logistics, clean energy, advanced manufacturing and public services, with tech distributed across the region." 
+                        factor: "Overall job market trend", 
+                        city: "High-skill, high-volatility – strong demand in AI, frontier tech, finance, product, design; repeated restructuring in big tech and startups.", 
+                        wider_region: "Mixed but resilient – strong in healthcare, education, logistics, clean energy, advanced manufacturing and public services, with tech distributed across the region." 
                       },
                       { 
-                        f: "Remote / hybrid work trend", 
-                        l: "Prevalent in tech and startups; hybrid arrangements are common to attract talent.", 
-                        w: "Varies by industry; manufacturing and logistics are more on-site, while tech and services offer hybrid options." 
+                        factor: "Remote / hybrid work trend", 
+                        city: "Prevalent in tech and startups; hybrid arrangements are common to attract talent.", 
+                        wider_region: "Varies by industry; manufacturing and logistics are more on-site, while tech and services offer hybrid options." 
                       },
                       { 
-                        f: "Notable structural shifts", 
-                        l: "AI startups leasing luxury apartments and offering benefits to attract talent (News 3, News 4).", 
-                        w: "Less reliant on such incentives; broader range of sectors not as tech-centric." 
+                        factor: "Notable structural shifts", 
+                        city: "AI startups leasing luxury apartments and offering benefits to attract talent (News 3, News 4).", 
+                        wider_region: "Less reliant on such incentives; broader range of sectors not as tech-centric." 
                       },
                       { 
-                        f: "Cost of living / compensation", 
-                        l: "High cost of living offset by competitive tech salaries and benefits.", 
-                        w: "Lower cost of living with salaries adjusted accordingly; less pressure on housing costs." 
+                        factor: "Cost of living / compensation", 
+                        city: "High cost of living offset by competitive tech salaries and benefits.", 
+                        wider_region: "Lower cost of living with salaries adjusted accordingly; less pressure on housing costs." 
                       },
                       { 
-                        f: "Industry distribution", 
-                        l: "Dominated by tech, finance, and innovative sectors.", 
-                        w: `Diverse with ${location} holding strong presence in healthcare, education, and manufacturing.` 
+                        factor: "Industry distribution", 
+                        city: "Dominated by tech, finance, and innovative sectors.", 
+                        wider_region: `Diverse with ${location} holding strong presence in healthcare, education, and manufacturing.` 
                       }
-                    ].map((row, i) => (
+                    ]).map((row, i) => (
                       <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-4 md:px-8 md:py-6 font-bold text-slate-900 w-[25%] text-xs md:text-base">{row.f}</td>
-                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-xs md:text-lg w-[37.5%]">{row.l}</td>
-                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-xs md:text-lg w-[37.5%]">{row.w}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 font-bold text-slate-900 w-[25%] text-xs md:text-base">{row.factor || row.f}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-xs md:text-lg w-[37.5%]">{row.city || row.l}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-xs md:text-lg w-[37.5%]">{row.wider_region || row.w}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -910,7 +937,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
               >
                 <div className="animate-marquee-cards gap-4 sm:gap-6 md:gap-12">
                   {/* Triple buffer for absolute seamless infinite loop: Set A | Set A | Set A */}
-                  {[...RECENT_NEWS_DATA, ...RECENT_NEWS_DATA, ...RECENT_NEWS_DATA].map((news, index) => (
+                  {[...marketNews, ...marketNews, ...marketNews].map((news, index) => (
                     <RecentNewsCard key={`${news.id}-${index}`} news={news} />
                   ))}
                 </div>
