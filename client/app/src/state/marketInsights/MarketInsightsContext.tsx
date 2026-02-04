@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { ApiState, ApiStatus, createInitialApiState } from '../api/apiTypes';
-import { getSocket, waitForSocketConnection } from '../../providers/socket/socket';
+import { getSocket } from '../../providers/socket/socket';
 import { useAppContext } from '../contexts/AppContext';
+import { pollForInsights } from '../../utils/polls/pollForInsights';
 
 // Shape of the backend response for /api/market-insights/generate
 export type MarketInsightsLoadingStage = 'idle' | 'first' | 'second' | 'third' | 'complete';
@@ -47,15 +48,14 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
   const [loadingStage, setLoadingStage] = useState<MarketInsightsLoadingStage>('idle');
   const [progressText, setProgressText] = useState<string | undefined>(undefined);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Get global server availability state from AppContext
-  // MarketInsightsProvider wraps AppProvider, so we can use useAppContext
   let setServerAvailable: ((available: boolean) => void) | null = null;
   try {
     const appContext = useAppContext();
     setServerAvailable = appContext.setServerAvailable;
   } catch (e) {
-    // AppContext not available yet (shouldn't happen in normal flow)
     console.warn('MarketInsightsProvider: AppContext not available');
   }
   
@@ -69,8 +69,6 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     const apiBase = import.meta.env.VITE_API_URL || '';
 
     if (!apiBase) {
-      // If API base is not configured, treat backend as unavailable and
-      // fall back to the original constants-based page (no blocking error UI).
       console.error('MarketInsights: VITE_API_URL is not configured – falling back to static content.');
       updateServerAvailable(false);
       setGenerateState(prev => ({
@@ -83,6 +81,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
       return;
     }
 
+    // Reset state
     setGenerateState(prev => ({
       ...prev,
       status: 'in-progress',
@@ -92,6 +91,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     setProgressText('Preparing your market insights...');
 
     try {
+      // Step 1: POST /api/market-insights/generate
       const res = await fetch(`${apiBase}/api/market-insights/generate`, {
         method: 'POST',
         headers: {
@@ -110,50 +110,75 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
 
       const data = (await res.json()) as MarketInsightsGenerateResponse;
 
-      // If the job was queued, keep status as in-progress and subscribe for WebSocket updates
+      // Step 2: Backend returns { queued: true, jobId: "abc123" }
       if (data.queued && data.jobId) {
-        setActiveJobId(data.jobId);
+        const jobId = data.jobId;
+        setActiveJobId(jobId);
         setProgressText(data.message || 'Queued for processing...');
-        setLoadingStage('first');
+        console.log(`[MarketInsights] Job queued with ID: ${jobId}`);
 
-        // Ensure socket is connected before subscribing
+        // Step 3: Check if WebSocket available
         const socket = getSocket();
-        const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-        console.log(`[MarketInsights] API Response received - queued: ${data.queued}, jobId: ${data.jobId}`);
-        console.log(`[MarketInsights] Socket URL: ${socketUrl}`);
-        console.log(`[MarketInsights] Socket connected: ${socket.connected}, id: ${socket.id || 'none'}`);
         
-        const subscribeToJob = () => {
-          socket.emit('subscribe', data.jobId);
-          console.log(`[MarketInsights] ✓ Emitted 'subscribe' event for jobId: ${data.jobId}`);
-        };
-        
-        if (socket.connected) {
-          subscribeToJob();
+        if (socket && socket.connected) {
+          // WebSocket path: Subscribe to job updates
+          console.log(`[MarketInsights] ✓ WebSocket available, subscribing to jobId: ${jobId}`);
+          socket.emit('subscribe', jobId);
+          
+          // Keep status as in-progress, wait for WebSocket 'progress' event with 'completed' stage
+          setGenerateState(prev => ({
+            ...prev,
+            status: 'in-progress',
+            data,
+            error: undefined,
+          }));
         } else {
-          console.warn(`[MarketInsights] Socket not connected, waiting for connection (max 10s)...`);
-          // Wait longer for connection
-          waitForSocketConnection(10000).then((connected) => {
-            if (connected) {
-              console.log(`[MarketInsights] Socket connected, subscribing to jobId: ${data.jobId}`);
-              subscribeToJob();
-            } else {
-              console.error(`[MarketInsights] ✗ Failed to connect socket after timeout, attempting subscription anyway`);
-              subscribeToJob(); // Try anyway - might work if connection happens later
-            }
-          });
+          // Fallback: Polling path
+          console.warn(`[MarketInsights] ✗ WebSocket not available, falling back to polling for jobId: ${jobId}`);
+          
+          // Start polling
+          pollForInsights(jobId)
+            .then((insights) => {
+              if (insights) {
+                console.log(`[MarketInsights] ✓ Polling completed, insights received`);
+                updateServerAvailable(true);
+                setGenerateState({
+                  status: 'success',
+                  data: {
+                    success: true,
+                    insights,
+                  },
+                  error: undefined,
+                });
+                setLoadingStage('complete');
+                setProgressText('Insights ready');
+                setActiveJobId(null);
+              } else {
+                console.error(`[MarketInsights] ✗ Polling timeout - no insights received`);
+                setGenerateState({
+                  status: 'error',
+                  error: 'Insights generation timed out. Please try again.',
+                  data: undefined,
+                });
+                setLoadingStage('complete');
+                setProgressText('Request timed out');
+                setActiveJobId(null);
+              }
+            })
+            .catch((error) => {
+              console.error(`[MarketInsights] Polling error:`, error);
+              setGenerateState({
+                status: 'error',
+                error: error instanceof Error ? error.message : 'Polling failed',
+                data: undefined,
+              });
+              setLoadingStage('complete');
+              setProgressText('Failed to retrieve insights');
+              setActiveJobId(null);
+            });
         }
-
-        // Do not mark as success yet – wait for WebSocket 'completed'
-        setGenerateState(prev => ({
-          ...prev,
-          status: 'in-progress',
-          data,
-          error: undefined,
-        }));
       } else {
-        // Non-queued path: treat as completed immediately
-        // Server is available since we got a successful response
+        // Non-queued path: insights returned immediately
         updateServerAvailable(true);
         setGenerateState({
           status: 'success',
@@ -169,9 +194,6 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
 
       console.error('Failed to call /api/market-insights/generate:', error);
 
-      // If we cannot reach the server at all (network-level failure),
-      // fall back to the original constants-based page instead of
-      // blocking the user with an error screen.
       const looksLikeNetworkFailure =
         isError &&
         /Failed to fetch|NetworkError|TypeError: Network request failed/i.test(message);
@@ -189,7 +211,6 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         return;
       }
 
-      // For non-network errors (backend reachable but failed), keep the explicit error state.
       updateServerAvailable(true);
       setGenerateState({
         status: 'error',
@@ -201,14 +222,26 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     }
   };
 
-  // Listen for WebSocket progress events for the active job
+  // Step 4: Listen for WebSocket progress events
   useEffect(() => {
     const socket = getSocket();
 
-    const handleProgress = (payload: { stage: string; progress?: number; insights?: any; error?: string }) => {
+    const handleProgress = (payload: { 
+      stage: string; 
+      progress?: number; 
+      insights?: any; 
+      error?: string;
+      jobId?: string;
+    }) => {
       console.log('[MarketInsights] Received progress event:', payload);
       
-      // If the server reports an error, surface it
+      // Only process if this is for our active job
+      if (activeJobId && payload.jobId && payload.jobId !== activeJobId) {
+        console.log(`[MarketInsights] Ignoring progress for different job: ${payload.jobId}`);
+        return;
+      }
+
+      // Handle errors
       if (payload.error) {
         console.error('[MarketInsights] Progress error:', payload.error);
         setGenerateState({
@@ -218,44 +251,59 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         });
         setLoadingStage('complete');
         setProgressText(payload.error);
+        setActiveJobId(null);
         return;
       }
 
-      // Completed with insights
-      if (payload.stage === 'completed') {
-        console.log('[MarketInsights] Job completed, insights received');
-        // Server is available since we received WebSocket data
+      // Handle completion
+      if (payload.stage === 'completed' && payload.insights) {
+        console.log('[MarketInsights] ✓ Job completed via WebSocket, insights received');
         updateServerAvailable(true);
-        setGenerateState(prev => ({
+        setGenerateState({
           status: 'success',
           data: {
-            ...(prev.data || { success: true }),
+            success: true,
             insights: payload.insights,
           },
           error: undefined,
-        }));
+        });
         setLoadingStage('complete');
         setProgressText('Insights ready');
+        setActiveJobId(null);
         return;
       }
 
-      // Intermediate progress updates
-      console.log(`[MarketInsights] Progress update: ${payload.stage} (${payload.progress}%)`);
-      setProgressText(payload.stage);
-      setLoadingStage(prev => {
-        if (prev === 'idle') return 'first';
-        if (prev === 'first') return 'second';
-        if (prev === 'second') return 'third';
-        return prev;
-      });
+      // Handle intermediate progress
+      if (payload.stage && payload.stage !== 'completed') {
+        console.log(`[MarketInsights] Progress update: ${payload.stage}`);
+        setProgressText(payload.stage);
+        
+        // Update loading stage based on progress
+        if (payload.progress) {
+          if (payload.progress < 30) setLoadingStage('first');
+          else if (payload.progress < 70) setLoadingStage('second');
+          else setLoadingStage('third');
+        }
+      }
     };
 
     socket.on('progress', handleProgress);
-    console.log('[MarketInsights] Progress listener registered');
+    console.log('[MarketInsights] WebSocket progress listener registered');
 
     return () => {
+      // Step 5: Cleanup - remove progress listener
       socket.off('progress', handleProgress);
-      console.log('[MarketInsights] Progress listener removed');
+      console.log('[MarketInsights] WebSocket progress listener removed');
+    };
+  }, [activeJobId]);
+
+  // Cleanup polling on unmount or when job completes
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        console.log('[MarketInsights] Polling interval cleared');
+      }
     };
   }, []);
 
@@ -275,4 +323,3 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     </MarketInsightsContext.Provider>
   );
 };
-
