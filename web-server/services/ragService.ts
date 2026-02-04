@@ -190,159 +190,6 @@ export function formatContextForLLM(context: Context): string {
 }
 
 /**
- * Helper: Generate single response with retry logic
- */
-async function generateSingleResponse(
-  systemPrompt: string,
-  formattedContext: string,
-  query: string,
-  responseFormat: 'json' | 'text',
-  maxRetries: number = 3
-): Promise<Record<string, unknown> | string> {
-  let response: Record<string, unknown> | string;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      if (responseFormat === 'json') {
-        const userPrompt = `${formattedContext}\n\n${query}`;
-        response = await openaiClient.generateJSONCompletion(systemPrompt, userPrompt, {
-          max_tokens: 16000,
-          temperature: 0.7,
-        });
-        
-        if (!response || typeof response !== 'object') {
-          throw new Error('Invalid JSON response: not an object');
-        }
-        
-        logger.info('📊 Generated JSON response with keys:', Object.keys(response).join(', '));
-        return response;
-      } else {
-        const messages = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `${formattedContext}\n\n${query}` },
-        ];
-        response = await openaiClient.generateCompletion(messages);
-        return response;
-      }
-    } catch (error) {
-      const err = error as Error;
-      logger.warn(`⚠️  Generation attempt ${attempt}/${maxRetries} failed:`, err.message);
-      
-      if (attempt === maxRetries) {
-        logger.error('❌ All retry attempts exhausted');
-        throw error;
-      }
-      
-      const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-      logger.info(`⏳ Retrying in ${waitTime}ms...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-  }
-  
-  throw new Error('Failed to generate response');
-}
-
-interface MultiPromptRequest {
-  label: string;
-  query: string;
-  cacheKeySuffix: string;
-}
-
-/**
- * Generate multiple responses from shared context in parallel
- * Optimized for market insights: 1 retrieval, N parallel LLM calls
- * @param {string} systemPrompt - System prompt for all LLM calls
- * @param {Array} prompts - Array of { label, query, cacheKeySuffix }
- * @param {Object} options - Generation options
- * @returns {Promise<Object>} Object with label as key, response as value
- */
-export async function generateMultipleWithSharedContext(
-  systemPrompt: string,
-  prompts: MultiPromptRequest[],
-  options: RAGOptions = {}
-): Promise<Record<string, Record<string, unknown> | string>> {
-  const {
-    namespaces = ['news-data', 'bls-data', 'reports-data'],
-    topKPerNamespace = { 'news-data': 12, 'bls-data': 15, 'reports-data': 10 },
-    responseFormat = 'json',
-    useCache = true,
-  } = options;
-
-  try {
-    logger.info(`🤖 Generating ${prompts.length} responses from shared context`);
-
-    // Step 1: Retrieve context ONCE
-    const contextCacheKey = cache.generateKey('context-shared', ...namespaces, ...prompts.map(p => p.label));
-    let context: Context;
-    
-    if (useCache) {
-      const cachedContext = cache.get<Context>(contextCacheKey);
-      if (cachedContext) {
-        logger.info(`✓ Using cached shared context for ${prompts.length} prompts`);
-        context = cachedContext;
-      } else {
-        logger.info('📚 Retrieving shared context from Pinecone...');
-        context = await retrieveContext('market insights analysis', { namespaces, topKPerNamespace, useCache });
-        cache.set(contextCacheKey, context, 60 * 60 * 1000); // 1 hour
-      }
-    } else {
-      context = await retrieveContext('market insights analysis', { namespaces, topKPerNamespace, useCache });
-    }
-
-    // Step 2: Format context ONCE
-    const formattedContext = formatContextForLLM(context);
-    logger.info('✓ Context formatted for LLM');
-
-    // Step 3: Generate responses in PARALLEL
-    const results: Record<string, Record<string, unknown> | string> = {};
-    const generationPromises = prompts.map(async (prompt) => {
-      const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix, systemPrompt.substring(0, 50));
-      
-      // Check individual cache
-      if (useCache) {
-        const cached = cache.get<Record<string, unknown> | string>(cacheKey);
-        if (cached) {
-          logger.info(`✓ Using cached response for: ${prompt.label}`);
-          results[prompt.label] = cached;
-          return;
-        }
-      }
-
-      // Generate response
-      logger.info(`🔄 Generating response for: ${prompt.label}`);
-      const response = await generateSingleResponse(
-        systemPrompt,
-        formattedContext,
-        prompt.query,
-        responseFormat as 'json' | 'text',
-        3
-      );
-
-      // Cache individual response
-      if (useCache) {
-        const ttlDefaults = {
-          marketInsights: 24 * 60 * 60 * 1000,
-          pineconeResults: 60 * 60 * 1000,
-          embeddings: 7 * 24 * 60 * 60 * 1000,
-        };
-        cache.set(cacheKey, response, ttlDefaults.marketInsights);
-      }
-
-      results[prompt.label] = response;
-      logger.info(`✓ Completed: ${prompt.label}`);
-    });
-
-    await Promise.all(generationPromises);
-    logger.info(`✓ All ${prompts.length} responses generated successfully`);
-
-    return results;
-  } catch (error) {
-    logger.error('Error in multi-prompt RAG generation:', error);
-    throw error;
-  }
-}
-
-/**
  * Generate response using RAG pattern
  * @param {string} query - User query
  * @param {string} systemPrompt - System prompt for LLM
@@ -377,13 +224,48 @@ export async function generateWithRAG(query: string, systemPrompt: string, optio
     const formattedContext = formatContextForLLM(context);
 
     // Step 3: Generate response with retry logic
-    const response = await generateSingleResponse(
-      systemPrompt,
-      formattedContext,
-      query,
-      responseFormat as 'json' | 'text',
-      3
-    );
+    let response: Record<string, unknown> | string;
+    const maxRetries = 3;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (responseFormat === 'json') {
+          const userPrompt = `${formattedContext}\n\n${query}`;
+          response = await openaiClient.generateJSONCompletion(systemPrompt, userPrompt, {
+            max_tokens: 16000,
+            temperature: 0.7,
+          });
+          
+          // Validate response has data
+          if (!response || typeof response !== 'object') {
+            throw new Error('Invalid JSON response: not an object');
+          }
+          
+          logger.info('📊 Generated JSON response with keys:', Object.keys(response).join(', '));
+          break; // Success, exit retry loop
+        } else {
+          const messages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `${formattedContext}\n\n${query}` },
+          ];
+          response = await openaiClient.generateCompletion(messages);
+          break; // Success, exit retry loop
+        }
+      } catch (error) {
+        const err = error as Error;
+        logger.warn(`⚠️  RAG generation attempt ${attempt}/${maxRetries} failed:`, err.message);
+        
+        if (attempt === maxRetries) {
+          logger.error('❌ All retry attempts exhausted');
+          throw error;
+        }
+        
+        // Wait before retry (exponential backoff)
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        logger.info(`⏳ Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
 
     // Cache the response
     if (useCache) {
