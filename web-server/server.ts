@@ -341,30 +341,6 @@ app.patch('/api/users/:userId/profile', async (req: Request, res: Response) => {
   }
 });
 
-// Dev-only endpoint: save frontend insights to disk for inspection
-app.post('/api/dev/save-frontend-insights', async (req: Request, res: Response) => {
-  try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ error: 'Not allowed in production' });
-    }
-
-    const { insights, name } = req.body || {};
-    if (!insights) return res.status(400).json({ error: 'Missing insights payload' });
-
-    const tempDir = path.resolve(process.cwd(), 'web-server', 'services', 'temp');
-    await fs.promises.mkdir(tempDir, { recursive: true });
-    const filename = `frontend_insights_${(name || 'unknown').toString().replace(/[^a-z0-9_-]/ig, '_')}_${Date.now()}.json`;
-    const filepath = path.join(tempDir, filename);
-    await fs.promises.writeFile(filepath, JSON.stringify(insights, null, 2), 'utf8');
-
-    console.log('✓ Saved frontend insights to', filepath);
-    res.json({ success: true, path: filepath });
-  } catch (err) {
-    console.error('Error saving frontend insights:', err);
-    res.status(500).json({ error: 'Failed to save insights' });
-  }
-});
-
 // Resume upload endpoint
 app.post('/api/resume/upload', upload.single('resume'), async (req: Request, res: Response) => {
   try {
