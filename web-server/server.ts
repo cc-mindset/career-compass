@@ -42,7 +42,16 @@ const upload = multer({
   }
 });
 
-app.use(cors());
+// Simple CORS config that allows everything in development
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -329,6 +338,30 @@ app.patch('/api/users/:userId/profile', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error updating profile:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Dev-only endpoint: save frontend insights to disk for inspection
+app.post('/api/dev/save-frontend-insights', async (req: Request, res: Response) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: 'Not allowed in production' });
+    }
+
+    const { insights, name } = req.body || {};
+    if (!insights) return res.status(400).json({ error: 'Missing insights payload' });
+
+    const tempDir = path.resolve(process.cwd(), 'web-server', 'services', 'temp');
+    await fs.promises.mkdir(tempDir, { recursive: true });
+    const filename = `frontend_insights_${(name || 'unknown').toString().replace(/[^a-z0-9_-]/ig, '_')}_${Date.now()}.json`;
+    const filepath = path.join(tempDir, filename);
+    await fs.promises.writeFile(filepath, JSON.stringify(insights, null, 2), 'utf8');
+
+    console.log('✓ Saved frontend insights to', filepath);
+    res.json({ success: true, path: filepath });
+  } catch (err) {
+    console.error('Error saving frontend insights:', err);
+    res.status(500).json({ error: 'Failed to save insights' });
   }
 });
 

@@ -3,6 +3,8 @@ import { logger } from '../utils/logger.js';
 import redisClient from "../lib/redis.js";
 import { safeGet, safeSet } from "../lib/redis.js";
 import { emitJobProgress } from '../lib/websocket.js';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
 
 
@@ -391,6 +393,18 @@ export async function generateMarketInsights(
       // Store in Redis BEFORE emitting completion
       await safeSet(cacheKey, JSON.stringify(combinedInsights), 60 * 30);
       logger.info(`✓ Cached insights for ${location} (30 min TTL)`);
+
+      // Also write the combined insights to a temp folder so devs can inspect output
+      try {
+        const tempDir = path.join(process.cwd(), 'web-server', 'services', 'temp');
+        await mkdir(tempDir, { recursive: true });
+        const filename = `insights_${location.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.json`;
+        const filepath = path.join(tempDir, filename);
+        await writeFile(filepath, JSON.stringify(combinedInsights, null, 2), 'utf8');
+        logger.info(`✓ Wrote insights to ${filepath}`);
+      } catch (fsErr) {
+        logger.warn('⚠️  Failed to write insights to temp folder', fsErr);
+      }
 
       // Emit completion with insights
       if (jobId) {
