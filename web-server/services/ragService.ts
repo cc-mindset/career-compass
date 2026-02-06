@@ -1,5 +1,5 @@
 import { pineconeClient } from '../lib/pinecone.js';
-import { openaiClient } from '../lib/openai.js';
+import { openaiClient, RateLimitError, QuotaExceededError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 
@@ -38,11 +38,16 @@ interface Context {
   sources: Source[];
 }
 
+type ContextFormatter = (context: Context) => string;
+
 interface RAGOptions {
   namespaces?: string[];
   topKPerNamespace?: Record<string, number>;
   responseFormat?: 'json' | 'text';
   useCache?: boolean;
+  contextFormatter?: ContextFormatter;
+  cacheTTL?: number;
+  retrievalQuery?: string;
 }
 
 /**
@@ -128,14 +133,9 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
       });
     }
 
-    // Cache the results
+    // Cache the results (default: 1 hour for context)
     if (useCache) {
-      const ttlDefaults = {
-        marketInsights: 24 * 60 * 60 * 1000,
-        pineconeResults: 60 * 60 * 1000,
-        embeddings: 7 * 24 * 60 * 60 * 1000,
-      };
-      cache.set(cacheKey, context, ttlDefaults.pineconeResults);
+      cache.set(cacheKey, context, 60 * 60 * 1000);
     }
 
     logger.info(`✓ Retrieved context from ${namespaces.length} namespaces`);
@@ -148,11 +148,31 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
 }
 
 /**
- * Format context into a readable text for LLM consumption
+ * Generic context formatter - simple concatenation of all matches
  * @param {Object} context - Context object from retrieveContext
  * @returns {string} Formatted context text
  */
-export function formatContextForLLM(context: Context): string {
+export function formatGenericContext(context: Context): string {
+  const sections: string[] = [];
+  
+  Object.entries(context.namespaces).forEach(([namespace, data]) => {
+    if (data.matches.length > 0) {
+      sections.push(`=== ${namespace.toUpperCase()} ===\n`);
+      data.matches.forEach((match, idx) => {
+        sections.push(`[${idx + 1}] ${match.text}`);
+      });
+    }
+  });
+  
+  return sections.join('\n\n');
+}
+
+/**
+ * Market Insights specific context formatter
+ * @param {Object} context - Context object from retrieveContext
+ * @returns {string} Formatted context text for market insights
+ */
+export function formatMarketInsightsContext(context: Context): string {
   const sections: string[] = [];
   
   // Add explicit instruction
@@ -191,6 +211,7 @@ export function formatContextForLLM(context: Context): string {
 
 /**
  * Helper: Generate single response with retry logic
+ * DOES NOT retry on rate limit or quota errors - these should be handled at queue level
  */
 async function generateSingleResponse(
   systemPrompt: string,
@@ -225,6 +246,12 @@ async function generateSingleResponse(
         return response;
       }
     } catch (error) {
+      // Don't retry on rate limit or quota errors - propagate immediately
+      if (error instanceof RateLimitError || error instanceof QuotaExceededError) {
+        logger.error(`🚫 ${error.name}: ${error.message} - Not retrying`);
+        throw error;
+      }
+      
       const err = error as Error;
       logger.warn(`⚠️  Generation attempt ${attempt}/${maxRetries} failed:`, err.message);
       
@@ -266,6 +293,9 @@ export async function generateMultipleWithSharedContext(
     topKPerNamespace = { 'news-data': 12, 'bls-data': 15, 'reports-data': 10 },
     responseFormat = 'json',
     useCache = true,
+    contextFormatter = formatGenericContext,
+    cacheTTL = 24 * 60 * 60 * 1000,
+    retrievalQuery,
   } = options;
 
   try {
@@ -282,15 +312,17 @@ export async function generateMultipleWithSharedContext(
         context = cachedContext;
       } else {
         logger.info('📚 Retrieving shared context from Pinecone...');
-        context = await retrieveContext('market insights analysis', { namespaces, topKPerNamespace, useCache });
+        const queryText = retrievalQuery || prompts[0]?.query || 'general query';
+        context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache });
         cache.set(contextCacheKey, context, 60 * 60 * 1000); // 1 hour
       }
     } else {
-      context = await retrieveContext('market insights analysis', { namespaces, topKPerNamespace, useCache });
+      const queryText = retrievalQuery || prompts[0]?.query || 'general query';
+      context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache });
     }
 
-    // Step 2: Format context ONCE
-    const formattedContext = formatContextForLLM(context);
+    // Step 2: Format context ONCE using provided formatter
+    const formattedContext = contextFormatter(context);
     logger.info('✓ Context formatted for LLM');
 
     // Step 3: Generate responses in PARALLEL
@@ -320,12 +352,7 @@ export async function generateMultipleWithSharedContext(
 
       // Cache individual response
       if (useCache) {
-        const ttlDefaults = {
-          marketInsights: 24 * 60 * 60 * 1000,
-          pineconeResults: 60 * 60 * 1000,
-          embeddings: 7 * 24 * 60 * 60 * 1000,
-        };
-        cache.set(cacheKey, response, ttlDefaults.marketInsights);
+        cache.set(cacheKey, response, cacheTTL);
       }
 
       results[prompt.label] = response;
@@ -355,6 +382,8 @@ export async function generateWithRAG(query: string, systemPrompt: string, optio
     topKPerNamespace = { 'news-data': 10, 'bls-data': 10, 'reports-data': 8 },
     responseFormat = 'json',
     useCache = true,
+    contextFormatter = formatGenericContext,
+    cacheTTL = 60 * 60 * 1000,
   } = options;
 
   try {
@@ -373,8 +402,8 @@ export async function generateWithRAG(query: string, systemPrompt: string, optio
     // Step 1: Retrieve context
     const context = await retrieveContext(query, { namespaces, topKPerNamespace, useCache });
 
-    // Step 2: Format context for LLM
-    const formattedContext = formatContextForLLM(context);
+    // Step 2: Format context using provided formatter
+    const formattedContext = contextFormatter(context);
 
     // Step 3: Generate response with retry logic
     const response = await generateSingleResponse(
@@ -387,12 +416,7 @@ export async function generateWithRAG(query: string, systemPrompt: string, optio
 
     // Cache the response
     if (useCache) {
-      const ttlDefaults = {
-        marketInsights: 24 * 60 * 60 * 1000,
-        pineconeResults: 60 * 60 * 1000,
-        embeddings: 7 * 24 * 60 * 60 * 1000,
-      };
-      cache.set(cacheKey, response, ttlDefaults.marketInsights);
+      cache.set(cacheKey, response, cacheTTL);
     }
 
     logger.info('✓ Generated RAG response');
