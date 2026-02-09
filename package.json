@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "country-state-city": "^3.2.1",
+    "professions": "^1.0.2"
+  }
+}

@@ -5,15 +5,76 @@ import { useMarketInsightsState } from '../../state/marketInsights/MarketInsight
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { getSocket } from '../../providers/socket/socket';
 import { Briefcase, MapPin, ChevronRight, User, Building2, Sparkles, Search, Check, ArrowLeft, ArrowRight, Target, BarChart3, GraduationCap, X, Plus, Upload, FileText } from 'lucide-react';
+import { buildLocations } from "../../utils/LocationPackage/LocationPackage";
+import professions from 'professions';
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
 }
 
+// Your custom tech roles
+const techRolesRaw = [
+  "AI Engineer",
+  "AI Researcher",
+  "AR/VR Developer",
+  "Automation Engineer",
+  "Back End Developer",
+  "Backend Engineer",
+  "Blockchain Developer",
+  "Cloud Engineer",
+  "Data Analyst",
+  "Data Engineer",
+  "Data Scientist",
+  "Database Administrator",
+  "DevOps Engineer",
+  "Embedded Systems Engineer",
+  "Engineering Manager",
+  "Frontend Engineer",
+  "Full Stack Developer",
+  "Game Developer",
+  "IT Project Manager",
+  "IT Support Specialist",
+  "Integration Engineer",
+  "Machine Learning Engineer",
+  "Marketing Lead",
+  "Mobile Developer",
+  "Network Engineer",
+  "Platform Engineer",
+  "Product Designer",
+  "Product Engineer",
+  "Product Manager",
+  "Principal Engineer",
+  "QA / Test Engineer",
+  "Release Manager",
+  "Security Engineer",
+  "Site Reliability Engineer",
+  "Solutions Architect",
+  "Software Developer",
+  "Software Engineer",
+  "Staff Engineer",
+  "Systems Administrator",
+  "Systems Architect",
+  "Tech Lead",
+  "Technical Program Manager",
+  "UX Researcher",
+  "UX/UI Engineer"
+];
+
+// Merge with professions and remove duplicates (case-insensitive)
+const techRoles = Array.from(
+  new Map(
+    [...techRolesRaw, ...professions].map(role => [role.toLowerCase(), role])
+  ).values()
+).sort((a, b) => a.localeCompare(b));
+
+
 // Mock data for searchable dropdowns
 const OPTIONS = {
-  locations: ["San Francisco, CA", "New York, NY", "London, UK", "Berlin, DE", "Singapore, SG", "Toronto, CA", "Austin, TX", "Seattle, WA", "Tokyo, JP"],
-  roles: ["Product Designer", "Frontend Engineer", "AI Researcher", "Product Manager", "Full Stack Developer", "Data Scientist", "Marketing Lead", "UX Researcher", "Backend Engineer"],
+  locations: buildLocations().map(l => l.label),
+  // locations: ["San Francisco, CA", "New York, NY", "London, UK", "Berlin, DE", "Singapore, SG", "Toronto, CA", "Austin, TX", "Seattle, WA", "Tokyo, JP"],
+  roles: techRoles,
+  // roles: professions.map(p => p.title).slice(0, 100), //Using professions package for more realistic job titles. Slicing to top 100 for relevance.
+  // roles: ["Product Designer", "Frontend Engineer", "AI Researcher", "Product Manager", "Full Stack Developer", "Data Scientist", "Marketing Lead", "UX Researcher", "Backend Engineer"],
   seniority: ["Junior (0-2 Yrs)", "Mid-Level (3-5 Yrs)", "Senior (6-9 Yrs)", "Lead (10+ Yrs)", "Director / Executive"],
   employers: ["Google", "Meta", "Tesla", "Tech Corp Inc.", "Stealth Startup", "Amazon", "Microsoft", "NVIDIA", "OpenAI"],
   skills: ["Figma", "React", "TypeScript", "Python", "Machine Learning", "Strategic Thinking", "Product Strategy", "User Research", "Agile Methodology", "Tailwind CSS", "Node.js", "GraphQL", "AWS"]
@@ -37,6 +98,7 @@ const STEPS: StepConfig[] = [
 ];
 
 const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
+  
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
@@ -50,7 +112,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(""); //Handles search input for dropdowns
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [openFeatureIndex, setOpenFeatureIndex] = useState<number | null>(null);
   const [isDraggingResume, setIsDraggingResume] = useState(false);
@@ -70,10 +132,21 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   }, [hasStartedFilling, isConnected]);
 
   const activeStep = STEPS[currentStep];
-  const filteredOptions = activeStep.options.filter(opt => 
-    opt.toLowerCase().includes(search.toLowerCase())
-  );
 
+  // Normalize text by removing accents and converting to lowercase for better search matching
+  const normalizeText = (text: string) => 
+    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  // Filter options based on search input
+  const filteredOptions = search
+  ? activeStep.options.filter(opt =>
+    // Normalize both option and search input for comparison
+      normalizeText(opt).includes(normalizeText(search))
+    ) // Limit to top 10 matches for performance and UX
+  : activeStep.options.slice(0, 10);
+
+
+  // Determine if we should show the "Add Custom" option
   const showAddCustom = activeStep.allowCustom && search.trim() !== "" && !activeStep.options.some(opt => opt.toLowerCase() === search.toLowerCase().trim());
 
   useEffect(() => {
@@ -288,7 +361,8 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
                     className={`group/resume flex items-center justify-between w-full gap-3 md:px-2 md:py-1 rounded-xl border-2 border-dashed transition-colors ${
                       isDraggingResume ? 'border-indigo-400 bg-indigo-50/50' : 'border-transparent'
                     }`}
-                  >
+                  > 
+                  {/* Questionnaire Resume Upload */}
                     <div className="relative h-7 overflow-hidden flex-1 min-w-0 flex items-center bg-slate-50/50 rounded-lg w-[11rem] sm:w-[12.5rem] md:w-[14rem] group/resume-desc">
                       <div className="resume-label-marquee flex items-center">
                         <span className="font-bold text-slate-900 text-base md:text-lg whitespace-nowrap">
