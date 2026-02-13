@@ -71,29 +71,49 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
   try {
     //logger.info(`🔍 Retrieving context for: "${queryText}"`, 'RAG');
 
-    // Check cache first
-    const cacheKey = cache.generateKey('context', queryText, ...namespaces);
+    // Step 1: Check cache for each namespace individually
+    const cachedNamespaces: Record<string, NamespaceContext> = {};
+    const namespacesToQuery: string[] = [];
+    
     if (useCache) {
-      const cached = cache.get<Context>(cacheKey);
-      if (cached) {
-        logger.info('✓ Using cached context');
-        return cached;
+      for (const namespace of namespaces) {
+        const nsCacheKey = cache.generateKey('context-ns', queryText, namespace);
+        const cached = cache.get<NamespaceContext>(nsCacheKey);
+        if (cached) {
+          cachedNamespaces[namespace] = cached;
+        } else {
+          namespacesToQuery.push(namespace);
+        }
       }
+      
+      if (Object.keys(cachedNamespaces).length > 0) {
+        logger.info(`✓ Cache hit for ${Object.keys(cachedNamespaces).length}/${namespaces.length} namespaces`);
+      }
+    } else {
+      namespacesToQuery.push(...namespaces);
     }
 
-    // Step 1: Create embedding for the query
-    const queryVector = await openaiClient.createEmbedding(queryText) as number[];
+    // Step 2: Create embedding only if we need to query
+    let queryVector: number[] | undefined;
+    if (namespacesToQuery.length > 0) {
+      queryVector = await openaiClient.createEmbedding(queryText) as number[];
+    }
 
-    // Step 2: Query all namespaces in parallel
-    const queries = namespaces.map(namespace => ({
-      namespace,
-      vector: queryVector,
-      topK: topKPerNamespace[namespace] || 10,
-    }));
+    // Step 3: Query uncached namespaces from Pinecone
+    let freshResults: Record<string, { matches?: Array<{ id: string; score?: number; metadata?: Record<string, unknown> }> }> = {};
+    if (namespacesToQuery.length > 0 && queryVector) {
+      logger.info(`🔍 Querying ${namespacesToQuery.length} uncached namespaces from Pinecone`);
+      
+      const queries = namespacesToQuery.map(namespace => ({
+        namespace,
+        vector: queryVector,
+        topK: topKPerNamespace[namespace] || 10,
+      }));
 
-    const results = await pineconeClient.queryMultipleNamespaces(queries);
+      freshResults = await pineconeClient.queryMultipleNamespaces(queries);
+    }
 
-    // Step 3: Format and organize the context
+    // Step 4: Build context from cached + fresh results
     const context: Context = {
       query: queryText,
       namespaces: {},
@@ -102,29 +122,42 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
     };
 
     for (const namespace of namespaces) {
-      const nsResults = results[namespace];
-      
-      if (!nsResults || !nsResults.matches) {
-        context.namespaces[namespace] = { matches: [], count: 0 };
-        continue;
+      // Use cached if available, otherwise process fresh results
+      if (cachedNamespaces[namespace]) {
+        context.namespaces[namespace] = cachedNamespaces[namespace];
+      } else {
+        const nsResults = freshResults[namespace];
+        
+        if (!nsResults || !nsResults.matches) {
+          context.namespaces[namespace] = { matches: [], count: 0 };
+        } else {
+          // Extract text from metadata
+          const matches: Match[] = nsResults.matches
+            .filter(match => match.metadata?.text)
+            .map(match => ({
+              text: match.metadata!.text as string,
+              score: match.score,
+              metadata: match.metadata,
+            }));
+
+          const namespaceContext: NamespaceContext = {
+            matches,
+            count: matches.length,
+          };
+
+          context.namespaces[namespace] = namespaceContext;
+
+          // Cache this namespace result individually
+          if (useCache) {
+            const nsCacheKey = cache.generateKey('context-ns', queryText, namespace);
+            cache.set(nsCacheKey, namespaceContext, 60 * 60 * 1000); // 1 hour TTL
+          }
+        }
       }
 
-      // Extract text from metadata
-      const matches: Match[] = nsResults.matches
-        .filter(match => match.metadata?.text)
-        .map(match => ({
-          text: match.metadata!.text as string,
-          score: match.score,
-          metadata: match.metadata,
-        }));
-
-      context.namespaces[namespace] = {
-        matches,
-        count: matches.length,
-      };
-
-      // Add to combined text
-      matches.forEach((match, idx) => {
+      // Add to sources list
+      const nsMatches = context.namespaces[namespace].matches;
+      nsMatches.forEach((match, idx) => {
         context.sources.push({
           namespace,
           index: idx,
@@ -133,12 +166,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
       });
     }
 
-    // Cache the results (default: 1 hour for context)
-    if (useCache) {
-      cache.set(cacheKey, context, 60 * 60 * 1000);
-    }
-
-    logger.info(`✓ Retrieved context from ${namespaces.length} namespaces`);
+    logger.info(`✓ Retrieved context from ${namespaces.length} namespaces (${Object.keys(cachedNamespaces).length} cached, ${namespacesToQuery.length} fresh)`);
     
     return context;
   } catch (error) {
