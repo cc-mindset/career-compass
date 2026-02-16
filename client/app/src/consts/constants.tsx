@@ -190,6 +190,38 @@ export const MARKET_RISKS_DATA = [
   { severity: "Low", risk: "Tariff impacts on manufacturing", sectors: ["Manufacturing", "Agriculture"], strategy: "Explore roles in industries less affected by tariffs." }
 ];
 
+// Fallback data for when backend insights are not available
+export const FALLBACK_EXECUTIVE_SUMMARY_BRIEF = "Market insights are being generated. Please wait for personalized analysis based on your location and career profile.";
+
+export const FALLBACK_LABOUR_MARKET_OVERVIEW = "Labor market data is currently being retrieved from multiple sources including BLS employment reports, recent news, and economic indicators. Your personalized snapshot will be available shortly.";
+
+export const FALLBACK_KEY_STATS = {
+  strongest_opportunity: "Data is being analyzed - check back shortly",
+  highest_risk_sector: "Analysis in progress",
+  top_skill_demand: "Insights loading...",
+  pivot_necessity: "To be determined"
+};
+
+export const FALLBACK_MAJOR_DRIVERS = [
+  "Market analysis in progress",
+  "Economic indicators being evaluated",
+  "Industry trends under review"
+];
+
+export const FALLBACK_MARKET_HEALTH = {
+  employment_rate: "Calculating...",
+  job_growth_rate: "Analyzing data...",
+  trend: "Pending"
+};
+
+export const FALLBACK_CITY_VS_REGION = [
+  { 
+    factor: "Overall job market trend", 
+    city: "Analysis in progress...", 
+    wider_region: "Analysis in progress..." 
+  }
+];
+
 export const TOP_SKILLS_DATA = [
   {
     id: 'emerging-stars',
