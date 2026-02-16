@@ -1,4 +1,4 @@
-import { generateMultipleWithSharedContext } from './ragService.js';
+import { generateMultipleWithSharedContext, formatMarketInsightsContext } from './ragService.js';
 import { logger } from '../utils/logger.js';
 import redisClient from "../lib/redis.js";
 import { safeGet, safeSet } from "../lib/redis.js";
@@ -349,6 +349,9 @@ export async function generateMarketInsights(
           },
           responseFormat: 'json',
           useCache: true,
+          contextFormatter: formatMarketInsightsContext,
+          cacheTTL: 24 * 60 * 60 * 1000, // 24 hours
+          retrievalQuery: `market insights for ${location}`,
         }
       );
 
