@@ -13,33 +13,7 @@ interface MarketInsightViewProps {
 const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
   const { generateStatus, generateError, progressText, generateState } = useMarketInsightsState();
   
-  // Extract real insights data
   const insights = generateState.data?.insights as any;
-
-  // Dev: send the raw `insights` payload to the backend so we can inspect the exact object
-  // This runs only in development/staging (skips when Vite `import.meta.env.PROD` is true)
-  useEffect(() => {
-    if (!insights) return;
-    // Skip in production
-    if ((import.meta as any).env && (import.meta as any).env.PROD) return;
-
-    const apiBase = (import.meta as any).env.VITE_API_BASE || 'http://localhost:5001';
-    const save = async () => {
-      try {
-        await fetch(`${apiBase.replace(/\/+$/,'')}/api/dev/save-frontend-insights`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ insights, name: user?.name || 'unknown' }),
-        });
-      } catch (err) {
-        // Non-fatal: just log in console during development
-        // eslint-disable-next-line no-console
-        console.warn('Failed to save frontend insights for inspection', err);
-      }
-    };
-
-    save();
-  }, [insights]);
   
   // Use real data if available, otherwise fall back to mock data
   const executiveSummaryBrief = insights?.executive_summary_brief || null;

@@ -1,6 +1,26 @@
 import OpenAI from 'openai';
 import { logger } from '../utils/logger.js';
 
+/**
+ * Custom error class for rate limit errors
+ */
+export class RateLimitError extends Error {
+  constructor(message: string, public retryAfter?: number) {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}
+
+/**
+ * Custom error class for quota exceeded errors
+ */
+export class QuotaExceededError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'QuotaExceededError';
+  }
+}
+
 interface CompletionOptions {
   temperature?: number;
   max_tokens?: number;
@@ -114,7 +134,17 @@ class OpenAIClient {
       logger.info(`✓ Generated completion (${tokensUsed} tokens)`);
       
       return responseText;
-    } catch (error) {
+    } catch (error: any) {
+      // Check for rate limit or quota errors
+      if (error?.status === 429) {
+        const retryAfter = error?.headers?.['retry-after'] ? parseInt(error.headers['retry-after']) : undefined;
+        if (error?.message?.toLowerCase().includes('quota')) {
+          logger.error('❌ QUOTA EXCEEDED - OpenAI API quota limit reached');
+          throw new QuotaExceededError(error.message || 'OpenAI quota exceeded');
+        }
+        logger.error(`⚠️  RATE LIMIT - Too many requests${retryAfter ? `, retry after ${retryAfter}s` : ''}`);
+        throw new RateLimitError(error.message || 'Rate limit exceeded', retryAfter);
+      }
       logger.error('Error generating completion:', error);
       throw error;
     }
@@ -174,7 +204,11 @@ class OpenAIClient {
           throw parseError;
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Re-throw rate limit and quota errors without modification
+      if (error instanceof RateLimitError || error instanceof QuotaExceededError) {
+        throw error;
+      }
       logger.error('Error generating JSON completion:', error);
       throw error;
     }
