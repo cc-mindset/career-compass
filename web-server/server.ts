@@ -16,7 +16,20 @@ import { mongodbClient } from './lib/mongodb.js';
 import User from './models/User.js';
 import { parseResume } from './services/resumeParser.js';
 import redisClient, { connectRedis } from './lib/redis.js';
-import { completeJob, dequeueJob, enqueueJob, getJobResult, getQueueLength, storeJobResult } from './lib/redisQueue.js';
+import { 
+  enqueueJob, 
+  dequeueJob, 
+  completeJob, 
+  storeJobResult, 
+  getJobResult,
+  getQueueLength,
+  failJob,
+  pauseQueue,
+  isQueuePaused,
+  retryJob,
+  type QueueJob
+} from './lib/redisQueue.js';
+import { RateLimitError, QuotaExceededError } from './lib/openai.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,7 +55,16 @@ const upload = multer({
   }
 });
 
-app.use(cors());
+// Simple CORS config that allows everything in development
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -81,25 +103,76 @@ if (!wsEnabled) {
   }
 })();
 
-// Queue processor - runs in background
+// Queue processor - runs in background with proper error handling
 async function processQueue() {
+  console.log('📋 Queue processor started');
+  
   while (true) {
     try {
+      // Check if queue is paused
+      const { paused, reason } = await isQueuePaused();
+      if (paused) {
+        console.log(`⏸️  Queue is paused: ${reason}. Waiting 30s before checking again...`);
+        await new Promise(resolve => setTimeout(resolve, 30000));
+        continue;
+      }
+      
       const job = await dequeueJob();
       
       if (job) {
-        console.log(`🔄 Processing queued job: ${job.id} for ${job.location}`);
-        const insights = await generateMarketInsights(job.location, job.userId, job.id);
-        await storeJobResult(job.id, insights);
-        await completeJob(job.id);
-        console.log(`✅ Job ${job.id} completed successfully`);
+        const retryInfo = job.retryCount ? ` (retry ${job.retryCount}/2)` : '';
+        console.log(`🔄 Processing queued job: ${job.id} for ${job.location}${retryInfo}`);
+        
+        try {
+          const insights = await generateMarketInsights(job.location, job.userId, job.id);
+          await storeJobResult(job.id, insights);
+          await completeJob(job.id);
+          console.log(`✅ Job ${job.id} completed successfully`);
+        } catch (jobError: any) {
+          // Handle quota exceeded - pause queue and fail job
+          if (jobError instanceof QuotaExceededError) {
+            console.error(`🚨 QUOTA EXCEEDED: ${jobError.message}`);
+            console.error('═══════════════════════════════════════');
+            console.error('⚠️  CRITICAL: OpenAI API quota limit reached!');
+            console.error('📧 ACTION REQUIRED: Admin intervention needed');
+            console.error('⏸️  Queue processing paused for 1 hour');
+            console.error('═══════════════════════════════════════');
+            
+            await failJob(job.id, `Quota exceeded: ${jobError.message}`, job);
+            await pauseQueue('OpenAI quota exceeded - admin action required', 3600);
+            continue;
+          }
+          
+          // Handle rate limit - pause briefly and retry job
+          if (jobError instanceof RateLimitError) {
+            const pauseDuration = jobError.retryAfter || 60;
+            console.warn(`⚠️  RATE LIMIT HIT: Pausing queue for ${pauseDuration}s`);
+            
+            await pauseQueue(`Rate limit - retry after ${pauseDuration}s`, pauseDuration);
+            
+            // Try to retry the job
+            const requeued = await retryJob(job);
+            if (!requeued) {
+              await failJob(job.id, `Rate limit exceeded and max retries reached`, job);
+            }
+            continue;
+          }
+          
+          // Handle other errors - retry if possible
+          console.error(`❌ Job ${job.id} failed:`, jobError.message);
+          const requeued = await retryJob(job);
+          if (!requeued) {
+            await failJob(job.id, jobError.message || 'Unknown error', job);
+          }
+        }
       } else {
         // No jobs, wait 2 seconds before checking again
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
-    } catch (error) {
-      console.error('Queue processor error:', error);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+    } catch (error: any) {
+      console.error('🔥 Queue processor critical error:', error);
+      // Wait longer on critical errors to avoid tight error loops
+      await new Promise(resolve => setTimeout(resolve, 10000));
     }
   }
 }
