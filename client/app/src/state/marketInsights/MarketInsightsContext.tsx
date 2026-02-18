@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { ApiState, ApiStatus, createInitialApiState } from '../api/apiTypes';
+import { SectionName, SectionsState, WSProgressEvent } from '../api/sectionTypes';
 import { getSocket } from '../../providers/socket/socket';
 import { useAppContext } from '../contexts/AppContext';
 import { pollForInsights } from '../../utils/polls/pollForInsights';
 
-// Shape of the backend response for /api/market-insights/generate
 export type MarketInsightsLoadingStage = 'idle' | 'first' | 'second' | 'third' | 'complete';
 
 export interface MarketInsightsGenerateResponse {
@@ -25,6 +25,8 @@ interface MarketInsightsContextValue {
   loadingStage: MarketInsightsLoadingStage;
   setLoadingStage: (stage: MarketInsightsLoadingStage) => void;
   progressText?: string;
+  sections: SectionsState;
+  retrySection: (section: SectionName) => Promise<void>;
 }
 
 const MarketInsightsContext = createContext<MarketInsightsContextValue | undefined>(undefined);
@@ -48,6 +50,12 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
   const [loadingStage, setLoadingStage] = useState<MarketInsightsLoadingStage>('idle');
   const [progressText, setProgressText] = useState<string | undefined>(undefined);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<string>('');
+  const [sections, setSections] = useState<SectionsState>({
+    marketReport: { status: 'idle' },
+    industryTrends: { status: 'idle' },
+    newsAndCareerIntel: { status: 'idle' },
+  });
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Get global server availability state from AppContext
@@ -69,104 +77,63 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     const apiBase = import.meta.env.VITE_API_URL || '';
 
     if (!apiBase) {
-      console.error('MarketInsights: VITE_API_URL is not configured – falling back to static content.');
       updateServerAvailable(false);
-      setGenerateState(prev => ({
-        ...prev,
-        status: 'idle',
-        error: undefined,
-      }));
+      setGenerateState(prev => ({ ...prev, status: 'idle', error: undefined }));
       setLoadingStage('complete');
       setProgressText(undefined);
       return;
     }
 
-    // Reset state
-    setGenerateState(prev => ({
-      ...prev,
-      status: 'in-progress',
-      error: undefined,
-    }));
+    setCurrentLocation(location);
+    setSections({
+      marketReport: { status: 'loading' },
+      industryTrends: { status: 'loading' },
+      newsAndCareerIntel: { status: 'loading' },
+    });
+    setGenerateState(prev => ({ ...prev, status: 'in-progress', error: undefined }));
     setLoadingStage('first');
     setProgressText('Preparing your market insights...');
 
     try {
-      // Step 1: POST /api/market-insights/generate
       const res = await fetch(`${apiBase}/api/market-insights/generate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          location,
-          userId: userId || '',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location, userId: userId || '' }),
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Request failed with status ${res.status}`);
+        throw new Error(await res.text() || `Request failed with status ${res.status}`);
       }
 
       const data = (await res.json()) as MarketInsightsGenerateResponse;
 
-      // Step 2: Backend returns { queued: true, jobId: "abc123" }
       if (data.queued && data.jobId) {
         const jobId = data.jobId;
         setActiveJobId(jobId);
         setProgressText(data.message || 'Queued for processing...');
-        console.log(`[MarketInsights] Job queued with ID: ${jobId}`);
 
-        // Step 3: Check if WebSocket available
         const socket = getSocket();
         
         if (socket && socket.connected) {
-          // WebSocket path: Subscribe to job updates
-          console.log(`[MarketInsights] ✓ WebSocket available, subscribing to jobId: ${jobId}`);
           socket.emit('subscribe', jobId);
-          
-          // Keep status as in-progress, wait for WebSocket 'progress' event with 'completed' stage
-          setGenerateState(prev => ({
-            ...prev,
-            status: 'in-progress',
-            data,
-            error: undefined,
-          }));
+          setGenerateState(prev => ({ ...prev, status: 'in-progress', data, error: undefined }));
         } else {
-          // Fallback: Polling path
-          console.warn(`[MarketInsights] ✗ WebSocket not available, falling back to polling for jobId: ${jobId}`);
-          
-          // Start polling
           pollForInsights(jobId)
             .then((insights) => {
               if (insights) {
-                console.log(`[MarketInsights] ✓ Polling completed, insights received`);
                 updateServerAvailable(true);
-                setGenerateState({
-                  status: 'success',
-                  data: {
-                    success: true,
-                    insights,
-                  },
-                  error: undefined,
-                });
+                setGenerateState({ status: 'success', data: { success: true, insights }, error: undefined });
                 setLoadingStage('complete');
                 setProgressText('Insights ready');
                 setActiveJobId(null);
               } else {
-                console.error(`[MarketInsights] ✗ Polling timeout - no insights received`);
-                setGenerateState({
-                  status: 'error',
-                  error: 'Insights generation timed out. Please try again.',
-                  data: undefined,
-                });
+                setGenerateState({ status: 'error', error: 'Insights generation timed out', data: undefined });
                 setLoadingStage('complete');
                 setProgressText('Request timed out');
                 setActiveJobId(null);
               }
             })
             .catch((error) => {
-              console.error(`[MarketInsights] Polling error:`, error);
               setGenerateState({
                 status: 'error',
                 error: error instanceof Error ? error.message : 'Polling failed',
@@ -178,13 +145,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
             });
         }
       } else {
-        // Non-queued path: insights returned immediately
         updateServerAvailable(true);
-        setGenerateState({
-          status: 'success',
-          data,
-          error: undefined,
-        });
+        setGenerateState({ status: 'success', data, error: undefined });
         setLoadingStage('complete');
         setProgressText('Insights ready');
       }
@@ -192,117 +154,106 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
       const isError = error instanceof Error;
       const message = isError ? error.message : 'Unknown error';
 
-      console.error('Failed to call /api/market-insights/generate:', error);
-
       const looksLikeNetworkFailure =
-        isError &&
-        /Failed to fetch|NetworkError|TypeError: Network request failed/i.test(message);
+        isError && /Failed to fetch|NetworkError|TypeError: Network request failed/i.test(message);
 
       if (looksLikeNetworkFailure) {
-        console.warn('MarketInsights: backend appears unreachable – falling back to static content.');
         updateServerAvailable(false);
-        setGenerateState(prev => ({
-          ...prev,
-          status: 'idle',
-          error: undefined,
-        }));
+        setGenerateState(prev => ({ ...prev, status: 'idle', error: undefined }));
         setLoadingStage('complete');
         setProgressText(undefined);
         return;
       }
 
       updateServerAvailable(true);
-      setGenerateState({
-        status: 'error',
-        error: message,
-        data: undefined,
-      });
+      setGenerateState({ status: 'error', error: message, data: undefined });
       setLoadingStage('complete');
       setProgressText(message);
     }
   };
 
-  // Step 4: Listen for WebSocket progress events
+  const retrySection = async (section: SectionName) => {
+    console.log(`[MarketInsights] Retrying section: ${section}`);
+    setSections(prev => ({
+      ...prev,
+      [section]: { status: 'loading' },
+    }));
+    await generateMarketInsights({ location: currentLocation });
+  };
+
   useEffect(() => {
     const socket = getSocket();
 
-    const handleProgress = (payload: { 
-      stage: string; 
-      progress?: number; 
-      insights?: any; 
-      error?: string;
-      jobId?: string;
-    }) => {
-      console.log('[MarketInsights] Received progress event:', payload);
+    const handleProgress = (payload: WSProgressEvent) => {
+      console.log('[MarketInsights] WS event:', payload);
       
-      // Only process if this is for our active job
       if (activeJobId && payload.jobId && payload.jobId !== activeJobId) {
-        console.log(`[MarketInsights] Ignoring progress for different job: ${payload.jobId}`);
         return;
       }
 
-      // Handle errors
-      if (payload.error) {
-        console.error('[MarketInsights] Progress error:', payload.error);
-        setGenerateState({
-          status: 'error',
-          error: payload.error,
-          data: undefined,
-        });
-        setLoadingStage('complete');
-        setProgressText(payload.error);
-        setActiveJobId(null);
-        return;
-      }
+      switch (payload.type) {
+        case 'job_start':
+          setProgressText(payload.stage || 'Starting...');
+          break;
 
-      // Handle completion
-      if (payload.stage === 'completed' && payload.insights) {
-        console.log('[MarketInsights] ✓ Job completed via WebSocket, insights received');
-        updateServerAvailable(true);
-        setGenerateState({
-          status: 'success',
-          data: {
-            success: true,
-            insights: payload.insights,
-          },
-          error: undefined,
-        });
-        setLoadingStage('complete');
-        setProgressText('Insights ready');
-        setActiveJobId(null);
-        return;
-      }
+        case 'section_success':
+          if (payload.section && payload.data) {
+            console.log(`[MarketInsights] \u2713 Section ready: ${payload.section}`);
+            setSections(prev => ({
+              ...prev,
+              [payload.section!]: { status: 'success', data: payload.data },
+            }));
+          }
+          break;
 
-      // Handle intermediate progress
-      if (payload.stage && payload.stage !== 'completed') {
-        console.log(`[MarketInsights] Progress update: ${payload.stage}`);
-        setProgressText(payload.stage);
-        
-        // Update loading stage based on progress
-        if (payload.progress) {
-          if (payload.progress < 30) setLoadingStage('first');
-          else if (payload.progress < 70) setLoadingStage('second');
-          else setLoadingStage('third');
-        }
+        case 'section_error':
+          if (payload.section) {
+            console.error(`[MarketInsights] \u2717 Section failed: ${payload.section}`);
+            setSections(prev => ({
+              ...prev,
+              [payload.section!]: { status: 'error', error: payload.error },
+            }));
+          }
+          break;
+
+        case 'job_complete':
+          console.log('[MarketInsights] \u2713 Job complete');
+          updateServerAvailable(true);
+          setGenerateState({
+            status: 'success',
+            data: { success: true, insights: payload.insights },
+            error: undefined,
+          });
+          setLoadingStage('complete');
+          setProgressText('Insights ready');
+          setActiveJobId(null);
+          break;
+
+        case 'job_error':
+          console.error('[MarketInsights] \u2717 Job error:', payload.error);
+          setGenerateState({
+            status: 'error',
+            error: payload.error,
+            data: undefined,
+          });
+          setLoadingStage('complete');
+          setProgressText(payload.error);
+          setActiveJobId(null);
+          break;
       }
     };
 
     socket.on('progress', handleProgress);
-    console.log('[MarketInsights] WebSocket progress listener registered');
 
     return () => {
-      // Step 5: Cleanup - remove progress listener
       socket.off('progress', handleProgress);
-      console.log('[MarketInsights] WebSocket progress listener removed');
     };
   }, [activeJobId]);
 
-  // Cleanup polling on unmount or when job completes
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
-        console.log('[MarketInsights] Polling interval cleared');
       }
     };
   }, []);
@@ -317,6 +268,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         loadingStage,
         setLoadingStage,
         progressText,
+        sections,
+        retrySection,
       }}
     >
       {children}

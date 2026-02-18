@@ -4,6 +4,7 @@ import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../util
 import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA, FALLBACK_EXECUTIVE_SUMMARY_BRIEF, FALLBACK_LABOUR_MARKET_OVERVIEW, FALLBACK_KEY_STATS, FALLBACK_MAJOR_DRIVERS, FALLBACK_MARKET_HEALTH, FALLBACK_CITY_VS_REGION } from '../../consts/constants';
 import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench, Loader2, Newspaper } from 'lucide-react';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
+import { SectionWrapper } from './SectionWrapper';
 
 interface MarketInsightViewProps {
   user: UserProfile;
@@ -11,7 +12,7 @@ interface MarketInsightViewProps {
 }
 
 const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
-  const { generateStatus, generateError, progressText, generateState } = useMarketInsightsState();
+  const { generateStatus, generateError, progressText, generateState, sections, retrySection } = useMarketInsightsState();
   
   const insights = generateState.data?.insights as any;
   
@@ -726,11 +727,17 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
 
   // Conditionally render loading UI or full content (after all hooks)
   // Treat "success" as complete; idle also shows the full view.
-  const isComplete =
-    generateStatus === 'success' ||
-    generateStatus === 'idle';
+  const hasAnySectionStarted = 
+    sections.marketReport.status !== 'idle' ||
+    sections.industryTrends.status !== 'idle' ||
+    sections.newsAndCareerIntel.status !== 'idle';
 
-  return !isComplete ? (
+  const showContent = 
+    generateStatus === 'success' ||
+    generateStatus === 'idle' ||
+    hasAnySectionStarted;
+
+  return !showContent ? (
     <LoadingUI />
   ) : (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
@@ -806,6 +813,13 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
       <div className="space-y-12 md:space-y-16">
         {/* Market Report Section */}
         <section ref={newsSectionRef} className="relative transition-all duration-500 scroll-mt-24">
+          <SectionWrapper
+            status={sections.marketReport.status}
+            error={sections.marketReport.error}
+            onRetry={() => retrySection('marketReport')}
+            minHeight="min-h-[400px]"
+            loadingText="Loading market intelligence report..."
+          >
           {!selectedNewsId ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
@@ -867,10 +881,18 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
               </div>
             </div>
           )}
+          </SectionWrapper>
         </section>
 
         {/* Industry Growth and Decline Trends Section */}
         <section ref={trendsSectionRef} className="relative transition-all duration-500 scroll-mt-24">
+          <SectionWrapper
+            status={sections.industryTrends.status}
+            error={sections.industryTrends.error}
+            onRetry={() => retrySection('industryTrends')}
+            minHeight="min-h-[400px]"
+            loadingText="Analyzing industry trends & sectors..."
+          >
           {!selectedTrendId ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
@@ -929,11 +951,19 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
               </div>
             </div>
           )}
+          </SectionWrapper>
         </section>
 
         {/* Recent Market News Section */}
         {!selectedNewsId && !selectedTrendId && (
           <section className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
+          <SectionWrapper
+            status={sections.newsAndCareerIntel.status}
+            error={sections.newsAndCareerIntel.error}
+            onRetry={() => retrySection('newsAndCareerIntel')}
+            minHeight="min-h-[300px]"
+            loadingText="Fetching latest market news & insights..."
+          >
             {/* Title Section with GREEN PULSE */}
             <div className="mb-6 md:mb-8 px-2 flex items-center gap-3">
               <Newspaper className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
@@ -963,6 +993,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                 <div className="absolute inset-y-0 right-0 w-16 sm:w-24 md:w-32 bg-gradient-to-l from-[#ffffff] to-transparent pointer-events-none z-10" />
               </div>
             </div>
+          </SectionWrapper>
           </section>
         )}
       </div>

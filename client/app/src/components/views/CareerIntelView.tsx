@@ -10,6 +10,7 @@ import {
 } from '../../consts/careerIntelContent';
 import { Target, Lightbulb, ChevronRight, BrainCircuit, GraduationCap, Briefcase, Globe, Sparkles, ClipboardList, Library } from 'lucide-react';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
+import { SectionWrapper } from './SectionWrapper';
 
 interface CareerIntelViewProps {
   user: UserProfile;
@@ -36,8 +37,7 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
   const [guidanceStage, setGuidanceStage] = useState<CareerStageId>('new-graduates');
   const [expandedActionIdx, setExpandedActionIdx] = useState<number | null>(null);
   
-  // Extract real insights data
-  const { generateState } = useMarketInsightsState();
+  const { generateState, sections, retrySection } = useMarketInsightsState();
   const insights = generateState.data?.insights as any;
   
   // Transform strategies_by_profile to match expected format
@@ -82,6 +82,13 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="space-y-8 md:space-y-12">
           {/* Guidance — first, flush with drawer location card */}
+        <SectionWrapper
+          status={sections.newsAndCareerIntel.status}
+          error={sections.newsAndCareerIntel.error}
+          onRetry={() => retrySection('newsAndCareerIntel')}
+          minHeight="min-h-[500px]"
+          loadingText="Generating personalized career guidance..."
+        >
           <section className="space-y-4 md:space-y-5">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2 sm:gap-3">
@@ -207,6 +214,7 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
             </div>
           </section>
           )}
+        </SectionWrapper>
         </div>
       </div>
     );
