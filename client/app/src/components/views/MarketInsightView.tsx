@@ -14,16 +14,20 @@ interface MarketInsightViewProps {
 const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
   const { generateStatus, generateError, progressText, generateState, sections, retrySection } = useMarketInsightsState();
   
-  const insights = generateState.data?.insights as any;
+  // Read from per-section data (available immediately on section_success)
+  // instead of generateState.data.insights (only set on job_complete)
+  const marketReportData = sections.marketReport.data as any;
+  const industryTrendsData = sections.industryTrends.data as any;
+  const newsIntelData = sections.newsAndCareerIntel.data as any;
   
-  // Use real data if available, otherwise fall back to mock data
-  const executiveSummaryBrief = insights?.executive_summary_brief || null;
-  const executiveSummary = insights?.executive_summary || null;
-  const labourMarketSnapshot = insights?.labour_market_snapshot || null;
-  const cityVsRegionComparison = insights?.city_vs_region_comparison || null;
+  // Market report fields
+  const executiveSummaryBrief = marketReportData?.executive_summary_brief || null;
+  const executiveSummary = marketReportData?.executive_summary || null;
+  const labourMarketSnapshot = marketReportData?.labour_market_snapshot || null;
+  const cityVsRegionComparison = marketReportData?.city_vs_region_comparison || null;
   
   // Transform high_growth_sectors to match expected format
-  const highGrowthSectors = insights?.high_growth_sectors?.map((item: any) => ({
+  const highGrowthSectors = industryTrendsData?.high_growth_sectors?.map((item: any) => ({
     title: item.sector || item.title,
     description: item.why_it_matters || item.description,
     roles: item.example_roles || item.roles || [],
@@ -31,7 +35,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
   })) || HIGH_GROWTH_DATA;
   
   // Transform at_risk_sectors to match expected format
-  const atRiskSectors = insights?.at_risk_sectors?.map((item: any) => ({
+  const atRiskSectors = industryTrendsData?.at_risk_sectors?.map((item: any) => ({
     title: item.sector || item.title,
     shift: item.automation_reason || item.shift,
     pivot: item.pivot_direction || item.pivot,
@@ -41,8 +45,8 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
   // Transform top_skills_demand to match expected format
   // Backend sends nested structure with categories/quadrants/skills
   // Frontend expects flat array with icon, color, badge properties
-  const topSkillsDemand = insights?.top_skills_demand?.categories 
-    ? insights.top_skills_demand.categories.flatMap((quadrant: any, qIdx: number) => {
+  const topSkillsDemand = industryTrendsData?.top_skills_demand?.categories 
+    ? industryTrendsData.top_skills_demand.categories.flatMap((quadrant: any, qIdx: number) => {
         // Map quadrant names to UI styling
         const quadrantStyles: Record<string, any> = {
           'Emerging Stars': { color: 'border-emerald-200', badge: 'bg-indigo-600 text-white', icon: Rocket, iconColor: 'bg-emerald-500' },
@@ -68,14 +72,14 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
     : TOP_SKILLS_DATA;
   
   // Transform market_risks to match expected format
-  const marketRisks = insights?.market_risks?.map((item: any) => ({
+  const marketRisks = industryTrendsData?.market_risks?.map((item: any) => ({
     severity: item.severity,
     risk: item.risk,
     sectors: item.affected_sectors || item.sectors || [],
     strategy: item.mitigation_strategy || item.strategy
   })) || MARKET_RISKS_DATA;
   
-  const marketNews = insights?.market_news?.map((item: any, idx: number) => ({
+  const marketNews = newsIntelData?.market_news?.map((item: any, idx: number) => ({
     id: item.id || `news-${idx}`,
     title: item.headline || item.title,
     sentiment: (item.impact || item.sentiment) as 'Positive' | 'Neutral' | 'Negative',

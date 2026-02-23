@@ -38,12 +38,13 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
   const [expandedActionIdx, setExpandedActionIdx] = useState<number | null>(null);
   
   const { generateState, sections, retrySection } = useMarketInsightsState();
-  const insights = generateState.data?.insights as any;
+  // Read from per-section data directly (available on section_success, not job_complete)
+  const newsIntelData = sections.newsAndCareerIntel.data as any;
   
   // Transform strategies_by_profile to match expected format
-  const strategiesByProfile = insights?.strategies_by_profile 
+  const strategiesByProfile = newsIntelData?.strategies_by_profile 
     ? Object.fromEntries(
-        Object.entries(insights.strategies_by_profile).map(([key, value]: [string, any]) => {
+        Object.entries(newsIntelData.strategies_by_profile).map(([key, value]: [string, any]) => {
           const mappedKey = key === 'new_graduates' ? 'new-graduates' 
             : key === 'mid_career_pivoting' ? 'mid-career'
             : key === 'newcomers_international' ? 'newcomers'
@@ -64,7 +65,7 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
     : GUIDANCE_BY_STAGE;
   
   // Transform key_findings to match expected format
-  const keyFindings = insights?.key_findings?.map((item: any) => {
+  const keyFindings = newsIntelData?.key_findings?.map((item: any) => {
     const impactLevel = (item.impact_level || item.impact || 'medium').toString().toLowerCase() as ImpactLevel;
     return {
       impact: impactLevel,
