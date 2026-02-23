@@ -71,10 +71,7 @@ const techRoles = Array.from(
 // Mock data for searchable dropdowns
 const OPTIONS = {
   locations: buildLocations().map(l => l.label),
-  // locations: ["San Francisco, CA", "New York, NY", "London, UK", "Berlin, DE", "Singapore, SG", "Toronto, CA", "Austin, TX", "Seattle, WA", "Tokyo, JP"],
   roles: techRoles,
-  // roles: professions.map(p => p.title).slice(0, 100), //Using professions package for more realistic job titles. Slicing to top 100 for relevance.
-  // roles: ["Product Designer", "Frontend Engineer", "AI Researcher", "Product Manager", "Full Stack Developer", "Data Scientist", "Marketing Lead", "UX Researcher", "Backend Engineer"],
   seniority: ["Junior (0-2 Yrs)", "Mid-Level (3-5 Yrs)", "Senior (6-9 Yrs)", "Lead (10+ Yrs)", "Director / Executive"],
   employers: ["Google", "Meta", "Tesla", "Tech Corp Inc.", "Stealth Startup", "Amazon", "Microsoft", "NVIDIA", "OpenAI"],
   skills: ["Figma", "React", "TypeScript", "Python", "Machine Learning", "Strategic Thinking", "Product Strategy", "User Research", "Agile Methodology", "Tailwind CSS", "Node.js", "GraphQL", "AWS"]

@@ -1,101 +1,204 @@
-
-import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../utils/types/types';
-import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA, FALLBACK_EXECUTIVE_SUMMARY_BRIEF, FALLBACK_LABOUR_MARKET_OVERVIEW, FALLBACK_KEY_STATS, FALLBACK_MAJOR_DRIVERS, FALLBACK_MARKET_HEALTH, FALLBACK_CITY_VS_REGION } from '../../consts/constants';
-import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench, Loader2, Newspaper } from 'lucide-react';
-import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  UserProfile,
+  NewsArticle,
+  AppView,
+  RecentNewsArticle,
+} from "../../utils/types/types";
+import {
+  MOCK_NEWS,
+  TREND_REPORTS,
+  HIGH_GROWTH_DATA,
+  AT_RISK_DATA,
+  TOP_SKILLS_DATA,
+  MARKET_RISKS_DATA,
+  RECENT_NEWS_DATA,
+  FALLBACK_EXECUTIVE_SUMMARY_BRIEF,
+  FALLBACK_LABOUR_MARKET_OVERVIEW,
+  FALLBACK_KEY_STATS,
+  FALLBACK_MAJOR_DRIVERS,
+  FALLBACK_MARKET_HEALTH,
+  FALLBACK_CITY_VS_REGION,
+} from "../../consts/constants";
+import {
+  Lightbulb,
+  MapPin,
+  ArrowRight,
+  ChevronsRight,
+  TrendingUp,
+  AlertTriangle,
+  Target,
+  Zap,
+  BarChart2,
+  ArrowLeft,
+  Rocket,
+  Shield,
+  RefreshCw,
+  FileText,
+  Activity,
+  Briefcase,
+  GraduationCap,
+  Library,
+  Calendar,
+  Globe,
+  Gauge,
+  Star,
+  Wrench,
+  Loader2,
+  Newspaper,
+} from "lucide-react";
+import { useMarketInsightsState } from "../../state/marketInsights/MarketInsightsContext";
 
 interface MarketInsightViewProps {
   user: UserProfile;
   onNavigate: (view: AppView) => void;
 }
 
-const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
-  const { generateStatus, generateError, progressText, generateState } = useMarketInsightsState();
-  
+const MarketInsightView: React.FC<MarketInsightViewProps> = ({
+  user,
+  onNavigate,
+}) => {
+  const { generateStatus, generateError, progressText, generateState } =
+    useMarketInsightsState();
+
   const insights = generateState.data?.insights as any;
-  
+  const toArray = <T,>(value: T[] | T | null | undefined): T[] => {
+    if (Array.isArray(value)) return value;
+    if (value === null || value === undefined) return [];
+    return [value];
+  };
+
+  const toParagraphHtml = (value: unknown): string => {
+    if (typeof value !== "string" || !value.trim()) return "";
+    return value
+      .split("\n\n")
+      .map((p) => `<p>${p}</p>`)
+      .join("");
+  };
+
   // Use real data if available, otherwise fall back to mock data
   const executiveSummaryBrief = insights?.executive_summary_brief || null;
   const executiveSummary = insights?.executive_summary || null;
   const labourMarketSnapshot = insights?.labour_market_snapshot || null;
   const cityVsRegionComparison = insights?.city_vs_region_comparison || null;
-  
+
   // Transform high_growth_sectors to match expected format
-  const highGrowthSectors = insights?.high_growth_sectors?.map((item: any) => ({
+  const highGrowthSource = toArray(insights?.high_growth_sectors);
+  const highGrowthSectors = (
+    highGrowthSource.length ? highGrowthSource : HIGH_GROWTH_DATA
+  ).map((item: any) => ({
     title: item.sector || item.title,
     description: item.why_it_matters || item.description,
-    roles: item.example_roles || item.roles || [],
-    realityCheck: item.risk_reality_check || item.realityCheck
-  })) || HIGH_GROWTH_DATA;
-  
+    roles: toArray(item?.example_roles ?? item?.roles),
+    realityCheck: item.risk_reality_check || item.realityCheck,
+  }));
+
   // Transform at_risk_sectors to match expected format
-  const atRiskSectors = insights?.at_risk_sectors?.map((item: any) => ({
-    title: item.sector || item.title,
-    shift: item.automation_reason || item.shift,
-    pivot: item.pivot_direction || item.pivot,
-    realityCheck: item.risk_reality_check || item.realityCheck
-  })) || AT_RISK_DATA;
-  
+  const atRiskSource = toArray(insights?.at_risk_sectors);
+  const atRiskSectors = (atRiskSource.length ? atRiskSource : AT_RISK_DATA).map(
+    (item: any) => ({
+      title: item.sector || item.title,
+      shift: item.automation_reason || item.shift,
+      pivot: item.pivot_direction || item.pivot,
+      realityCheck: item.risk_reality_check || item.realityCheck,
+    }),
+  );
+
   // Transform top_skills_demand to match expected format
   // Backend sends nested structure with categories/quadrants/skills
   // Frontend expects flat array with icon, color, badge properties
-  const topSkillsDemand = insights?.top_skills_demand?.categories 
-    ? insights.top_skills_demand.categories.flatMap((quadrant: any, qIdx: number) => {
+  const categories = toArray(insights?.top_skills_demand?.categories);
+
+  const topSkillsDemand = categories.length
+    ? categories.flatMap((quadrant: any, qIdx: number) => {
         // Map quadrant names to UI styling
         const quadrantStyles: Record<string, any> = {
-          'Emerging Stars': { color: 'border-emerald-200', badge: 'bg-indigo-600 text-white', icon: Rocket, iconColor: 'bg-emerald-500' },
-          'Strategic Must-Haves': { color: 'border-purple-200', badge: 'bg-indigo-600 text-white', icon: Star, iconColor: 'bg-purple-500' },
-          'Stable Foundations': { color: 'border-blue-200', badge: 'bg-amber-600 text-white', icon: Target, iconColor: 'bg-blue-500' },
-          'Niche Specialists': { color: 'border-amber-200', badge: 'bg-emerald-600 text-white', icon: Wrench, iconColor: 'bg-amber-500' }
+          "Emerging Stars": {
+            color: "border-emerald-200",
+            badge: "bg-indigo-600 text-white",
+            icon: Rocket,
+            iconColor: "bg-emerald-500",
+          },
+          "Strategic Must-Haves": {
+            color: "border-purple-200",
+            badge: "bg-indigo-600 text-white",
+            icon: Star,
+            iconColor: "bg-purple-500",
+          },
+          "Stable Foundations": {
+            color: "border-blue-200",
+            badge: "bg-amber-600 text-white",
+            icon: Target,
+            iconColor: "bg-blue-500",
+          },
+          "Niche Specialists": {
+            color: "border-amber-200",
+            badge: "bg-emerald-600 text-white",
+            icon: Wrench,
+            iconColor: "bg-amber-500",
+          },
         };
-        const styles = quadrantStyles[quadrant.quadrant] || quadrantStyles['Stable Foundations'];
-        
-        return (quadrant.skills || []).map((skill: any, sIdx: number) => ({
-          id: `${quadrant.quadrant.toLowerCase().replace(/\s+/g, '-')}-${sIdx}`,
-          category: quadrant.quadrant,
-          categoryDescription: quadrant.description || '',
-          title: skill.category,
-          level: skill.demand_level || 'Medium',
-          description: skill.why || skill.description,
-          skills: skill.examples || [],
-          note: skill.growth_trend || '',
-          insights: skill.so_what || skill.description,
-          ...styles
+        const styles =
+          quadrantStyles[quadrant.quadrant] ||
+          quadrantStyles["Stable Foundations"];
+
+        return toArray(quadrant?.skills).map((skill: any, sIdx: number) => ({
+          id: `${String(quadrant?.quadrant || "category")
+            .toLowerCase()
+            .replace(/\s+/g, "-")}-${sIdx}`,
+          category: quadrant?.quadrant || "Stable Foundations",
+          categoryDescription: quadrant?.description || "",
+          title: skill?.category || "Unknown Skill",
+          level: skill?.demand_level || "Medium",
+          description: skill?.why || skill?.description || "",
+          skills: toArray(skill?.examples),
+          note: skill?.growth_trend || "",
+          insights: skill?.so_what || skill?.description || "",
+          ...styles,
         }));
       })
     : TOP_SKILLS_DATA;
-  
+
   // Transform market_risks to match expected format
-  const marketRisks = insights?.market_risks?.map((item: any) => ({
+  const marketRiskSource = toArray(insights?.market_risks);
+  const marketRisks = (
+    marketRiskSource.length ? marketRiskSource : MARKET_RISKS_DATA
+  ).map((item: any) => ({
     severity: item.severity,
     risk: item.risk,
     sectors: item.affected_sectors || item.sectors || [],
-    strategy: item.mitigation_strategy || item.strategy
-  })) || MARKET_RISKS_DATA;
-  
-  const marketNews = insights?.market_news?.map((item: any, idx: number) => ({
+    strategy: item.mitigation_strategy || item.strategy,
+  }));
+
+  const marketNewsSource = toArray(insights?.market_news);
+  const marketNews = (
+    marketNewsSource.length ? marketNewsSource : RECENT_NEWS_DATA
+  ).map((item: any, idx: number) => ({
     id: item.id || `news-${idx}`,
     title: item.headline || item.title,
-    sentiment: (item.impact || item.sentiment) as 'Positive' | 'Neutral' | 'Negative',
+    sentiment: (item.impact || item.sentiment) as
+      | "Positive"
+      | "Neutral"
+      | "Negative",
     excerpt: item.summary || item.excerpt,
     date: item.date,
     source: item.source,
-    relevance: item.relevance_score || item.relevance || 5
-  })) || RECENT_NEWS_DATA;
-  
+    relevance: item.relevance_score || item.relevance || 5,
+  }));
+
   const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
   const [selectedTrendId, setSelectedTrendId] = useState<string | null>(null);
   const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
   const [currentTrendIndex, setCurrentTrendIndex] = useState(0);
-  const [selectedMarketNews, setSelectedMarketNews] = useState<RecentNewsArticle | null>(null);
-  
+  const [selectedMarketNews, setSelectedMarketNews] =
+    useState<RecentNewsArticle | null>(null);
+
   const newsSectionRef = useRef<HTMLDivElement>(null);
   const trendsSectionRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const newsScrollRef = useRef<HTMLDivElement>(null);
   const trendsScrollRef = useRef<HTMLDivElement>(null);
-  
+
   // Swipe detection for mobile news cards
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
@@ -114,10 +217,10 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
       if (progressText) {
         return progressText;
       }
-      if (generateStatus === 'in-progress') {
-        return 'Generating your market insights...';
+      if (generateStatus === "in-progress") {
+        return "Generating your market insights...";
       }
-      return 'Preparing your dashboard...';
+      return "Preparing your dashboard...";
     };
 
     return (
@@ -127,19 +230,25 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-1">
               <h1 className="text-2xl md:text-4xl font-extrabold mb-1 flex items-center gap-3 tracking-tight text-white">
-                Welcome back, {user.name.split(' ')[0]}! 👋
+                Welcome back, {user.name.split(" ")[0]}! 👋
               </h1>
-              <p className="text-indigo-50 text-base md:text-lg font-medium tracking-tight opacity-90">Here's what's happening in your industry today</p>
+              <p className="text-indigo-50 text-base md:text-lg font-medium tracking-tight opacity-90">
+                Here's what's happening in your industry today
+              </p>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-3">
               <div className="bg-white/10 backdrop-blur-xl px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl border border-white/20 flex items-center gap-2 md:gap-3 transition-transform hover:scale-105 shadow-sm text-white">
                 <Briefcase className="w-3 h-3 md:w-4 md:h-4 text-indigo-100" />
-                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">{user.role}</span>
+                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">
+                  {user.role}
+                </span>
               </div>
               <div className="bg-white/10 backdrop-blur-xl px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl border border-white/20 flex items-center gap-2 md:gap-3 transition-transform hover:scale-105 shadow-sm text-white">
                 <GraduationCap className="w-3 h-3 md:w-4 md:h-4 text-indigo-100" />
-                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">{user.experience.replace(/\s*\([^)]*\)\s*/g, '').trim()}</span>
+                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">
+                  {user.experience.replace(/\s*\([^)]*\)\s*/g, "").trim()}
+                </span>
               </div>
             </div>
           </div>
@@ -170,9 +279,9 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
       const cards = newsScrollRef.current.children;
       if (cards[newIndex]) {
         (cards[newIndex] as HTMLElement).scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'start'
+          behavior: "smooth",
+          block: "nearest",
+          inline: "start",
         });
       }
     }
@@ -186,9 +295,9 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
       const cards = newsScrollRef.current.children;
       if (cards[newIndex]) {
         (cards[newIndex] as HTMLElement).scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'start'
+          behavior: "smooth",
+          block: "nearest",
+          inline: "start",
         });
       }
     }
@@ -228,9 +337,9 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
       const cards = trendsScrollRef.current.children;
       if (cards[newIndex]) {
         (cards[newIndex] as HTMLElement).scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'start'
+          behavior: "smooth",
+          block: "nearest",
+          inline: "start",
         });
       }
     }
@@ -243,9 +352,9 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
       const cards = trendsScrollRef.current.children;
       if (cards[newIndex]) {
         (cards[newIndex] as HTMLElement).scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'start'
+          behavior: "smooth",
+          block: "nearest",
+          inline: "start",
         });
       }
     }
@@ -282,33 +391,44 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
         if (!newsScrollRef.current) return;
         const scrollLeft = newsScrollRef.current.scrollLeft;
         const containerWidth = newsScrollRef.current.offsetWidth;
-        const cards = Array.from(newsScrollRef.current.children) as HTMLElement[];
-        
+        const cards = Array.from(
+          newsScrollRef.current.children,
+        ) as HTMLElement[];
+
         // Find which card is most visible
         let newIndex = 0;
         let maxVisible = 0;
-        
+
         cards.forEach((card, index) => {
           const cardLeft = card.offsetLeft;
           const cardWidth = card.offsetWidth;
           const visibleLeft = Math.max(0, scrollLeft - cardLeft);
-          const visibleRight = Math.min(cardWidth, scrollLeft + containerWidth - cardLeft);
+          const visibleRight = Math.min(
+            cardWidth,
+            scrollLeft + containerWidth - cardLeft,
+          );
           const visible = Math.max(0, visibleRight - visibleLeft);
-          
+
           if (visible > maxVisible) {
             maxVisible = visible;
             newIndex = index;
           }
         });
-        
-        if (newIndex !== currentNewsIndex && newIndex >= 0 && newIndex < totalNewsCards) {
+
+        if (
+          newIndex !== currentNewsIndex &&
+          newIndex >= 0 &&
+          newIndex < totalNewsCards
+        ) {
           setCurrentNewsIndex(newIndex);
         }
       };
-      
+
       const scrollContainer = newsScrollRef.current;
-      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+      scrollContainer.addEventListener("scroll", handleScroll, {
+        passive: true,
+      });
+      return () => scrollContainer.removeEventListener("scroll", handleScroll);
     }
   }, [currentNewsIndex, totalNewsCards]);
 
@@ -319,47 +439,64 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
         if (!trendsScrollRef.current) return;
         const scrollLeft = trendsScrollRef.current.scrollLeft;
         const containerWidth = trendsScrollRef.current.offsetWidth;
-        const cards = Array.from(trendsScrollRef.current.children) as HTMLElement[];
-        
+        const cards = Array.from(
+          trendsScrollRef.current.children,
+        ) as HTMLElement[];
+
         // Find which card is most visible
         let newIndex = 0;
         let maxVisible = 0;
-        
+
         cards.forEach((card, index) => {
           const cardLeft = card.offsetLeft;
           const cardWidth = card.offsetWidth;
           const visibleLeft = Math.max(0, scrollLeft - cardLeft);
-          const visibleRight = Math.min(cardWidth, scrollLeft + containerWidth - cardLeft);
+          const visibleRight = Math.min(
+            cardWidth,
+            scrollLeft + containerWidth - cardLeft,
+          );
           const visible = Math.max(0, visibleRight - visibleLeft);
-          
+
           if (visible > maxVisible) {
             maxVisible = visible;
             newIndex = index;
           }
         });
-        
-        if (newIndex !== currentTrendIndex && newIndex >= 0 && newIndex < totalTrendCards) {
+
+        if (
+          newIndex !== currentTrendIndex &&
+          newIndex >= 0 &&
+          newIndex < totalTrendCards
+        ) {
           setCurrentTrendIndex(newIndex);
         }
       };
-      
+
       const scrollContainer = trendsScrollRef.current;
-      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+      scrollContainer.addEventListener("scroll", handleScroll, {
+        passive: true,
+      });
+      return () => scrollContainer.removeEventListener("scroll", handleScroll);
     }
   }, [currentTrendIndex, totalTrendCards]);
 
   // Scroll to the respective section when a detail is opened
   useEffect(() => {
     if (selectedNewsId && newsSectionRef.current) {
-      newsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      newsSectionRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
   }, [selectedNewsId]);
 
   useEffect(() => {
     if (selectedTrendId && trendsSectionRef.current) {
       setTimeout(() => {
-        trendsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        trendsSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       }, 50);
     }
   }, [selectedTrendId]);
@@ -381,15 +518,15 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
       // If we scroll too far right (into the 3rd set), jump back to the 2nd set
       if (currentScroll >= singleSetWidth * 2) {
         el.scrollLeft = currentScroll - singleSetWidth;
-      } 
+      }
       // If we scroll too far left (into the 1st set), jump forward to the 2nd set
       else if (currentScroll <= 0) {
         el.scrollLeft = singleSetWidth;
       }
     };
 
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
   }, [selectedNewsId, selectedTrendId]);
 
   const closeNewsDetail = () => setSelectedNewsId(null);
@@ -397,117 +534,191 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
 
   const renderTrendDetail = (id: string, location: string) => {
     switch (id) {
-      case 'high-growth':
+      case "high-growth":
         return (
           <div className="space-y-10">
             <div className="bg-emerald-50/50 p-8 rounded-3xl border border-emerald-100">
               <div className="flex items-center gap-3 mb-2">
                 <Rocket className="w-8 h-8 text-emerald-600" />
-                <h2 className="text-2xl font-extrabold text-slate-900">10 High-Growth Sectors & Roles</h2>
+                <h2 className="text-2xl font-extrabold text-slate-900">
+                  10 High-Growth Sectors & Roles
+                </h2>
               </div>
-              <p className="text-slate-500 font-medium">Industries with strong hiring momentum in {location}</p>
+              <p className="text-slate-500 font-medium">
+                Industries with strong hiring momentum in {location}
+              </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {highGrowthSectors.map((item, idx) => (
-                <div key={idx} className="bg-slate-50/50 border-[1.5px] border-emerald-500 rounded-[2.5rem] p-8 flex flex-col h-full shadow-sm">
+                <div
+                  key={idx}
+                  className="bg-slate-50/50 border-[1.5px] border-emerald-500 rounded-[2.5rem] p-8 flex flex-col h-full shadow-sm"
+                >
                   <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-2xl font-bold text-slate-900">{item.title}</h3>
+                    <h3 className="text-2xl font-bold text-slate-900">
+                      {item.title}
+                    </h3>
                   </div>
-                  <p className="text-slate-600 mb-6 leading-relaxed text-base">{item.description}</p>
+                  <p className="text-slate-600 mb-6 leading-relaxed text-base">
+                    {item.description}
+                  </p>
                   <div className="mt-auto space-y-6">
                     <div>
-                      <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-widest mb-2">Example Roles:</p>
+                      <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-widest mb-2">
+                        Example Roles:
+                      </p>
                       <div className="flex flex-wrap gap-2">
-                        {item.roles.map((role, rIdx) => (
-                          <span key={rIdx} className="bg-white border border-slate-200 px-3 py-1 rounded-lg text-xs font-bold text-slate-700">{role}</span>
+                        {toArray(item.roles).map((role, rIdx) => (
+                          <span
+                            key={rIdx}
+                            className="bg-white border border-slate-200 px-3 py-1 rounded-lg text-xs font-bold text-slate-700"
+                          >
+                            {role}
+                          </span>
                         ))}
                       </div>
                     </div>
-                    <InsightBox text={item.realityCheck} compact={true} forceBaseSize={true} />
+                    <InsightBox
+                      text={item.realityCheck}
+                      compact={true}
+                      forceBaseSize={true}
+                    />
                   </div>
                 </div>
               ))}
             </div>
           </div>
         );
-      case 'at-risk':
+      case "at-risk":
         return (
           <div className="space-y-10">
             <div className="bg-rose-50/50 p-8 rounded-3xl border border-rose-100">
               <div className="flex items-center gap-3 mb-2">
                 <AlertTriangle className="w-8 h-8 text-rose-600" />
-                <h2 className="text-2xl font-extrabold text-slate-900">10 At-Risk Role Clusters & Pivot Paths</h2>
+                <h2 className="text-2xl font-extrabold text-slate-900">
+                  10 At-Risk Role Clusters & Pivot Paths
+                </h2>
               </div>
-              <p className="text-slate-500 font-medium">Understanding automation, structural shifts, and strategic pivot paths</p>
+              <p className="text-slate-500 font-medium">
+                Understanding automation, structural shifts, and strategic pivot
+                paths
+              </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {atRiskSectors.map((item, idx) => (
-                <div key={idx} className="bg-white border-[1.5px] border-rose-500 rounded-[2.5rem] p-8 flex flex-col h-full shadow-md">
-                  <h3 className="text-2xl font-bold text-slate-900 mb-2">{item.title}</h3>
+                <div
+                  key={idx}
+                  className="bg-white border-[1.5px] border-rose-500 rounded-[2.5rem] p-8 flex flex-col h-full shadow-md"
+                >
+                  <h3 className="text-2xl font-bold text-slate-900 mb-2">
+                    {item.title}
+                  </h3>
                   <div className="mb-6">
-                    <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-widest mb-1">Automation / Shift:</p>
-                    <p className="text-slate-600 text-base leading-relaxed">{item.shift}</p>
+                    <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-widest mb-1">
+                      Automation / Shift:
+                    </p>
+                    <p className="text-slate-600 text-base leading-relaxed">
+                      {item.shift}
+                    </p>
                   </div>
-                  
+
                   <div className="mt-auto space-y-6">
-                     <PivotBox text={item.pivot} forceBaseSize={true} compact={true} />
-                     <InsightBox text={item.realityCheck} forceBaseSize={true} compact={true} />
+                    <PivotBox
+                      text={item.pivot}
+                      forceBaseSize={true}
+                      compact={true}
+                    />
+                    <InsightBox
+                      text={item.realityCheck}
+                      forceBaseSize={true}
+                      compact={true}
+                    />
                   </div>
                 </div>
               ))}
             </div>
           </div>
         );
-      case 'top-skills':
+      case "top-skills":
         return (
           <div className="space-y-10 animate-in fade-in duration-700">
             <div className="bg-indigo-50/50 p-8 rounded-[2rem] border border-indigo-100">
               <div className="flex items-center gap-4 mb-2">
                 <Zap className="w-8 h-8 text-indigo-600" />
                 <div>
-                  <h2 className="text-2xl font-extrabold text-slate-900">Top Skills Demand in 2025</h2>
-                  <p className="text-slate-500 font-medium">Skills positioned by market maturity and growth velocity</p>
+                  <h2 className="text-2xl font-extrabold text-slate-900">
+                    Top Skills Demand in 2025
+                  </h2>
+                  <p className="text-slate-500 font-medium">
+                    Skills positioned by market maturity and growth velocity
+                  </p>
                 </div>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {topSkillsDemand.map((item, idx) => {
                 const IconComponent = item.icon;
                 return (
-                  <div key={idx} className={`border-[1.5px] rounded-[2.5rem] p-8 ${item.color} relative overflow-hidden group bg-transparent`}>
+                  <div
+                    key={idx}
+                    className={`border-[1.5px] rounded-[2.5rem] p-8 ${item.color} relative overflow-hidden group bg-transparent`}
+                  >
                     <div className="relative z-10 flex flex-col h-full">
                       <div className="flex items-center gap-4 mb-8">
-                        <div className={`${item.iconColor} text-white p-3 rounded-2xl shadow-lg`}>
+                        <div
+                          className={`${item.iconColor} text-white p-3 rounded-2xl shadow-lg`}
+                        >
                           <IconComponent className="w-6 h-6" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-extrabold text-slate-900">{item.category}</h3>
-                          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-tight">{item.categoryDescription}</p>
+                          <h3 className="text-xl font-extrabold text-slate-900">
+                            {item.category}
+                          </h3>
+                          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-tight">
+                            {item.categoryDescription}
+                          </p>
                         </div>
                       </div>
 
                       <div className="mb-8">
                         <div className="flex items-center justify-between mb-4">
-                          <h4 className="text-2xl font-bold text-slate-900">{item.title}</h4>
-                          <span className={`px-4 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${item.badge}`}>{item.level}</span>
+                          <h4 className="text-2xl font-bold text-slate-900">
+                            {item.title}
+                          </h4>
+                          <span
+                            className={`px-4 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${item.badge}`}
+                          >
+                            {item.level}
+                          </span>
                         </div>
-                        <p className="text-slate-500 text-sm leading-relaxed mb-6 font-medium">{item.description}</p>
-                        
+                        <p className="text-slate-500 text-sm leading-relaxed mb-6 font-medium">
+                          {item.description}
+                        </p>
+
                         <div className="flex flex-wrap gap-2 mb-6">
-                          {item.skills.map((s, sIdx) => (
-                            <span key={sIdx} className="bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-xl text-xs font-bold text-slate-700 transition-all hover:border-indigo-400/50">{s}</span>
+                          {toArray(item.skills).map((s, sIdx) => (
+                            <span
+                              key={sIdx}
+                              className="bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-xl text-xs font-bold text-slate-700 transition-all hover:border-indigo-400/50"
+                            >
+                              {s}
+                            </span>
                           ))}
                         </div>
-                        
+
                         <div className="flex items-center gap-2 text-slate-500 font-medium italic text-xs">
-                           <TrendingUp className="w-3.5 h-3.5" />
+                          <TrendingUp className="w-3.5 h-3.5" />
                           <span>{item.note}</span>
                         </div>
                       </div>
-                      
+
                       <div className="mt-auto">
-                        <InsightBox text={item.insights} compact={true} forceBaseSize={true} />
+                        <InsightBox
+                          text={item.insights}
+                          compact={true}
+                          forceBaseSize={true}
+                        />
                       </div>
                     </div>
                   </div>
@@ -516,50 +727,77 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             </div>
           </div>
         );
-      case 'market-risks':
+      case "market-risks":
         return (
           <div className="space-y-10">
             <div className="bg-amber-50/50 p-8 rounded-3xl border border-amber-100">
               <div className="flex items-center gap-3 mb-2">
                 <Shield className="w-8 h-8 text-amber-600" />
-                <h2 className="text-2xl font-extrabold text-slate-900">Market Risks & Challenges</h2>
+                <h2 className="text-2xl font-extrabold text-slate-900">
+                  Market Risks & Challenges
+                </h2>
               </div>
-              <p className="text-slate-500 font-medium">Potential challenges and mitigation strategies for your career path</p>
+              <p className="text-slate-500 font-medium">
+                Potential challenges and mitigation strategies for your career
+                path
+              </p>
             </div>
             <div className="overflow-x-auto -mx-4 sm:mx-0">
               <div className="min-w-[640px] overflow-hidden bg-white rounded-[1.5rem] md:rounded-[2.5rem] border-[1.5px] border-amber-500 shadow-md">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">Severity</th>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">Risk</th>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">Sectors</th>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">Strategy</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">
+                        Severity
+                      </th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">
+                        Risk
+                      </th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">
+                        Sectors
+                      </th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] font-extrabold uppercase text-slate-900 tracking-widest whitespace-nowrap border-b border-b-amber-500">
+                        Strategy
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {marketRisks.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                      <tr
+                        key={idx}
+                        className="hover:bg-slate-50/50 transition-colors"
+                      >
                         <td className="px-4 py-4 md:px-8 md:py-6 w-[15%]">
-                          <span className={`px-3 py-1 md:px-4 md:py-1.5 rounded-lg md:rounded-xl text-[10px] font-extrabold uppercase border ${
-                            row.severity === 'High' ? 'border-rose-500/30 text-rose-600 bg-rose-50' : 
-                            row.severity === 'Medium' ? 'border-amber-500/30 text-amber-600 bg-amber-50' : 
-                            'border-indigo-500/30 text-indigo-600 bg-indigo-50'
-                          }`}>
+                          <span
+                            className={`px-3 py-1 md:px-4 md:py-1.5 rounded-lg md:rounded-xl text-[10px] font-extrabold uppercase border ${
+                              row.severity === "High"
+                                ? "border-rose-500/30 text-rose-600 bg-rose-50"
+                                : row.severity === "Medium"
+                                  ? "border-amber-500/30 text-amber-600 bg-amber-50"
+                                  : "border-indigo-500/30 text-indigo-600 bg-indigo-50"
+                            }`}
+                          >
                             {row.severity}
                           </span>
                         </td>
-                        <td className="px-4 py-4 md:px-8 md:py-6 font-bold text-slate-900 text-base md:text-lg w-[20%] min-w-[140px]">{row.risk}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 font-bold text-slate-900 text-base md:text-lg w-[20%] min-w-[140px]">
+                          {row.risk}
+                        </td>
                         <td className="px-4 py-4 md:px-8 md:py-6 w-[20%]">
                           <div className="flex flex-wrap gap-1.5 md:gap-2">
-                            {row.sectors.map((s, sIdx) => (
-                              <span key={sIdx} className="px-2 py-1 md:px-3 md:py-1.5 bg-white border-0 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold text-slate-700 shadow-sm transition-all cursor-default">
+                            {toArray(row.sectors).map((s, sIdx) => (
+                              <span
+                                key={sIdx}
+                                className="px-2 py-1 md:px-3 md:py-1.5 bg-white border-0 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold text-slate-700 shadow-sm transition-all cursor-default"
+                              >
                                 {s}
                               </span>
                             ))}
                           </div>
                         </td>
-                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-sm md:text-lg w-[45%] min-w-[180px]">{row.strategy}</td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-sm md:text-lg w-[45%] min-w-[180px]">
+                          {row.strategy}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -573,92 +811,145 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
     }
   };
 
-  const renderArticleContent = (id: string, location: string, country: string) => {
+  const renderArticleContent = (
+    id: string,
+    location: string,
+    country: string,
+  ) => {
     switch (id) {
-      case '1':
+      case "1":
         return (
           <div className="space-y-12 animate-in fade-in duration-500">
             <div className="bg-indigo-50/50 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-indigo-100">
               <div className="flex items-center gap-2 md:gap-3 mb-2">
                 <MapPin className="w-6 h-6 md:w-8 md:h-8 text-indigo-600" />
-                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">Market Intelligence Report</h2>
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">
+                  Market Intelligence Report
+                </h2>
               </div>
-              <p className="text-indigo-900 font-bold mb-1 text-sm md:text-base">{location}, {country}</p>
-              <p className="text-slate-500 font-medium text-sm md:text-base">Your personalized career intelligence based on real labor market data</p>
+              <p className="text-indigo-900 font-bold mb-1 text-sm md:text-base">
+                {location}, {country}
+              </p>
+              <p className="text-slate-500 font-medium text-sm md:text-base">
+                Your personalized career intelligence based on real labor market
+                data
+              </p>
             </div>
 
             <div>
-              <h3 className="text-lg md:text-xl font-bold text-black mb-4 md:mb-6">Market News Summary (Based on the Last 2 Months)</h3>
+              <h3 className="text-lg md:text-xl font-bold text-black mb-4 md:mb-6">
+                Market News Summary (Based on the Last 2 Months)
+              </h3>
               <div className="space-y-4 md:space-y-6 text-slate-700 leading-relaxed text-base md:text-lg">
                 {executiveSummaryBrief ? (
-                  <div dangerouslySetInnerHTML={{ __html: executiveSummaryBrief.split('\n\n').map((p: string) => `<p>${p}</p>`).join('') }} />
+                  // <div dangerouslySetInnerHTML={{ __html: executiveSummaryBrief.split('\n\n').map((p: string) => `<p>${p}</p>`).join('') }} />
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: toParagraphHtml(executiveSummaryBrief),
+                    }}
+                  />
                 ) : (
-                  <p className="text-slate-500 italic">{FALLBACK_EXECUTIVE_SUMMARY_BRIEF}</p>
+                  <p className="text-slate-500 italic">
+                    {FALLBACK_EXECUTIVE_SUMMARY_BRIEF}
+                  </p>
                 )}
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white border-[1.5px] border-emerald-500 shadow-sm">
                 <div className="flex items-center gap-2 text-emerald-600 font-bold mb-3 md:mb-4">
                   <TrendingUp className="w-4 h-4 md:w-5 md:h-5" />
-                  <span className="uppercase tracking-widest text-[10px] md:text-xs">Strongest Opportunity</span>
+                  <span className="uppercase tracking-widest text-[10px] md:text-xs">
+                    Strongest Opportunity
+                  </span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">{executiveSummary?.key_stats?.strongest_opportunity || FALLBACK_KEY_STATS.strongest_opportunity}</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
+                  {executiveSummary?.key_stats?.strongest_opportunity ||
+                    FALLBACK_KEY_STATS.strongest_opportunity}
+                </p>
               </div>
-              
+
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white border-[1.5px] border-rose-500 shadow-sm">
                 <div className="flex items-center gap-2 text-rose-600 font-bold mb-3 md:mb-4">
                   <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" />
-                  <span className="uppercase tracking-widest text-[10px] md:text-xs">Highest Risk Sector</span>
+                  <span className="uppercase tracking-widest text-[10px] md:text-xs">
+                    Highest Risk Sector
+                  </span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">{executiveSummary?.key_stats?.highest_risk_sector || FALLBACK_KEY_STATS.highest_risk_sector}</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
+                  {executiveSummary?.key_stats?.highest_risk_sector ||
+                    FALLBACK_KEY_STATS.highest_risk_sector}
+                </p>
               </div>
-              
+
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white border-[1.5px] border-indigo-500 shadow-sm">
                 <div className="flex items-center gap-2 text-indigo-600 font-bold mb-3 md:mb-4">
                   <Target className="w-4 h-4 md:w-5 md:h-5" />
-                  <span className="uppercase tracking-widest text-[10px] md:text-xs">Top Skill Demand</span>
+                  <span className="uppercase tracking-widest text-[10px] md:text-xs">
+                    Top Skill Demand
+                  </span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">{executiveSummary?.key_stats?.top_skill_demand || FALLBACK_KEY_STATS.top_skill_demand}</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
+                  {executiveSummary?.key_stats?.top_skill_demand ||
+                    FALLBACK_KEY_STATS.top_skill_demand}
+                </p>
               </div>
-              
+
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2rem] bg-white border-[1.5px] border-lime-500 shadow-sm">
                 <div className="flex items-center gap-2 text-lime-600 font-bold mb-3 md:mb-4">
                   <RefreshCw className="w-4 h-4 md:w-5 md:h-5" />
-                  <span className="uppercase tracking-widest text-[10px] md:text-xs">Pivot Necessity</span>
+                  <span className="uppercase tracking-widest text-[10px] md:text-xs">
+                    Pivot Necessity
+                  </span>
                 </div>
-                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">{executiveSummary?.key_stats?.pivot_necessity || FALLBACK_KEY_STATS.pivot_necessity}</p>
+                <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
+                  {executiveSummary?.key_stats?.pivot_necessity ||
+                    FALLBACK_KEY_STATS.pivot_necessity}
+                </p>
               </div>
             </div>
           </div>
         );
-      case '2':
+      case "2":
         return (
           <div className="space-y-12 animate-in fade-in duration-500">
             <div className="bg-sky-50 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-sky-100">
               <div className="flex items-center gap-2 md:gap-3 mb-2">
                 <BarChart2 className="w-6 h-6 md:w-8 md:h-8 text-sky-600" />
-                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">Labour Market Snapshot</h2>
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">
+                  Labour Market Snapshot
+                </h2>
               </div>
-              <p className="text-slate-500 font-medium text-sm md:text-base">Current state of the job market in {location}</p>
+              <p className="text-slate-500 font-medium text-sm md:text-base">
+                Current state of the job market in {location}
+              </p>
             </div>
-            
+
             <div className="space-y-6 md:space-y-8 text-base md:text-lg text-slate-700 leading-relaxed">
               {labourMarketSnapshot?.overview ? (
-                <div dangerouslySetInnerHTML={{ __html: labourMarketSnapshot.overview.split('\n\n').map((p: string) => `<p>${p}</p>`).join('') }} />
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: toParagraphHtml(labourMarketSnapshot?.overview),
+                  }}
+                />
               ) : (
-                <p className="text-slate-500 italic">{FALLBACK_LABOUR_MARKET_OVERVIEW}</p>
+                <p className="text-slate-500 italic">
+                  {FALLBACK_LABOUR_MARKET_OVERVIEW}
+                </p>
               )}
             </div>
 
-            
             <div>
-              <p className="font-bold text-slate-900 mb-4 md:mb-6 text-sm md:text-base">Major Market Drivers:</p>
+              <p className="font-bold text-slate-900 mb-4 md:mb-6 text-sm md:text-base">
+                Major Market Drivers:
+              </p>
               <div className="flex flex-wrap gap-2 md:gap-3">
-                {(labourMarketSnapshot?.major_drivers || FALLBACK_MAJOR_DRIVERS).map((tag, i) => (
-                  <div 
-                    key={i} 
+                {(
+                  labourMarketSnapshot?.major_drivers || FALLBACK_MAJOR_DRIVERS
+                ).map((tag, i) => (
+                  <div
+                    key={i}
                     className="px-4 py-2 md:px-5 md:py-3 bg-white border border-slate-200 rounded-lg md:rounded-[1rem] text-xs md:text-sm font-bold uppercase text-slate-700 transition-all cursor-default"
                   >
                     {tag}
@@ -666,57 +957,92 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                 ))}
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-emerald-500 bg-transparent">
-                <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">Employment Rate</p>
-                <p className="text-xl md:text-2xl font-extrabold text-emerald-600">{labourMarketSnapshot?.market_health?.employment_rate || FALLBACK_MARKET_HEALTH.employment_rate}</p>
+                <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">
+                  Employment Rate
+                </p>
+                <p className="text-xl md:text-2xl font-extrabold text-emerald-600">
+                  {labourMarketSnapshot?.market_health?.employment_rate ||
+                    FALLBACK_MARKET_HEALTH.employment_rate}
+                </p>
               </div>
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-rose-500 bg-transparent">
-                <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">Job Growth Rate</p>
-                <p className="text-xl md:text-2xl font-extrabold text-rose-600">{labourMarketSnapshot?.market_health?.job_growth_rate || FALLBACK_MARKET_HEALTH.job_growth_rate}</p>
+                <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">
+                  Job Growth Rate
+                </p>
+                <p className="text-xl md:text-2xl font-extrabold text-rose-600">
+                  {labourMarketSnapshot?.market_health?.job_growth_rate ||
+                    FALLBACK_MARKET_HEALTH.job_growth_rate}
+                </p>
               </div>
               <div className="p-6 md:p-8 rounded-xl md:rounded-[2.5rem] text-center border-[1.5px] border-indigo-500 bg-transparent">
-                <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">Overall Trend</p>
-                <p className="text-xl md:text-2xl font-extrabold text-indigo-600">{labourMarketSnapshot?.market_health?.trend || FALLBACK_MARKET_HEALTH.trend}</p>
+                <p className="text-slate-900 text-[10px] md:text-xs font-bold uppercase mb-2">
+                  Overall Trend
+                </p>
+                <p className="text-xl md:text-2xl font-extrabold text-indigo-600">
+                  {labourMarketSnapshot?.market_health?.trend ||
+                    FALLBACK_MARKET_HEALTH.trend}
+                </p>
               </div>
             </div>
           </div>
         );
-      case '3':
+      case "3":
         return (
           <div className="space-y-12 animate-in fade-in duration-500">
             <div className="bg-amber-50 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-amber-100">
               <div className="flex items-center gap-2 md:gap-3 mb-2">
                 <MapPin className="w-6 h-6 md:w-8 md:h-8 text-indigo-600" />
-                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">{location} vs Broader Region</h2>
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">
+                  {location} vs Broader Region
+                </h2>
               </div>
-              <p className="text-slate-500 font-medium text-sm md:text-base">How your city compares to the wider region</p>
+              <p className="text-slate-500 font-medium text-sm md:text-base">
+                How your city compares to the wider region
+              </p>
             </div>
-            
+
             <div className="overflow-x-auto -mx-4 sm:mx-0 sm:overflow-visible">
               <div className="min-w-[640px] overflow-hidden bg-white rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-slate-900">Factor</th>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-amber-600">{location}</th>
-                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-amber-600">Wider Region</th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-slate-900">
+                        Factor
+                      </th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-amber-600">
+                        {location}
+                      </th>
+                      <th className="px-4 py-4 md:px-8 md:py-5 text-[10px] md:text-sm font-bold text-amber-600">
+                        Wider Region
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {(cityVsRegionComparison?.data || FALLBACK_CITY_VS_REGION).map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-4 md:px-8 md:py-6 font-bold text-slate-900 w-[25%] text-xs md:text-base">{row.factor || row.f}</td>
-                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-xs md:text-lg w-[37.5%]">{row.city || row.l}</td>
-                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-xs md:text-lg w-[37.5%]">{row.wider_region || row.w}</td>
+                    {(
+                      cityVsRegionComparison?.data || FALLBACK_CITY_VS_REGION
+                    ).map((row, i) => (
+                      <tr
+                        key={i}
+                        className="hover:bg-slate-50/50 transition-colors"
+                      >
+                        <td className="px-4 py-4 md:px-8 md:py-6 font-bold text-slate-900 w-[25%] text-xs md:text-base">
+                          {row.factor || row.f}
+                        </td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-xs md:text-lg w-[37.5%]">
+                          {row.city || row.l}
+                        </td>
+                        <td className="px-4 py-4 md:px-8 md:py-6 text-slate-700 leading-relaxed text-xs md:text-lg w-[37.5%]">
+                          {row.wider_region || row.w}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-
           </div>
         );
       default:
@@ -727,8 +1053,9 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
   // Conditionally render loading UI or full content (after all hooks)
   // Treat "success" as complete; idle also shows the full view.
   const isComplete =
-    generateStatus === 'success' ||
-    generateStatus === 'idle';
+    generateStatus === "success" ||
+    generateStatus === "idle" ||
+    generateStatus === "error";
 
   return !isComplete ? (
     <LoadingUI />
@@ -781,19 +1108,25 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-1">
               <h1 className="text-2xl md:text-4xl font-extrabold mb-1 flex items-center gap-3 tracking-tight text-white">
-                Welcome back, {user.name.split(' ')[0]}! 👋
+                Welcome back, {user.name.split(" ")[0]}! 👋
               </h1>
-              <p className="text-indigo-50 text-base md:text-lg font-medium tracking-tight opacity-90">Here's what's happening in your industry today</p>
+              <p className="text-indigo-50 text-base md:text-lg font-medium tracking-tight opacity-90">
+                Here's what's happening in your industry today
+              </p>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-3">
               <div className="bg-white/10 backdrop-blur-xl px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl border border-white/20 flex items-center gap-2 md:gap-3 transition-transform hover:scale-105 shadow-sm text-white">
                 <Briefcase className="w-3 h-3 md:w-4 md:h-4 text-indigo-100" />
-                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">{user.role}</span>
+                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">
+                  {user.role}
+                </span>
               </div>
               <div className="bg-white/10 backdrop-blur-xl px-4 py-2 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl border border-white/20 flex items-center gap-2 md:gap-3 transition-transform hover:scale-105 shadow-sm text-white">
                 <GraduationCap className="w-3 h-3 md:w-4 md:h-4 text-indigo-100" />
-                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">{user.experience.replace(/\s*\([^)]*\)\s*/g, '').trim()}</span>
+                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">
+                  {user.experience.replace(/\s*\([^)]*\)\s*/g, "").trim()}
+                </span>
               </div>
             </div>
           </div>
@@ -805,13 +1138,18 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
 
       <div className="space-y-12 md:space-y-16">
         {/* Market Report Section */}
-        <section ref={newsSectionRef} className="relative transition-all duration-500 scroll-mt-24">
+        <section
+          ref={newsSectionRef}
+          className="relative transition-all duration-500 scroll-mt-24"
+        >
           {!selectedNewsId ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
                 <div className="flex items-center gap-3 min-w-0">
                   <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
-                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">Market Report</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+                    Market Report
+                  </h2>
                 </div>
                 <div className="flex items-center gap-2">
                   {/* Mobile navigation arrows */}
@@ -839,8 +1177,8 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                   </div>
                 </div>
               </div>
-              
-              <div 
+
+              <div
                 ref={newsScrollRef}
                 onTouchStart={onTouchStart}
                 onTouchMove={onTouchMove}
@@ -848,35 +1186,50 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                 className="flex overflow-x-auto gap-4 md:gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory md:snap-none"
               >
                 {MOCK_NEWS.map((article, index) => (
-                  <div 
-                    key={article.id} 
+                  <div
+                    key={article.id}
                     className="min-w-full md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start"
                   >
-                    <NewsCard article={article} onClick={() => setSelectedNewsId(article.id)} />
+                    <NewsCard
+                      article={article}
+                      onClick={() => setSelectedNewsId(article.id)}
+                    />
                   </div>
                 ))}
               </div>
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-              <button onClick={closeNewsDetail} className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:gap-3 transition-all">
+              <button
+                onClick={closeNewsDetail}
+                className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:gap-3 transition-all"
+              >
                 <ArrowLeft className="w-5 h-5" /> Back to Market Report
               </button>
               <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 p-6 md:p-8 lg:p-12 shadow-sm ring-1 ring-slate-200/50">
-                {renderArticleContent(selectedNewsId, user.location, user.country)}
+                {renderArticleContent(
+                  selectedNewsId,
+                  user.location,
+                  user.country,
+                )}
               </div>
             </div>
           )}
         </section>
 
         {/* Industry Growth and Decline Trends Section */}
-        <section ref={trendsSectionRef} className="relative transition-all duration-500 scroll-mt-24">
+        <section
+          ref={trendsSectionRef}
+          className="relative transition-all duration-500 scroll-mt-24"
+        >
           {!selectedTrendId ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
                 <div className="flex items-center gap-3 min-w-0">
                   <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
-                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 line-clamp-2 sm:line-clamp-1">Industry Growth and Decline Trends</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 line-clamp-2 sm:line-clamp-1">
+                    Industry Growth and Decline Trends
+                  </h2>
                 </div>
                 <div className="flex items-center gap-2">
                   {/* Mobile navigation arrows */}
@@ -904,24 +1257,33 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                   </div>
                 </div>
               </div>
-              
-              <div 
+
+              <div
                 ref={trendsScrollRef}
                 onTouchStart={onTrendTouchStart}
                 onTouchMove={onTrendTouchMove}
                 onTouchEnd={onTrendTouchEnd}
                 className="flex overflow-x-auto gap-4 md:gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory md:snap-none"
               >
-                {TREND_REPORTS.map(report => (
-                  <div key={report.id} className="min-w-full md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start">
-                    <TrendCard report={report} onClick={() => setSelectedTrendId(report.id)} />
+                {TREND_REPORTS.map((report) => (
+                  <div
+                    key={report.id}
+                    className="min-w-full md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start"
+                  >
+                    <TrendCard
+                      report={report}
+                      onClick={() => setSelectedTrendId(report.id)}
+                    />
                   </div>
                 ))}
               </div>
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-              <button onClick={closeTrendDetail} className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:gap-3 transition-all">
+              <button
+                onClick={closeTrendDetail}
+                className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:gap-3 transition-all"
+              >
                 <ArrowLeft className="w-5 h-5" /> Back to Industry Trends
               </button>
               <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 p-6 md:p-8 lg:p-12 shadow-sm ring-1 ring-slate-200/50 min-h-[400px] md:min-h-[500px]">
@@ -937,27 +1299,35 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
             {/* Title Section with GREEN PULSE */}
             <div className="mb-6 md:mb-8 px-2 flex items-center gap-3">
               <Newspaper className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Recent Market News</h2>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+                Recent Market News
+              </h2>
               <div className="relative flex h-2.5 w-2.5 flex-shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </div>
             </div>
-            
+
             {/* Unified White Background Card Container with Graffiti Pattern - 1rem BORDER RADIUS */}
             <div className="relative graffiti-pattern rounded-[1rem] p-4 sm:p-6 md:p-10 shadow-xl shadow-indigo-500/5 overflow-hidden group-marquee">
               {/* Manual scroll container - uses JS scroll hijacking to loop infinitely */}
-              <div 
+              <div
                 ref={scrollContainerRef}
                 className="relative -mx-4 sm:-mx-6 md:-mx-10 overflow-x-auto py-4 hide-scrollbar transition-all duration-300 snap-none"
               >
                 <div className="animate-marquee-cards gap-4 sm:gap-6 md:gap-12">
                   {/* Triple buffer for absolute seamless infinite loop: Set A | Set A | Set A */}
-                  {[...marketNews, ...marketNews, ...marketNews].map((news, index) => (
-                    <RecentNewsCard key={`${news.id}-${index}`} news={news} onClick={() => setSelectedMarketNews(news)} />
-                  ))}
+                  {[...marketNews, ...marketNews, ...marketNews].map(
+                    (news, index) => (
+                      <RecentNewsCard
+                        key={`${news.id}-${index}`}
+                        news={news}
+                        onClick={() => setSelectedMarketNews(news)}
+                      />
+                    ),
+                  )}
                 </div>
-                
+
                 {/* Horizontal Fade Overlays: ensure they are within the container and blend with the background */}
                 <div className="absolute inset-y-0 left-0 w-16 sm:w-24 md:w-32 bg-gradient-to-r from-[#ffffff] to-transparent pointer-events-none z-10" />
                 <div className="absolute inset-y-0 right-0 w-16 sm:w-24 md:w-32 bg-gradient-to-l from-[#ffffff] to-transparent pointer-events-none z-10" />
@@ -968,45 +1338,88 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
       </div>
 
       {selectedMarketNews && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSelectedMarketNews(null)}>
-          <div className="bg-white rounded-[2rem] max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-4 duration-300" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedMarketNews(null)}
+        >
+          <div
+            className="bg-white rounded-[2rem] max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="sticky top-0 bg-white border-b border-slate-200 px-6 md:px-8 py-4 md:py-6 flex items-start justify-between gap-4 rounded-t-[2rem] z-10">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold uppercase tracking-widest ${selectedMarketNews.sentiment === 'Positive' ? 'bg-emerald-50 text-emerald-600 border border-emerald-500/20' : selectedMarketNews.sentiment === 'Negative' ? 'bg-rose-50 text-rose-600 border border-rose-500/20' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}>
+                  <span
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold uppercase tracking-widest ${selectedMarketNews.sentiment === "Positive" ? "bg-emerald-50 text-emerald-600 border border-emerald-500/20" : selectedMarketNews.sentiment === "Negative" ? "bg-rose-50 text-rose-600 border border-rose-500/20" : "bg-slate-100 text-slate-600 border border-slate-300"}`}
+                  >
                     {selectedMarketNews.sentiment}
                   </span>
-                  <span className="text-xs font-bold text-slate-500">{selectedMarketNews.date}</span>
+                  <span className="text-xs font-bold text-slate-500">
+                    {selectedMarketNews.date}
+                  </span>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-tight">{selectedMarketNews.title}</h2>
+                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-tight">
+                  {selectedMarketNews.title}
+                </h2>
               </div>
-              <button onClick={() => setSelectedMarketNews(null)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors flex-shrink-0">
-                <svg className="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button
+                onClick={() => setSelectedMarketNews(null)}
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors flex-shrink-0"
+              >
+                <svg
+                  className="w-6 h-6 text-slate-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </button>
             </div>
-            
+
             <div className="px-6 md:px-8 py-6 md:py-8 space-y-6">
               <div className="flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <Library className="w-4 h-4 text-indigo-600" />
-                  <span className="font-bold text-slate-700">{selectedMarketNews.source}</span>
+                  <span className="font-bold text-slate-700">
+                    {selectedMarketNews.source}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Gauge className="w-4 h-4 text-indigo-600" />
-                  <span className="text-slate-600">Relevance: <span className="font-bold text-indigo-600">{selectedMarketNews.relevance * 10}%</span></span>
+                  <span className="text-slate-600">
+                    Relevance:{" "}
+                    <span className="font-bold text-indigo-600">
+                      {selectedMarketNews.relevance * 10}%
+                    </span>
+                  </span>
                 </div>
               </div>
-              
+
               <div className="prose prose-slate max-w-none">
-                <p className="text-lg leading-relaxed text-slate-700">{selectedMarketNews.excerpt}</p>
+                <p className="text-lg leading-relaxed text-slate-700">
+                  {selectedMarketNews.excerpt}
+                </p>
               </div>
-              
+
               <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6">
                 <div className="flex items-start gap-3">
                   <Lightbulb className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-bold text-slate-900 mb-2">Career Impact</h3>
-                    <p className="text-sm text-slate-700 leading-relaxed">This news article has been analyzed and rated as highly relevant to your career path. Consider how these market trends might influence your strategic planning and skill development.</p>
+                    <h3 className="font-bold text-slate-900 mb-2">
+                      Career Impact
+                    </h3>
+                    <p className="text-sm text-slate-700 leading-relaxed">
+                      This news article has been analyzed and rated as highly
+                      relevant to your career path. Consider how these market
+                      trends might influence your strategic planning and skill
+                      development.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1018,19 +1431,29 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
   );
 };
 
-const RecentNewsCard: React.FC<{ news: RecentNewsArticle; onClick?: () => void }> = ({ news, onClick }) => {
+const RecentNewsCard: React.FC<{
+  news: RecentNewsArticle;
+  onClick?: () => void;
+}> = ({ news, onClick }) => {
   return (
-    <div onClick={onClick} className="min-w-[280px] w-[85vw] sm:min-w-[360px] sm:w-[400px] md:w-[480px] lg:w-[540px] flex-shrink-0 bg-white/95 backdrop-blur-sm border border-indigo-600/50 rounded-[1.5rem] p-6 md:p-8 transition-all duration-300 hover:bg-white hover:scale-[1.02] shadow-none cursor-pointer">
+    <div
+      onClick={onClick}
+      className="min-w-[280px] w-[85vw] sm:min-w-[360px] sm:w-[400px] md:w-[480px] lg:w-[540px] flex-shrink-0 bg-white/95 backdrop-blur-sm border border-indigo-600/50 rounded-[1.5rem] p-6 md:p-8 transition-all duration-300 hover:bg-white hover:scale-[1.02] shadow-none cursor-pointer"
+    >
       {/* 1PX INDIGO BORDER, BOX SHADOWS REMOVED */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-4 md:mb-6">
         <h3 className="text-lg sm:text-xl md:text-2xl font-extrabold text-slate-900 leading-tight flex-1 min-w-0">
           {news.title}
         </h3>
-        <span className={`px-3 py-1.5 rounded-xl md:rounded-2xl text-[10px] font-extrabold uppercase tracking-widest flex-shrink-0 w-fit ${
-          news.sentiment === 'Positive' ? 'bg-emerald-50 text-emerald-600 border border-emerald-500/20' :
-          news.sentiment === 'Negative' ? 'bg-rose-50 text-rose-600 border border-rose-500/20' :
-          'bg-slate-100 text-slate-600 border border-slate-300'
-        }`}>
+        <span
+          className={`px-3 py-1.5 rounded-xl md:rounded-2xl text-[10px] font-extrabold uppercase tracking-widest flex-shrink-0 w-fit ${
+            news.sentiment === "Positive"
+              ? "bg-emerald-50 text-emerald-600 border border-emerald-500/20"
+              : news.sentiment === "Negative"
+                ? "bg-rose-50 text-rose-600 border border-rose-500/20"
+                : "bg-slate-100 text-slate-600 border border-slate-300"
+          }`}
+        >
           {news.sentiment}
         </span>
       </div>
@@ -1046,14 +1469,18 @@ const RecentNewsCard: React.FC<{ news: RecentNewsArticle; onClick?: () => void }
             <div className="p-1.5 bg-slate-50 rounded-lg border border-slate-200 text-indigo-600 flex-shrink-0">
               <Calendar className="w-3.5 h-3.5" />
             </div>
-            <span className="text-xs font-bold text-slate-500">{news.date}</span>
+            <span className="text-xs font-bold text-slate-500">
+              {news.date}
+            </span>
           </div>
-          
+
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 bg-slate-50 rounded-lg border border-slate-200 text-indigo-600 flex-shrink-0">
               <Library className="w-3.5 h-3.5" />
             </div>
-            <span className="text-xs font-bold text-slate-500 truncate max-w-[120px] sm:max-w-none">{news.source}</span>
+            <span className="text-xs font-bold text-slate-500 truncate max-w-[120px] sm:max-w-none">
+              {news.source}
+            </span>
           </div>
         </div>
 
@@ -1064,11 +1491,15 @@ const RecentNewsCard: React.FC<{ news: RecentNewsArticle; onClick?: () => void }
           </div>
           <div className="flex flex-col gap-1 min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-widest whitespace-nowrap">Relevance</span>
-              <span className="text-[10px] sm:text-[11px] font-extrabold text-indigo-600 flex-shrink-0">{news.relevance * 10}%</span>
+              <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                Relevance
+              </span>
+              <span className="text-[10px] sm:text-[11px] font-extrabold text-indigo-600 flex-shrink-0">
+                {news.relevance * 10}%
+              </span>
             </div>
             <div className="h-1.5 w-24 sm:w-32 bg-slate-100 rounded-full overflow-hidden border border-slate-200/40">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(99,102,241,0.4)]"
                 style={{ width: `${news.relevance * 10}%` }}
               />
@@ -1080,24 +1511,37 @@ const RecentNewsCard: React.FC<{ news: RecentNewsArticle; onClick?: () => void }
   );
 };
 
-const TrendCard: React.FC<{ report: any; onClick: () => void }> = ({ report, onClick }) => {
+const TrendCard: React.FC<{ report: any; onClick: () => void }> = ({
+  report,
+  onClick,
+}) => {
   const getIcon = () => {
     switch (report.id) {
-      case 'high-growth': return <Rocket className="w-5 h-5" />;
-      case 'at-risk': return <AlertTriangle className="w-5 h-5" />;
-      case 'market-risks': return <Shield className="w-5 h-5" />;
-      case 'top-skills': return <Zap className="w-5 h-5" />;
-      default: return <FileText className="w-5 h-5" />;
+      case "high-growth":
+        return <Rocket className="w-5 h-5" />;
+      case "at-risk":
+        return <AlertTriangle className="w-5 h-5" />;
+      case "market-risks":
+        return <Shield className="w-5 h-5" />;
+      case "top-skills":
+        return <Zap className="w-5 h-5" />;
+      default:
+        return <FileText className="w-5 h-5" />;
     }
   };
 
   const getAccentColor = () => {
     switch (report.id) {
-      case 'high-growth': return 'border-emerald-500 text-emerald-600 bg-emerald-50';
-      case 'at-risk': return 'border-rose-500 text-rose-600 bg-rose-50';
-      case 'market-risks': return 'border-amber-500 text-amber-600 bg-amber-50';
-      case 'top-skills': return 'border-indigo-500 text-indigo-600 bg-indigo-50';
-      default: return 'border-slate-500 text-slate-600 bg-slate-50';
+      case "high-growth":
+        return "border-emerald-500 text-emerald-600 bg-emerald-50";
+      case "at-risk":
+        return "border-rose-500 text-rose-600 bg-rose-50";
+      case "market-risks":
+        return "border-amber-500 text-amber-600 bg-amber-50";
+      case "top-skills":
+        return "border-indigo-500 text-indigo-600 bg-indigo-50";
+      default:
+        return "border-slate-500 text-slate-600 bg-slate-50";
     }
   };
 
@@ -1105,12 +1549,12 @@ const TrendCard: React.FC<{ report: any; onClick: () => void }> = ({ report, onC
   const isLongAuthor = authorName.length > 24;
 
   return (
-    <div 
+    <div
       onClick={onClick}
       className="h-full group bg-white rounded-[2.5rem] overflow-hidden border border-slate-200 transition-all duration-500 flex flex-col cursor-pointer hover:shadow-2xl hover:shadow-indigo-500/10 active:scale-[0.98] relative"
     >
       <div className={`h-1.5 w-full bg-gradient-to-r ${report.color}`} />
-      
+
       <div className="p-8 flex-1 flex flex-col relative overflow-hidden">
         <div className="absolute top-10 -right-10 opacity-[0.03] group-hover:opacity-[0.07] group-hover:scale-110 transition-all duration-700 pointer-events-none">
           <Activity className="w-64 h-64" />
@@ -1130,14 +1574,16 @@ const TrendCard: React.FC<{ report: any; onClick: () => void }> = ({ report, onC
             {report.excerpt}
           </p>
         </div>
-        
+
         <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-100 gap-4 relative z-10">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="p-1.5 bg-slate-50 rounded-lg border border-slate-200 text-indigo-600 flex-shrink-0">
               <Library className="w-3.5 h-3.5" />
             </div>
-            
-            <div className={`flex flex-col min-w-0 max-w-[75%] ${isLongAuthor ? 'group/author relative overflow-hidden bg-slate-50/50 rounded-lg h-5 flex flex-col justify-center' : ''}`}>
+
+            <div
+              className={`flex flex-col min-w-0 max-w-[75%] ${isLongAuthor ? "group/author relative overflow-hidden bg-slate-50/50 rounded-lg h-5 flex flex-col justify-center" : ""}`}
+            >
               {isLongAuthor ? (
                 <div className="group-hover-marquee flex items-center">
                   <span className="text-xs font-bold text-slate-500 whitespace-nowrap">
@@ -1167,55 +1613,86 @@ const TrendCard: React.FC<{ report: any; onClick: () => void }> = ({ report, onC
   );
 };
 
-const InsightBox: React.FC<{ text: string; compact?: boolean; forceBaseSize?: boolean }> = ({ text, compact = false, forceBaseSize = false }) => (
-  <div className={`bg-amber-50/50 rounded-[1.5rem] md:rounded-[2rem] flex gap-3 md:gap-4 animate-in fade-in slide-in-from-left-2 duration-300 border border-amber-400/60 shadow-sm ${compact && !forceBaseSize ? 'p-4 md:p-5 lg:p-6' : 'p-5 md:p-6 lg:p-8'}`}>
+const InsightBox: React.FC<{
+  text: string;
+  compact?: boolean;
+  forceBaseSize?: boolean;
+}> = ({ text, compact = false, forceBaseSize = false }) => (
+  <div
+    className={`bg-amber-50/50 rounded-[1.5rem] md:rounded-[2rem] flex gap-3 md:gap-4 animate-in fade-in slide-in-from-left-2 duration-300 border border-amber-400/60 shadow-sm ${compact && !forceBaseSize ? "p-4 md:p-5 lg:p-6" : "p-5 md:p-6 lg:p-8"}`}
+  >
     <div className="pt-1">
-      <Lightbulb className={`${compact && !forceBaseSize ? 'w-4 h-4' : 'w-5 h-5 md:w-6 md:h-6'} text-amber-600 flex-shrink-0`} />
+      <Lightbulb
+        className={`${compact && !forceBaseSize ? "w-4 h-4" : "w-5 h-5 md:w-6 md:h-6"} text-amber-600 flex-shrink-0`}
+      />
     </div>
     <div>
-      <p className={`text-slate-700 leading-relaxed italic ${
-        forceBaseSize 
-          ? 'text-sm md:text-base' 
-          : compact 
-            ? 'text-xs md:text-sm' 
-            : 'text-base md:text-lg'
-      }`}>
-        <span className="font-bold text-slate-900 not-italic">Insights:</span> {text}
+      <p
+        className={`text-slate-700 leading-relaxed italic ${
+          forceBaseSize
+            ? "text-sm md:text-base"
+            : compact
+              ? "text-xs md:text-sm"
+              : "text-base md:text-lg"
+        }`}
+      >
+        <span className="font-bold text-slate-900 not-italic">Insights:</span>{" "}
+        {text}
       </p>
     </div>
   </div>
 );
 
-const PivotBox: React.FC<{ text: string; compact?: boolean; forceBaseSize?: boolean }> = ({ text, compact = false, forceBaseSize = false }) => (
-  <div className={`bg-lime-50/50 rounded-[2rem] flex gap-4 animate-in fade-in slide-in-from-left-2 duration-300 border border-lime-400/60 shadow-sm ${compact && !forceBaseSize ? 'p-5 md:p-6' : 'p-6 md:p-8'}`}>
+const PivotBox: React.FC<{
+  text: string;
+  compact?: boolean;
+  forceBaseSize?: boolean;
+}> = ({ text, compact = false, forceBaseSize = false }) => (
+  <div
+    className={`bg-lime-50/50 rounded-[2rem] flex gap-4 animate-in fade-in slide-in-from-left-2 duration-300 border border-lime-400/60 shadow-sm ${compact && !forceBaseSize ? "p-5 md:p-6" : "p-6 md:p-8"}`}
+  >
     <div className="pt-1">
-      <RefreshCw className={`${compact && !forceBaseSize ? 'w-4 h-4' : 'w-6 h-6'} text-lime-600 flex-shrink-0`} />
+      <RefreshCw
+        className={`${compact && !forceBaseSize ? "w-4 h-4" : "w-6 h-6"} text-lime-600 flex-shrink-0`}
+      />
     </div>
     <div>
-      <p className={`text-slate-700 leading-relaxed ${forceBaseSize ? 'text-base' : compact ? 'text-sm' : 'text-lg'}`}>
-        <span className="font-bold text-slate-900">Pivot Direction:</span> {text}
+      <p
+        className={`text-slate-700 leading-relaxed ${forceBaseSize ? "text-base" : compact ? "text-sm" : "text-lg"}`}
+      >
+        <span className="font-bold text-slate-900">Pivot Direction:</span>{" "}
+        {text}
       </p>
     </div>
   </div>
 );
 
-const NewsCard: React.FC<{ article: NewsArticle; onClick: () => void }> = ({ article, onClick }) => {
+const NewsCard: React.FC<{ article: NewsArticle; onClick: () => void }> = ({
+  article,
+  onClick,
+}) => {
   const isLongAuthor = article.author.length > 24;
 
   return (
-    <div 
+    <div
       onClick={onClick}
       className="h-full group bg-white rounded-[2rem] overflow-hidden border border-slate-200 transition-all duration-500 flex flex-col cursor-pointer hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-500/5 active:scale-[0.98]"
     >
       <div className="aspect-[1.8/1] overflow-hidden relative">
-        <img src={article.image} alt={article.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+        <img
+          src={article.image}
+          alt={article.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+        />
         <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest border-0">
           {article.category}
         </div>
       </div>
       <div className="p-6 flex-1 flex flex-col">
-        <h3 className="font-bold text-lg mb-2 leading-tight group-hover:text-indigo-600 transition-colors line-clamp-2 text-slate-900">{article.title}</h3>
-        
+        <h3 className="font-bold text-lg mb-2 leading-tight group-hover:text-indigo-600 transition-colors line-clamp-2 text-slate-900">
+          {article.title}
+        </h3>
+
         <div className="relative h-6 overflow-hidden mb-6 group/desc flex items-center bg-slate-50/50 rounded-lg">
           <div className="group-hover-marquee flex items-center">
             <p className="text-slate-500 text-xs font-medium whitespace-nowrap">
@@ -1234,8 +1711,10 @@ const NewsCard: React.FC<{ article: NewsArticle; onClick: () => void }> = ({ art
             <div className="p-1.5 bg-slate-50 rounded-lg border border-slate-200 text-indigo-600 flex-shrink-0">
               <Library className="w-3.5 h-3.5" />
             </div>
-            
-            <div className={`flex flex-col min-w-0 max-w-[75%] ${isLongAuthor ? 'group/author relative overflow-hidden bg-slate-50/50 rounded-lg h-5 flex flex-col justify-center' : ''}`}>
+
+            <div
+              className={`flex flex-col min-w-0 max-w-[75%] ${isLongAuthor ? "group/author relative overflow-hidden bg-slate-50/50 rounded-lg h-5 flex flex-col justify-center" : ""}`}
+            >
               {isLongAuthor ? (
                 <div className="group-hover-marquee flex items-center">
                   <span className="text-xs font-bold text-slate-500 whitespace-nowrap">
