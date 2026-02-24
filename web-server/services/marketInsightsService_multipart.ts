@@ -1,10 +1,16 @@
 import { generateMultipleWithSharedContext, formatMarketInsightsContext } from './ragService.js';
 import { logger } from '../utils/logger.js';
-import redisClient from "../lib/redis.js";
-import { safeGet, safeSet } from "../lib/redis.js";
-import { emitJobProgress } from '../lib/websocket.js';
+import { emitToJob } from '../lib/websocket.js';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+
+type SectionName = 'marketReport' | 'industryTrends' | 'newsAndCareerIntel';
+
+interface SectionState {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  data?: MarketInsightsData;
+  error?: string;
+}
 
 
 
@@ -237,222 +243,142 @@ Return ONLY valid JSON with NO markdown formatting.`;
 // }
 
 /**
- * Validate that response has all required fields
- */
-function validateMarketReport(data: MarketInsightsData): void {
-  const required = ['executive_summary_brief', 'executive_summary', 'labour_market_snapshot', 'city_vs_region_comparison'];
-  const missing = required.filter(field => !data[field]);
-  if (missing.length > 0) {
-    logger.warn(`⚠️  Missing fields in market report (using defaults): ${missing.join(', ')}`);
-    if (!data.executive_summary_brief) data.executive_summary_brief = 'Market summary temporarily unavailable.';
-    if (!data.executive_summary) data.executive_summary = { overview: 'N/A', key_stats: {} };
-    if (!data.labour_market_snapshot) data.labour_market_snapshot = { overview: 'N/A', major_drivers: [], market_health: {} };
-    if (!data.city_vs_region_comparison) data.city_vs_region_comparison = { title: 'City vs Region Comparison', data: [] };
-  }
-}
-
-function validateIndustryTrends(data: MarketInsightsData): void {
-  const required = ['high_growth_sectors', 'at_risk_sectors', 'top_skills_demand', 'market_risks'];
-  const missing = required.filter(field => !data[field]);
-  if (missing.length > 0) {
-    logger.warn(`⚠️  Missing fields in industry trends (using defaults): ${missing.join(', ')}`);
-    if (!data.high_growth_sectors) data.high_growth_sectors = [];
-    if (!data.at_risk_sectors) data.at_risk_sectors = [];
-    if (!data.top_skills_demand) data.top_skills_demand = { title: 'Top Skills Demand', categories: [] };
-    if (!data.market_risks) data.market_risks = [];
-  }
-}
-
-function validateNewsAndCareerIntel(data: MarketInsightsData): void {
-  const required = ['market_news', 'strategies_by_profile', 'key_findings'];
-  const missing = required.filter(field => !data[field]);
-  if (missing.length > 0) {
-    logger.warn(`⚠️  Missing fields in news & career intel (using defaults): ${missing.join(', ')}`);
-    if (!data.market_news) data.market_news = [];
-    if (!data.strategies_by_profile) data.strategies_by_profile = { new_graduates: [], mid_career_pivoting: [], newcomers_international: [] };
-    if (!data.key_findings) data.key_findings = [];
-  }
-}
-
-/**
  * Generate market insights using multi-part approach
- * @param {string} location - User's location
- * @param {string} userId - User ID
- * @returns {Promise<Object>} Combined market insights
  */
 export async function generateMarketInsights(
-  location: string, userId: string, jobId?: string, error?: string): Promise<MarketInsightsData> {
+  location: string, _userId: string, jobId?: string
+): Promise<MarketInsightsData> {
+  const sectionStates: Record<SectionName, SectionState> = {
+    marketReport: { status: 'idle' },
+    industryTrends: { status: 'idle' },
+    newsAndCareerIntel: { status: 'idle' },
+  };
+
   try {
-    logger.info(`📊 Starting optimized market insights generation for: ${location}`);
+    logger.info(`📊 Starting independent section generation for: ${location}`);
 
-    // Check top-level cache first
-    const cacheKey = `market_insights:${location.toLowerCase().replace(/\s+/g, "_")}`;
-    const cached = await safeGet(cacheKey);
-
-    if (cached) {
-      logger.info(`✓ Redis cache hit for ${location}`);
-      const cachedData = JSON.parse(cached);
-      if (jobId) {
-        emitJobProgress(jobId, { 
-          stage: 'completed', 
-          insights: cachedData 
-        });
-      }
-      return cachedData;
-    }
-
-    logger.info(`🧊 Cache miss for ${location}. Running optimized pipeline...`);
-
-    // Emit initial progress
     if (jobId) {
-      emitJobProgress(jobId, { 
-        stage: 'Retrieving market data from all sources', 
-        progress: 10 
+      emitToJob(jobId, 'progress', { 
+        type: 'job_start',
+        stage: 'Preparing market insights',
+        jobId 
       });
     }
 
-    try {
-      // OPTIMIZED: Single retrieval + parallel LLM calls (3 prompts only)
-      logger.info('🚀 Generating 3 insights sections in parallel from shared context...');
+    const onSectionComplete = (section: string, result: Record<string, unknown> | string | null, error?: string) => {
+      const sectionName = section as SectionName;
       
+      if (error) {
+        logger.error(`❌ Section failed: ${section} - ${error}`);
+        sectionStates[sectionName] = { status: 'error', error };
+        
+        if (jobId) {
+          emitToJob(jobId, 'progress', {
+            type: 'section_error',
+            section: sectionName,
+            error,
+            jobId,
+          });
+        }
+        return;
+      }
+
+      if (result) {
+        logger.info(`✓ Section complete: ${section}`);
+        sectionStates[sectionName] = { status: 'success', data: result as MarketInsightsData };
+        
+        if (jobId) {
+          emitToJob(jobId, 'progress', {
+            type: 'section_success',
+            section: sectionName,
+            data: result,
+            jobId,
+          });
+        }
+      }
+    };
+
+    try {
       const results = await generateMultipleWithSharedContext(
         SYSTEM_PROMPT,
         [
-          {
-            label: 'marketReport',
-            query: buildMarketReportPrompt(location),
-            cacheKeySuffix: `market-report-${location}`,
-          },
-          {
-            label: 'industryTrends',
-            query: buildIndustryTrendsPrompt(location),
-            cacheKeySuffix: `industry-trends-${location}`,
-          },
-          {
-            label: 'newsAndCareerIntel',
-            query: buildNewsAndCareerIntelPrompt(location),
-            cacheKeySuffix: `news-career-${location}`,
-          },
-          // Part 4 commented out - not called
-          // {
-          //   label: 'additionalData',
-          //   query: buildAdditionalDataPrompt(location),
-          //   cacheKeySuffix: `additional-${location}`,
-          // },
+          { label: 'marketReport', query: buildMarketReportPrompt(location), cacheKeySuffix: `market-report-${location}` },
+          { label: 'industryTrends', query: buildIndustryTrendsPrompt(location), cacheKeySuffix: `industry-trends-${location}` },
+          { label: 'newsAndCareerIntel', query: buildNewsAndCareerIntelPrompt(location), cacheKeySuffix: `news-career-${location}` },
         ],
         {
           namespaces: ['bls-data', 'news-data', 'reports-data'],
-          topKPerNamespace: {
-            'bls-data': 15,
-            'news-data': 12,
-            'reports-data': 10,
-          },
+          topKPerNamespace: { 'bls-data': 15, 'news-data': 12, 'reports-data': 10 },
           responseFormat: 'json',
           useCache: true,
           contextFormatter: formatMarketInsightsContext,
-          cacheTTL: 24 * 60 * 60 * 1000, // 24 hours
+          cacheTTL: 24 * 60 * 60 * 1000,
           retrievalQuery: `market insights for ${location}`,
+          onSectionComplete,
         }
       );
 
-      // Extract results
-      const marketReport = results.marketReport as MarketInsightsData;
-      const industryTrends = results.industryTrends as MarketInsightsData;
-      const newsAndCareerIntel = results.newsAndCareerIntel as MarketInsightsData;
+      const marketReport = results.marketReport as MarketInsightsData || {};
+      const industryTrends = results.industryTrends as MarketInsightsData || {};
+      const newsAndCareerIntel = results.newsAndCareerIntel as MarketInsightsData || {};
 
-      // Validate results
-      validateMarketReport(marketReport);
-      validateIndustryTrends(industryTrends);
-      validateNewsAndCareerIntel(newsAndCareerIntel);
-
-      logger.info('✓ All 3 insights sections generated successfully');
-      if (jobId) {
-        emitJobProgress(jobId, { 
-          stage: 'Consolidating insights', 
-          progress: 90 
-        });
-      }
-
-      // Combine all parts
       const combinedInsights: MarketInsightsData = {
         ...marketReport,
         ...industryTrends,
         ...newsAndCareerIntel,
       };
 
-      // Merge sources
-      const allSources = new Set<string>();
-      [marketReport, industryTrends, newsAndCareerIntel].forEach(part => {
-        if (part.report_sources && Array.isArray(part.report_sources)) {
-          (part.report_sources as string[]).forEach(source => allSources.add(source));
-        }
-      });
+      const completedSections = Object.entries(sectionStates)
+        .filter(([_, state]) => state.status === 'success')
+        .map(([name]) => name);
 
-      combinedInsights.report_sources = Array.from(allSources).filter(s => s && s.trim());
+      const failedSections = Object.entries(sectionStates)
+        .filter(([_, state]) => state.status === 'error')
+        .map(([name]) => name);
 
-      logger.info(`✓ Generated insights for ${location}`);
-      logger.info(`📊 Sections: ${Object.keys(combinedInsights).length}, Sources: ${(combinedInsights.report_sources as string[]).length}`);
+      logger.info(`✓ Job complete: ${completedSections.length}/3 sections succeeded`);
 
-      // Store in Redis BEFORE emitting completion
-      await safeSet(cacheKey, JSON.stringify(combinedInsights), 60 * 30);
-      logger.info(`✓ Cached insights for ${location} (30 min TTL)`);
+      if (jobId) {
+        emitToJob(jobId, 'progress', {
+          type: 'job_complete',
+          completedSections,
+          failedSections,
+          insights: combinedInsights,
+          jobId,
+        });
+      }
 
-      // Also write the combined insights to a temp folder so devs can inspect output
       try {
         const tempDir = path.join(process.cwd(), 'web-server', 'services', 'temp');
         await mkdir(tempDir, { recursive: true });
         const filename = `insights_${location.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.json`;
-        const filepath = path.join(tempDir, filename);
-        await writeFile(filepath, JSON.stringify(combinedInsights, null, 2), 'utf8');
-        logger.info(`✓ Wrote insights to ${filepath}`);
+        await writeFile(path.join(tempDir, filename), JSON.stringify(combinedInsights, null, 2), 'utf8');
       } catch (fsErr) {
-        logger.warn('⚠️  Failed to write insights to temp folder', fsErr);
-      }
-
-      // Emit completion with insights
-      if (jobId) {
-        emitJobProgress(jobId, { 
-          stage: 'completed', 
-          insights: combinedInsights 
-        });
+        logger.warn('Failed to write temp file', fsErr);
       }
 
       return combinedInsights;
     } catch (error) {
       const err = error as Error;
-      logger.error(`❌ Generation failed for ${location}:`, err.message);
+      logger.error(`Pipeline error for ${location}:`, err.message);
 
       if (jobId) {
-        emitJobProgress(jobId, {
-          stage: 'error',
-          error: 'Failed to generate insights',
+        emitToJob(jobId, 'progress', {
+          type: 'job_error',
+          error: err.message,
+          jobId,
         });
       }
-
-      // Fallback with empty structure
-      const fallback: MarketInsightsData = {
-        executive_summary_brief: 'Temporarily unavailable. Please try again.',
-        executive_summary: { overview: 'N/A', key_stats: {} },
-        labour_market_snapshot: { overview: 'N/A', major_drivers: [], market_health: {} },
-        city_vs_region_comparison: { title: 'City vs Region', data: [] },
-        high_growth_sectors: [],
-        at_risk_sectors: [],
-        top_skills_demand: { title: 'Top Skills Demand', categories: [] },
-        market_risks: [],
-        market_news: [],
-        strategies_by_profile: { new_graduates: [], mid_career_pivoting: [], newcomers_international: [] },
-        key_findings: [],
-        report_sources: [],
-      };
 
       throw error;
     }
   } catch (error) {
     logger.error(`Error in generateMarketInsights for ${location}:`, error);
     if (jobId) {
-      emitJobProgress(jobId, {
-        stage: 'error',
+      emitToJob(jobId, 'progress', {
+        type: 'job_error',
         error: 'Failed to generate market insights',
+        jobId,
       });
     }
     throw error;
