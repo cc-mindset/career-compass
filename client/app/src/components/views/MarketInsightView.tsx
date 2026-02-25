@@ -1,92 +1,33 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  UserProfile,
-  NewsArticle,
-  AppView,
-  RecentNewsArticle,
-} from "../../utils/types/types";
-import {
-  MOCK_NEWS,
-  TREND_REPORTS,
-  HIGH_GROWTH_DATA,
-  AT_RISK_DATA,
-  TOP_SKILLS_DATA,
-  MARKET_RISKS_DATA,
-  RECENT_NEWS_DATA,
-  FALLBACK_EXECUTIVE_SUMMARY_BRIEF,
-  FALLBACK_LABOUR_MARKET_OVERVIEW,
-  FALLBACK_KEY_STATS,
-  FALLBACK_MAJOR_DRIVERS,
-  FALLBACK_MARKET_HEALTH,
-  FALLBACK_CITY_VS_REGION,
-} from "../../consts/constants";
-import {
-  Lightbulb,
-  MapPin,
-  ArrowRight,
-  ChevronsRight,
-  TrendingUp,
-  AlertTriangle,
-  Target,
-  Zap,
-  BarChart2,
-  ArrowLeft,
-  Rocket,
-  Shield,
-  RefreshCw,
-  FileText,
-  Activity,
-  Briefcase,
-  GraduationCap,
-  Library,
-  Calendar,
-  Globe,
-  Gauge,
-  Star,
-  Wrench,
-  Loader2,
-  Newspaper,
-} from "lucide-react";
-import { useMarketInsightsState } from "../../state/marketInsights/MarketInsightsContext";
+
+import React, { useState, useEffect, useRef } from 'react';
+import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../utils/types/types';
+import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA, FALLBACK_EXECUTIVE_SUMMARY_BRIEF, FALLBACK_LABOUR_MARKET_OVERVIEW, FALLBACK_KEY_STATS, FALLBACK_MAJOR_DRIVERS, FALLBACK_MARKET_HEALTH, FALLBACK_CITY_VS_REGION } from '../../consts/constants';
+import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench, Loader2, Newspaper } from 'lucide-react';
+import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
+import { SectionWrapper } from './SectionWrapper';
 
 interface MarketInsightViewProps {
   user: UserProfile;
   onNavigate: (view: AppView) => void;
 }
 
-const MarketInsightView: React.FC<MarketInsightViewProps> = ({
-  user,
-  onNavigate,
-}) => {
-  const { generateStatus, generateError, progressText, generateState } =
-    useMarketInsightsState();
-
-  const insights = generateState.data?.insights as any;
-  const toArray = <T,>(value: T[] | T | null | undefined): T[] => {
-    if (Array.isArray(value)) return value;
-    if (value === null || value === undefined) return [];
-    return [value];
-  };
-
-  const toParagraphHtml = (value: unknown): string => {
-    if (typeof value !== "string" || !value.trim()) return "";
-    return value
-      .split("\n\n")
-      .map((p) => `<p>${p}</p>`)
-      .join("");
-  };
-
-  // Use real data if available, otherwise fall back to mock data
-  const executiveSummaryBrief = insights?.executive_summary_brief || null;
-  const executiveSummary = insights?.executive_summary || null;
-  const labourMarketSnapshot = insights?.labour_market_snapshot || null;
-  const cityVsRegionComparison = insights?.city_vs_region_comparison || null;
-
+const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
+  const { generateStatus, generateError, progressText, generateState, sections, retrySection } = useMarketInsightsState();
+  
+  // Read from per-section data (available immediately on section_success)
+  // instead of generateState.data.insights (only set on job_complete)
+  const marketReportData = sections.marketReport.data as any;
+  const industryTrendsData = sections.industryTrends.data as any;
+  const newsIntelData = sections.newsAndCareerIntel.data as any;
+  
+  // Market report fields
+  const executiveSummaryBrief = marketReportData?.executive_summary_brief || null;
+  const executiveSummary = marketReportData?.executive_summary || null;
+  const labourMarketSnapshot = marketReportData?.labour_market_snapshot || null;
+  const cityVsRegionComparison = marketReportData?.city_vs_region_comparison || null;
+  
   // Transform high_growth_sectors to match expected format
-  const highGrowthSource = toArray(insights?.high_growth_sectors);
-  const highGrowthSectors = (
-    highGrowthSource.length ? highGrowthSource : HIGH_GROWTH_DATA
-  ).map((item: any) => ({
+  const highGrowthSectors = industryTrendsData?.high_growth_sectors?.map((item: any) => ({
     title: item.sector || item.title,
     description: item.why_it_matters || item.description,
     roles: toArray(item?.example_roles ?? item?.roles),
@@ -94,23 +35,18 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({
   }));
 
   // Transform at_risk_sectors to match expected format
-  const atRiskSource = toArray(insights?.at_risk_sectors);
-  const atRiskSectors = (atRiskSource.length ? atRiskSource : AT_RISK_DATA).map(
-    (item: any) => ({
-      title: item.sector || item.title,
-      shift: item.automation_reason || item.shift,
-      pivot: item.pivot_direction || item.pivot,
-      realityCheck: item.risk_reality_check || item.realityCheck,
-    }),
-  );
-
+  const atRiskSectors = industryTrendsData?.at_risk_sectors?.map((item: any) => ({
+    title: item.sector || item.title,
+    shift: item.automation_reason || item.shift,
+    pivot: item.pivot_direction || item.pivot,
+    realityCheck: item.risk_reality_check || item.realityCheck
+  })) || AT_RISK_DATA;
+  
   // Transform top_skills_demand to match expected format
   // Backend sends nested structure with categories/quadrants/skills
   // Frontend expects flat array with icon, color, badge properties
-  const categories = toArray(insights?.top_skills_demand?.categories);
-
-  const topSkillsDemand = categories.length
-    ? categories.flatMap((quadrant: any, qIdx: number) => {
+  const topSkillsDemand = industryTrendsData?.top_skills_demand?.categories 
+    ? industryTrendsData.top_skills_demand.categories.flatMap((quadrant: any, qIdx: number) => {
         // Map quadrant names to UI styling
         const quadrantStyles: Record<string, any> = {
           "Emerging Stars": {
@@ -160,20 +96,14 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({
     : TOP_SKILLS_DATA;
 
   // Transform market_risks to match expected format
-  const marketRiskSource = toArray(insights?.market_risks);
-  const marketRisks = (
-    marketRiskSource.length ? marketRiskSource : MARKET_RISKS_DATA
-  ).map((item: any) => ({
+  const marketRisks = industryTrendsData?.market_risks?.map((item: any) => ({
     severity: item.severity,
     risk: item.risk,
     sectors: item.affected_sectors || item.sectors || [],
-    strategy: item.mitigation_strategy || item.strategy,
-  }));
-
-  const marketNewsSource = toArray(insights?.market_news);
-  const marketNews = (
-    marketNewsSource.length ? marketNewsSource : RECENT_NEWS_DATA
-  ).map((item: any, idx: number) => ({
+    strategy: item.mitigation_strategy || item.strategy
+  })) || MARKET_RISKS_DATA;
+  
+  const marketNews = newsIntelData?.market_news?.map((item: any, idx: number) => ({
     id: item.id || `news-${idx}`,
     title: item.headline || item.title,
     sentiment: (item.impact || item.sentiment) as
@@ -1052,12 +982,17 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({
 
   // Conditionally render loading UI or full content (after all hooks)
   // Treat "success" as complete; idle also shows the full view.
-  const isComplete =
-    generateStatus === "success" ||
-    generateStatus === "idle" ||
-    generateStatus === "error";
+  const hasAnySectionStarted = 
+    sections.marketReport.status !== 'idle' ||
+    sections.industryTrends.status !== 'idle' ||
+    sections.newsAndCareerIntel.status !== 'idle';
 
-  return !isComplete ? (
+  const showContent = 
+    generateStatus === 'success' ||
+    generateStatus === 'idle' ||
+    hasAnySectionStarted;
+
+  return !showContent ? (
     <LoadingUI />
   ) : (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
@@ -1138,10 +1073,14 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({
 
       <div className="space-y-12 md:space-y-16">
         {/* Market Report Section */}
-        <section
-          ref={newsSectionRef}
-          className="relative transition-all duration-500 scroll-mt-24"
-        >
+        <section ref={newsSectionRef} className="relative transition-all duration-500 scroll-mt-24">
+          <SectionWrapper
+            status={sections.marketReport.status}
+            error={sections.marketReport.error}
+            onRetry={() => retrySection('marketReport')}
+            minHeight="min-h-[400px]"
+            loadingText="Loading market intelligence report..."
+          >
           {!selectedNewsId ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
@@ -1215,13 +1154,18 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({
               </div>
             </div>
           )}
+          </SectionWrapper>
         </section>
 
         {/* Industry Growth and Decline Trends Section */}
-        <section
-          ref={trendsSectionRef}
-          className="relative transition-all duration-500 scroll-mt-24"
-        >
+        <section ref={trendsSectionRef} className="relative transition-all duration-500 scroll-mt-24">
+          <SectionWrapper
+            status={sections.industryTrends.status}
+            error={sections.industryTrends.error}
+            onRetry={() => retrySection('industryTrends')}
+            minHeight="min-h-[400px]"
+            loadingText="Analyzing industry trends & sectors..."
+          >
           {!selectedTrendId ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between mb-6 md:mb-8 px-2">
@@ -1291,11 +1235,19 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({
               </div>
             </div>
           )}
+          </SectionWrapper>
         </section>
 
         {/* Recent Market News Section */}
         {!selectedNewsId && !selectedTrendId && (
           <section className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
+          <SectionWrapper
+            status={sections.newsAndCareerIntel.status}
+            error={sections.newsAndCareerIntel.error}
+            onRetry={() => retrySection('newsAndCareerIntel')}
+            minHeight="min-h-[300px]"
+            loadingText="Fetching latest market news & insights..."
+          >
             {/* Title Section with GREEN PULSE */}
             <div className="mb-6 md:mb-8 px-2 flex items-center gap-3">
               <Newspaper className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
@@ -1333,6 +1285,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({
                 <div className="absolute inset-y-0 right-0 w-16 sm:w-24 md:w-32 bg-gradient-to-l from-[#ffffff] to-transparent pointer-events-none z-10" />
               </div>
             </div>
+          </SectionWrapper>
           </section>
         )}
       </div>

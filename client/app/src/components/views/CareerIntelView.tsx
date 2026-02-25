@@ -10,6 +10,7 @@ import {
 } from '../../consts/careerIntelContent';
 import { Target, Lightbulb, ChevronRight, BrainCircuit, GraduationCap, Briefcase, Globe, Sparkles, ClipboardList, Library } from 'lucide-react';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
+import { SectionWrapper } from './SectionWrapper';
 
 interface CareerIntelViewProps {
   user: UserProfile;
@@ -36,14 +37,14 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
   const [guidanceStage, setGuidanceStage] = useState<CareerStageId>('new-graduates');
   const [expandedActionIdx, setExpandedActionIdx] = useState<number | null>(null);
   
-  // Extract real insights data
-  const { generateState } = useMarketInsightsState();
-  const insights = generateState.data?.insights as any;
+  const { generateState, sections, retrySection } = useMarketInsightsState();
+  // Read from per-section data directly (available on section_success, not job_complete)
+  const newsIntelData = sections.newsAndCareerIntel.data as any;
   
   // Transform strategies_by_profile to match expected format
-  const strategiesByProfile = insights?.strategies_by_profile 
+  const strategiesByProfile = newsIntelData?.strategies_by_profile 
     ? Object.fromEntries(
-        Object.entries(insights.strategies_by_profile).map(([key, value]: [string, any]) => {
+        Object.entries(newsIntelData.strategies_by_profile).map(([key, value]: [string, any]) => {
           const mappedKey = key === 'new_graduates' ? 'new-graduates' 
             : key === 'mid_career_pivoting' ? 'mid-career'
             : key === 'newcomers_international' ? 'newcomers'
@@ -64,7 +65,7 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
     : GUIDANCE_BY_STAGE;
   
   // Transform key_findings to match expected format
-  const keyFindings = insights?.key_findings?.map((item: any) => {
+  const keyFindings = newsIntelData?.key_findings?.map((item: any) => {
     const impactLevel = (item.impact_level || item.impact || 'medium').toString().toLowerCase() as ImpactLevel;
     return {
       impact: impactLevel,
@@ -82,6 +83,13 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="space-y-8 md:space-y-12">
           {/* Guidance — first, flush with drawer location card */}
+        <SectionWrapper
+          status={sections.newsAndCareerIntel.status}
+          error={sections.newsAndCareerIntel.error}
+          onRetry={() => retrySection('newsAndCareerIntel')}
+          minHeight="min-h-[500px]"
+          loadingText="Generating personalized career guidance..."
+        >
           <section className="space-y-4 md:space-y-5">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2 sm:gap-3">
@@ -207,6 +215,7 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
             </div>
           </section>
           )}
+        </SectionWrapper>
         </div>
       </div>
     );
