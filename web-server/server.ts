@@ -138,7 +138,7 @@ async function processQueue() {
             console.error('⏸️  Queue processing paused for 1 hour');
             console.error('═══════════════════════════════════════');
             
-            await failJob(job.id, `Quota exceeded: ${jobError.message}`, job);
+            await failJob(job.id, `Quota exceeded: ${jobError.message}`);
             await pauseQueue('OpenAI quota exceeded - admin action required', 3600);
             continue;
           }
@@ -153,7 +153,7 @@ async function processQueue() {
             // Try to retry the job
             const requeued = await retryJob(job);
             if (!requeued) {
-              await failJob(job.id, `Rate limit exceeded and max retries reached`, job);
+              await failJob(job.id, `Rate limit exceeded and max retries reached`);
             }
             continue;
           }
@@ -162,7 +162,7 @@ async function processQueue() {
           console.error(`❌ Job ${job.id} failed:`, jobError.message);
           const requeued = await retryJob(job);
           if (!requeued) {
-            await failJob(job.id, jobError.message || 'Unknown error', job);
+            await failJob(job.id, jobError.message || 'Unknown error');
           }
         }
       } else {

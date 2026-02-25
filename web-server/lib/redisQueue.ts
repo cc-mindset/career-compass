@@ -7,12 +7,10 @@ export interface QueueJob {
   userId: string;
   timestamp: number;
   retryCount?: number;
-  failureReason?: string;
 }
 
 const QUEUE_NAME = 'market_insights_queue';
 const PROCESSING_SET = 'market_insights_processing';
-const FAILED_JOBS_SET = 'market_insights_failed';
 const QUEUE_PAUSED_KEY = 'market_insights_queue_paused';
 const MAX_RETRIES = 2; // Maximum retry attempts before marking as failed
 
@@ -130,27 +128,12 @@ export async function getQueueLength(): Promise<number> {
 /**
  * Mark job as failed and store failure reason
  */
-export async function failJob(jobId: string, reason: string, job?: QueueJob): Promise<void> {
+export async function failJob(jobId: string, reason: string): Promise<void> {
   if (!isRedisAvailable()) return;
 
   try {
     const redis = getRedisClient();
-    
-    // Remove from processing set
     await redis.sRem(PROCESSING_SET, jobId);
-    
-    // Add to failed jobs set with metadata
-    const failedJob = {
-      ...job,
-      id: jobId,
-      failureReason: reason,
-      failedAt: Date.now(),
-    };
-    await redis.sAdd(FAILED_JOBS_SET, JSON.stringify(failedJob));
-    
-    // Store detailed failure info
-    await redis.set(`job_failure:${jobId}`, JSON.stringify(failedJob), { EX: 86400 }); // 24 hour TTL
-    
     logger.error(`❌ Job failed: ${jobId} - Reason: ${reason}`);
   } catch (error) {
     logger.error('Failed to mark job as failed:', error);
@@ -169,21 +152,6 @@ export async function pauseQueue(reason: string, durationSeconds: number = 3600)
     logger.warn(`⏸️  QUEUE PAUSED: ${reason} (for ${durationSeconds}s)`);
   } catch (error) {
     logger.error('Failed to pause queue:', error);
-  }
-}
-
-/**
- * Resume queue processing
- */
-export async function resumeQueue(): Promise<void> {
-  if (!isRedisAvailable()) return;
-
-  try {
-    const redis = getRedisClient();
-    await redis.del(QUEUE_PAUSED_KEY);
-    logger.info('▶️  Queue resumed');
-  } catch (error) {
-    logger.error('Failed to resume queue:', error);
   }
 }
 
@@ -212,7 +180,7 @@ export async function retryJob(job: QueueJob): Promise<boolean> {
   
   if (retryCount > MAX_RETRIES) {
     logger.warn(`⚠️  Job ${job.id} exceeded max retries (${MAX_RETRIES})`);
-    await failJob(job.id, `Exceeded maximum retry attempts (${MAX_RETRIES})`, job);
+    await failJob(job.id, `Exceeded maximum retry attempts (${MAX_RETRIES})`);
     return false;
   }
 
@@ -234,16 +202,3 @@ export async function retryJob(job: QueueJob): Promise<boolean> {
   }
 }
 
-/**
- * Get failed jobs count
- */
-export async function getFailedJobsCount(): Promise<number> {
-  if (!isRedisAvailable()) return 0;
-
-  try {
-    const redis = getRedisClient();
-    return await redis.sCard(FAILED_JOBS_SET);
-  } catch {
-    return 0;
-  }
-}
