@@ -15,6 +15,7 @@ export interface MarketInsightsGenerateResponse {
   message?: string;
   insights?: unknown;
   generated_at?: string;
+  fromCache?: boolean;
 }
 
 interface MarketInsightsContextValue {
@@ -106,6 +107,23 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
       }
 
       const data = (await res.json()) as MarketInsightsGenerateResponse;
+
+      // ── Cache hit: insights returned directly, no WebSocket events will fire ──
+      if (data.fromCache && data.insights) {
+        const insightsData = data.insights as Record<string, unknown>;
+        updateServerAvailable(true);
+        // Resolve all sections immediately from the merged insights object
+        setSections({
+          marketReport: { status: 'success', data: insightsData },
+          industryTrends: { status: 'success', data: insightsData },
+          newsAndCareerIntel: { status: 'success', data: insightsData },
+        });
+        setGenerateState({ status: 'success', data, error: undefined });
+        setLoadingStage('complete');
+        setProgressText('Insights ready (cached)');
+        setActiveJobId(null);
+        return;
+      }
 
       if (data.queued && data.jobId) {
         const jobId = data.jobId;
