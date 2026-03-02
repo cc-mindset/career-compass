@@ -11,11 +11,12 @@ export interface SectionState<T = any> {
 export type SectionsState = Record<SectionName, SectionState>;
 
 export interface WSProgressEvent {
-  type: 'job_start' | 'section_success' | 'section_error' | 'job_complete' | 'job_error';
+  type: 'job_start' | 'section_success' | 'section_error' | 'job_complete' | 'job_error' | 'job_fallback';
   jobId: string;
   section?: SectionName;
   data?: any;
   error?: string;
+  reason?: string;  // human-readable reason for fallback/failure
   stage?: string;
   completedSections?: string[];
   failedSections?: string[];

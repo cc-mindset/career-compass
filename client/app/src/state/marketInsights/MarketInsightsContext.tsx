@@ -258,7 +258,23 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           setProgressText(payload.error);
           setActiveJobId(null);
           break;
-      }
+        case 'job_fallback':
+          console.warn('[MarketInsights] ⚠ Fallback data received:', payload.reason);
+          // Show fallback mock data so the user sees something instead of an indefinite spinner
+          setSections({
+            marketReport:     { status: 'success', data: payload.insights },
+            industryTrends:   { status: 'success', data: payload.insights },
+            newsAndCareerIntel: { status: 'success', data: payload.insights },
+          });
+          setGenerateState({
+            status: 'success',
+            data: { success: true, insights: payload.insights },
+            error: undefined,
+          });
+          setLoadingStage('complete');
+          setProgressText(payload.reason || 'Service temporarily unavailable — showing fallback data');
+          setActiveJobId(null);
+          break;      }
     };
 
     socket.on('progress', handleProgress);
