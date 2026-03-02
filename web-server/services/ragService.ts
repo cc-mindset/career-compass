@@ -7,6 +7,7 @@ interface RetrieveOptions {
   namespaces?: string[];
   topKPerNamespace?: Record<string, number>;
   useCache?: boolean;
+  useRetrievalCache?: boolean; // explicit override for Pinecone/embedding cache only
 }
 
 interface MatchMetadata {
@@ -44,7 +45,8 @@ interface RAGOptions {
   namespaces?: string[];
   topKPerNamespace?: Record<string, number>;
   responseFormat?: 'json' | 'text';
-  useCache?: boolean;
+  useCache?: boolean;           // controls LLM generation result caching
+  useRetrievalCache?: boolean;  // controls Pinecone/embedding caching (defaults to useCache)
   contextFormatter?: ContextFormatter;
   cacheTTL?: number;
   retrievalQuery?: string;
@@ -319,11 +321,15 @@ export async function generateMultipleWithSharedContext(
     topKPerNamespace = { 'news-data': 12, 'bls-data': 15, 'reports-data': 10 },
     responseFormat = 'json',
     useCache = true,
+    useRetrievalCache,        // falls back to useCache if not explicitly set
     contextFormatter = formatGenericContext,
     cacheTTL = 24 * 60 * 60 * 1000,
     retrievalQuery,
     onSectionComplete,
   } = options;
+
+  // Pinecone/embedding cache can be controlled independently of LLM generation cache
+  const pineconeCache = useRetrievalCache ?? useCache;
 
   try {
     logger.info(`🤖 Generating ${prompts.length} responses from shared context`);
@@ -332,7 +338,7 @@ export async function generateMultipleWithSharedContext(
     const contextCacheKey = cache.generateKey('context-shared', ...namespaces, ...prompts.map(p => p.label));
     let context: Context;
     
-    if (useCache) {
+    if (pineconeCache) {
       const cachedContext = cache.get<Context>(contextCacheKey);
       if (cachedContext) {
         logger.info(`✓ Using cached shared context for ${prompts.length} prompts`);
@@ -340,12 +346,12 @@ export async function generateMultipleWithSharedContext(
       } else {
         logger.info('📚 Retrieving shared context from Pinecone...');
         const queryText = retrievalQuery || prompts[0]?.query || 'general query';
-        context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache });
+        context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache: pineconeCache });
         cache.set(contextCacheKey, context, 60 * 60 * 1000); // 1 hour
       }
     } else {
       const queryText = retrievalQuery || prompts[0]?.query || 'general query';
-      context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache });
+      context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache: pineconeCache });
     }
 
     // Step 2: Format context ONCE using provided formatter

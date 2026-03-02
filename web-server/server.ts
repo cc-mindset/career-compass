@@ -5,7 +5,8 @@ dotenv.config();
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import http from 'http';
-import { initializeWebSocket, isWebSocketAvailable } from './lib/websocket.js';
+import { initializeWebSocket, isWebSocketAvailable, emitToJob } from './lib/websocket.js';
+import { mockDbCache } from './utils/mockDbCache.js';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -127,6 +128,7 @@ async function processQueue() {
           const insights = await generateMarketInsights(job.location, job.userId, job.id);
           await storeJobResult(job.id, insights);
           await completeJob(job.id);
+          mockDbCache.set(job.location); // mark location as cached
           console.log(`✅ Job ${job.id} completed successfully`);
         } catch (jobError: any) {
           // Handle quota exceeded - pause queue and fail job
@@ -140,6 +142,13 @@ async function processQueue() {
             
             await failJob(job.id, `Quota exceeded: ${jobError.message}`);
             await pauseQueue('OpenAI quota exceeded - admin action required', 3600);
+            // Emit fallback mock to client (swap: return last DB-stored insights instead)
+            emitToJob(job.id, 'progress', {
+              type: 'job_fallback',
+              insights: mockDbCache.getMockFallback(job.location),
+              reason: 'OpenAI is at capacity. Showing fallback data — please try again later.',
+              jobId: job.id,
+            });
             continue;
           }
           
@@ -154,6 +163,13 @@ async function processQueue() {
             const requeued = await retryJob(job);
             if (!requeued) {
               await failJob(job.id, `Rate limit exceeded and max retries reached`);
+              // Emit fallback mock to client (swap: return last DB-stored insights instead)
+              emitToJob(job.id, 'progress', {
+                type: 'job_fallback',
+                insights: mockDbCache.getMockFallback(job.location),
+                reason: 'Service is temporarily rate-limited. Showing fallback data — please try again in a few minutes.',
+                jobId: job.id,
+              });
             }
             continue;
           }
@@ -293,7 +309,20 @@ app.post('/api/market-insights/generate', async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'Location cannot be empty' });
     }
 
-    // Try to queue the job
+    // ── Step 1: Check mock DB cache (swap with real DB check later) ──
+    const cacheStatus = mockDbCache.check(sanitizedLocation);
+    if (cacheStatus.hit && cacheStatus.isLTS) {
+      console.log(`📦 Mock DB Cache HIT (LTS): "${sanitizedLocation}" — returning mock cached data`);
+      return res.json({
+        success: true,
+        insights: mockDbCache.getMockInsights(sanitizedLocation),
+        fromCache: true,
+        generated_at: new Date().toISOString(),
+      });
+    }
+
+    // Cache miss or stale → enter queue
+    // ── Step 2: Try to queue the job ──
     const jobId = await enqueueJob(sanitizedLocation, userId || '');
     
     if (jobId) {
