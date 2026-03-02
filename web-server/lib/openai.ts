@@ -123,6 +123,16 @@ class TokenBudget {
 }
 
 /**
+ * Custom error class for connection timeout errors
+ */
+export class ConnectionTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConnectionTimeoutError';
+  }
+}
+
+/**
  * Custom error class for rate limit errors
  */
 export class RateLimitError extends Error {
@@ -265,6 +275,11 @@ class OpenAIClient {
       
       return responseText;
     } catch (error: any) {
+      // Connection timeout — don't retry, propagate immediately
+      if (error?.constructor?.name === 'APIConnectionTimeoutError' || error?.code === 'ETIMEDOUT') {
+        logger.error('⏱️  OpenAI connection timeout — not retrying');
+        throw new ConnectionTimeoutError(error.message || 'OpenAI request timed out');
+      }
       // Check for rate limit or quota errors
       if (error?.status === 429) {
         const retryAfter = error?.headers?.['retry-after'] ? parseInt(error.headers['retry-after']) : undefined;
@@ -335,8 +350,8 @@ class OpenAIClient {
         }
       }
     } catch (error: any) {
-      // Re-throw rate limit and quota errors without modification
-      if (error instanceof RateLimitError || error instanceof QuotaExceededError) {
+      // Re-throw rate limit, quota, and timeout errors without modification
+      if (error instanceof RateLimitError || error instanceof QuotaExceededError || error instanceof ConnectionTimeoutError) {
         throw error;
       }
       logger.error('Error generating JSON completion:', error);

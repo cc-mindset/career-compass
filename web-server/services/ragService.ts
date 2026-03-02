@@ -1,6 +1,6 @@
 import pLimit from 'p-limit';
 import { pineconeClient } from '../lib/pinecone.js';
-import { openaiClient, RateLimitError, QuotaExceededError } from '../lib/openai.js';
+import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 
@@ -277,8 +277,8 @@ async function generateSingleResponse(
         return response;
       }
     } catch (error) {
-      // Don't retry on rate limit or quota errors - propagate immediately
-      if (error instanceof RateLimitError || error instanceof QuotaExceededError) {
+      // Don't retry on rate limit, quota, or timeout errors — propagate immediately
+      if (error instanceof RateLimitError || error instanceof QuotaExceededError || error instanceof ConnectionTimeoutError) {
         logger.error(`🚫 ${error.name}: ${error.message} - Not retrying`);
         throw error;
       }
