@@ -1,3 +1,4 @@
+import pLimit from 'p-limit';
 import { pineconeClient } from '../lib/pinecone.js';
 import { openaiClient, RateLimitError, QuotaExceededError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
@@ -358,9 +359,14 @@ export async function generateMultipleWithSharedContext(
     const formattedContext = contextFormatter(context);
     logger.info('✓ Context formatted for LLM');
 
-    // Step 3: Generate responses in PARALLEL with streaming callbacks
+    // Step 3: Generate responses in PARALLEL with concurrency cap
+    // Max concurrent OpenAI calls per job is capped via env var (default 3)
+    const concurrency = parseInt(process.env.OPENAI_MAX_CONCURRENT || '3');
+    const limit = pLimit(concurrency);
+    logger.info(`🔀 Section concurrency: ${concurrency} (${prompts.length} sections)`);
+
     const results: Record<string, Record<string, unknown> | string> = {};
-    const generationPromises = prompts.map(async (prompt) => {
+    const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
         const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix, systemPrompt.substring(0, 50));
         
@@ -396,7 +402,7 @@ export async function generateMultipleWithSharedContext(
         if (onSectionComplete) onSectionComplete(prompt.label, null, err.message);
         throw error;
       }
-    });
+    }));
 
     await Promise.allSettled(generationPromises);
     logger.info(`✓ All ${prompts.length} sections processed`);

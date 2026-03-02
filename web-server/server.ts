@@ -179,6 +179,13 @@ async function processQueue() {
           const requeued = await retryJob(job);
           if (!requeued) {
             await failJob(job.id, jobError.message || 'Unknown error');
+            // Notify client with fallback mock (swap: return last DB-stored insights)
+            emitToJob(job.id, 'progress', {
+              type: 'job_fallback',
+              insights: mockDbCache.getMockFallback(job.location),
+              reason: 'Something went wrong generating your insights. Showing fallback data — please try again shortly.',
+              jobId: job.id,
+            });
           }
         }
       } else {

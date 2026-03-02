@@ -19,6 +19,7 @@
     "multer": "^2.0.2",
     "node-cache": "^5.1.2",
     "openai": "^6.9.1",
+    "p-limit": "^7.3.0",
     "pdf-parse": "^2.4.5",
     "redis": "^5.10.0",
     "socket.io": "^4.8.3"
