@@ -266,11 +266,11 @@ async function generateSingleResponse(
         logger.info('📊 Generated JSON response with keys:', Object.keys(response).join(', '));
         return response;
       } else {
-        const messages = [
+        const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `${formattedContext}\n\n${query}` },
         ];
-        response = await openaiClient.generateCompletion(messages);
+        response = await openaiClient.generateCompletion(messages as any);
         return response;
       }
     } catch (error) {
@@ -303,18 +303,16 @@ interface MultiPromptRequest {
   cacheKeySuffix: string;
 }
 
-/**
- * Generate multiple responses from shared context in parallel
- * Optimized for market insights: 1 retrieval, N parallel LLM calls
- * @param {string} systemPrompt - System prompt for all LLM calls
- * @param {Array} prompts - Array of { label, query, cacheKeySuffix }
- * @param {Object} options - Generation options
- * @returns {Promise<Object>} Object with label as key, response as value
- */
+type SectionCallback = (section: string, result: Record<string, unknown> | string | null, error?: string) => void;
+
+interface MultiRAGOptions extends RAGOptions {
+  onSectionComplete?: SectionCallback;
+}
+
 export async function generateMultipleWithSharedContext(
   systemPrompt: string,
   prompts: MultiPromptRequest[],
-  options: RAGOptions = {}
+  options: MultiRAGOptions = {}
 ): Promise<Record<string, Record<string, unknown> | string>> {
   const {
     namespaces = ['news-data', 'bls-data', 'reports-data'],
@@ -324,6 +322,7 @@ export async function generateMultipleWithSharedContext(
     contextFormatter = formatGenericContext,
     cacheTTL = 24 * 60 * 60 * 1000,
     retrievalQuery,
+    onSectionComplete,
   } = options;
 
   try {
@@ -353,42 +352,48 @@ export async function generateMultipleWithSharedContext(
     const formattedContext = contextFormatter(context);
     logger.info('✓ Context formatted for LLM');
 
-    // Step 3: Generate responses in PARALLEL
+    // Step 3: Generate responses in PARALLEL with streaming callbacks
     const results: Record<string, Record<string, unknown> | string> = {};
     const generationPromises = prompts.map(async (prompt) => {
-      const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix, systemPrompt.substring(0, 50));
-      
-      // Check individual cache
-      if (useCache) {
-        const cached = cache.get<Record<string, unknown> | string>(cacheKey);
-        if (cached) {
-          logger.info(`✓ Using cached response for: ${prompt.label}`);
-          results[prompt.label] = cached;
-          return;
+      try {
+        const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix, systemPrompt.substring(0, 50));
+        
+        if (useCache) {
+          const cached = cache.get<Record<string, unknown> | string>(cacheKey);
+          if (cached) {
+            logger.info(`✓ Cached: ${prompt.label}`);
+            results[prompt.label] = cached;
+            if (onSectionComplete) onSectionComplete(prompt.label, cached);
+            return;
+          }
         }
+
+        logger.info(`🔄 Generating: ${prompt.label}`);
+        const response = await generateSingleResponse(
+          systemPrompt,
+          formattedContext,
+          prompt.query,
+          responseFormat as 'json' | 'text',
+          3
+        );
+
+        if (useCache) {
+          cache.set(cacheKey, response, cacheTTL);
+        }
+
+        results[prompt.label] = response;
+        logger.info(`✓ Completed: ${prompt.label}`);
+        if (onSectionComplete) onSectionComplete(prompt.label, response);
+      } catch (error) {
+        const err = error as Error;
+        logger.error(`❌ Failed: ${prompt.label} - ${err.message}`);
+        if (onSectionComplete) onSectionComplete(prompt.label, null, err.message);
+        throw error;
       }
-
-      // Generate response
-      logger.info(`🔄 Generating response for: ${prompt.label}`);
-      const response = await generateSingleResponse(
-        systemPrompt,
-        formattedContext,
-        prompt.query,
-        responseFormat as 'json' | 'text',
-        3
-      );
-
-      // Cache individual response
-      if (useCache) {
-        cache.set(cacheKey, response, cacheTTL);
-      }
-
-      results[prompt.label] = response;
-      logger.info(`✓ Completed: ${prompt.label}`);
     });
 
-    await Promise.all(generationPromises);
-    logger.info(`✓ All ${prompts.length} responses generated successfully`);
+    await Promise.allSettled(generationPromises);
+    logger.info(`✓ All ${prompts.length} sections processed`);
 
     return results;
   } catch (error) {
