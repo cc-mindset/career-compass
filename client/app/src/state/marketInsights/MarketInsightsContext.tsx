@@ -235,8 +235,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         updateServerAvailable(false);
         setGenerateState((prev) => ({
           ...prev,
-          status: "error",
-          error: "Check your internet connection and try again",
+          status: "idlle",
+          error: undefined,
         }));
         setSections({
           marketReport: { status: "idle" },
@@ -244,7 +244,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           newsAndCareerIntel: { status: "idle" },
         });
         setLoadingStage("complete");
-        setProgressText("Network Error");
+        setProgressText(undefined);
         return;
       }
 
@@ -264,8 +264,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         updateServerAvailable(false);
         setGenerateState((prev) => ({
           ...prev,
-          status: "error",
-          error: "Server error occurred",
+          status: "idle",
+          error: undefined,
         }));
         setSections({
           marketReport: { status: "idle" },
@@ -273,7 +273,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           newsAndCareerIntel: { status: "idle" },
         });
         setLoadingStage("complete");
-        setProgressText("Server Error");
+        setProgressText(undefined);
         return;
       }
 
