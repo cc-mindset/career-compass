@@ -2,113 +2,123 @@ import OpenAI from 'openai';
 import { logger } from '../utils/logger.js';
 import { getRedisClient, isRedisAvailable } from './redis.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TokenBudget — Proactive sliding-window RPM/TPM guard
-// Checks Redis counters BEFORE every OpenAI call and blocks preemptively
-// at a configurable safety threshold (default 80%) so we never hit a 429.
-//
-// Env vars:
-//   OPENAI_RPM_LIMIT        — your plan's RPM ceiling (default: 500)
-//   OPENAI_TPM_LIMIT        — your plan's TPM ceiling (default: 150000)
-//   OPENAI_SAFETY_RATIO     — fraction of limit before blocking (default: 0.8)
-// ─────────────────────────────────────────────────────────────────────────────
-class TokenBudget {
-  private get rpmLimit()    { return parseInt(process.env.OPENAI_RPM_LIMIT    || '500');    }
-  private get tpmLimit()    { return parseInt(process.env.OPENAI_TPM_LIMIT    || '150000'); }
-  private get safetyRatio() { return parseFloat(process.env.OPENAI_SAFETY_RATIO || '0.8'); }
+// SWAP: track monthly quota usage in DB so it survives restarts
+let monthlyTokensUsed = 0;
+let monthlyResetMonth = new Date().getMonth();
 
-  /** Redis key for current 1-minute window */
+// TokenBudget — proactive sliding-window RPM/TPM guard (checks Redis before every OpenAI call)
+// Env vars: OPENAI_RPM_LIMIT, OPENAI_TPM_LIMIT, OPENAI_SAFETY_RATIO, OPENAI_MONTHLY_TOKEN_LIMIT
+class TokenBudget {
+  private get rpmLimit()          { return parseInt(process.env.OPENAI_RPM_LIMIT           || '500');       }
+  private get tpmLimit()          { return parseInt(process.env.OPENAI_TPM_LIMIT           || '150000');    }
+  private get safetyRatio()       { return parseFloat(process.env.OPENAI_SAFETY_RATIO      || '0.8');       }
+  private get monthlyTokenLimit() { return parseInt(process.env.OPENAI_MONTHLY_TOKEN_LIMIT || '0');        }
+
+  logLimits(): void {
+    const monthly = this.monthlyTokenLimit ? `${this.monthlyTokenLimit} (safe: ${Math.floor(this.monthlyTokenLimit * this.safetyRatio)})` : 'unlimited';
+    logger.info(`🔢 TokenBudget limits — RPM: ${this.rpmLimit} (safe: ${Math.floor(this.rpmLimit * this.safetyRatio)}), TPM: ${this.tpmLimit} (safe: ${Math.floor(this.tpmLimit * this.safetyRatio)}), Monthly: ${monthly}, safety: ${this.safetyRatio}`);
+  }
+
   private windowKey(prefix: string): string {
     const minute = Math.floor(Date.now() / 60000);
     return `${prefix}:${minute}`;
   }
 
-  /**
-   * Estimate tokens from messages (input chars / 4 + max_tokens buffer).
-   * Deliberately over-estimates — better to block early than hit a 429.
-   */
+  // Over-estimates intentionally — better to block early than hit a 429
   estimateTokens(messages: { content?: string | unknown }[], maxTokens: number): number {
     const inputChars = messages.reduce((sum, m) =>
       sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
     return Math.ceil(inputChars / 4) + maxTokens;
   }
 
-  /**
-   * Check current window usage and throw RateLimitError proactively if near limit.
-   * Then increment the RPM counter. Call BEFORE every OpenAI API call.
-   */
   async checkAndIncrementRPM(): Promise<void> {
-    if (!isRedisAvailable()) return; // graceful degradation if Redis is down
+    if (!isRedisAvailable()) return;
 
     try {
-      const redis    = getRedisClient();
-      const rpmKey   = this.windowKey('openai:rpm');
-      const rpmSafe  = Math.floor(this.rpmLimit * this.safetyRatio);
+      const redis   = getRedisClient();
+      const rpmKey  = this.windowKey('openai:rpm');
+      const rpmSafe = Math.floor(this.rpmLimit * this.safetyRatio);
 
-      const current  = parseInt((await redis.get(rpmKey)) || '0');
+      // Atomic INCR first — each concurrent caller gets a unique slot number
+      const newCount = await redis.incr(rpmKey);
+      await redis.expire(rpmKey, 90);
 
-      if (current >= rpmSafe) {
+      if (newCount > rpmSafe) {
+        await redis.decr(rpmKey); // roll back the slot
         const retryIn = 60 - (Date.now() % 60000) / 1000;
-        logger.warn(`🚦 Proactive RPM block: ${current}/${this.rpmLimit} (safe limit ${rpmSafe}), retry in ${retryIn.toFixed(0)}s`);
+        logger.warn(`🚦 Proactive RPM block: slot ${newCount}/${this.rpmLimit} (safe limit ${rpmSafe}), retry in ${retryIn.toFixed(0)}s`);
         throw new RateLimitError(
-          `Proactive rate limit: ${current} requests this minute (limit ${rpmSafe})`,
+          `Proactive rate limit: ${newCount} requests this minute (safe limit ${rpmSafe})`,
           Math.ceil(retryIn)
         );
       }
-
-      // Increment with TTL covering window boundary
-      await redis.incr(rpmKey);
-      await redis.expire(rpmKey, 90);
     } catch (err) {
       if (err instanceof RateLimitError) throw err;
       logger.warn('TokenBudget RPM check failed (Redis error) — skipping:', err);
     }
   }
 
-  /**
-   * Check TPM budget before a call, then pre-charge estimated tokens.
-   * Actual over/undershoot is reconciled in recordActualTokens().
-   */
   async checkAndIncrementTPM(estimated: number): Promise<void> {
     if (!isRedisAvailable()) return;
 
     try {
-      const redis    = getRedisClient();
-      const tpmKey   = this.windowKey('openai:tpm');
-      const tpmSafe  = Math.floor(this.tpmLimit * this.safetyRatio);
+      const redis   = getRedisClient();
+      const tpmKey  = this.windowKey('openai:tpm');
+      const tpmSafe = Math.floor(this.tpmLimit * this.safetyRatio);
 
-      const current  = parseInt((await redis.get(tpmKey)) || '0');
+      // Atomic INCRBY first — each concurrent caller claims tokens before checking
+      const newTotal = await redis.incrBy(tpmKey, estimated);
+      await redis.expire(tpmKey, 90);
 
-      if (current + estimated >= tpmSafe) {
+      if (newTotal > tpmSafe) {
+        await redis.decrBy(tpmKey, estimated); // roll back
         const retryIn = 60 - (Date.now() % 60000) / 1000;
-        logger.warn(`🚦 Proactive TPM block: ${current} used + ${estimated} estimated >= ${tpmSafe} safe limit`);
+        logger.warn(`🚦 Proactive TPM block: ${newTotal} tokens (after +${estimated}) exceeds safe limit ${tpmSafe}`);
         throw new RateLimitError(
-          `Proactive token limit: ${current} tokens used this minute (safe limit ${tpmSafe})`,
+          `Proactive token limit: ${newTotal} tokens this minute (safe limit ${tpmSafe})`,
           Math.ceil(retryIn)
         );
       }
-
-      await redis.incrBy(tpmKey, estimated);
-      await redis.expire(tpmKey, 90);
     } catch (err) {
       if (err instanceof RateLimitError) throw err;
       logger.warn('TokenBudget TPM check failed (Redis error) — skipping:', err);
     }
   }
 
-  /** Reconcile actual token usage after a successful call */
+  checkMonthlyBudget(estimated: number): void {
+    const limit = this.monthlyTokenLimit;
+    if (!limit) return;
+
+    const currentMonth = new Date().getMonth();
+    if (currentMonth !== monthlyResetMonth) {
+      monthlyTokensUsed = 0;
+      monthlyResetMonth = currentMonth;
+      logger.info('🔄 Monthly token counter reset for new month');
+    }
+
+    // Claim tokens speculatively first — prevents concurrent sections from all passing at 0
+    monthlyTokensUsed += estimated;
+    const safeCeiling = Math.floor(limit * this.safetyRatio);
+    if (monthlyTokensUsed > safeCeiling) {
+      monthlyTokensUsed -= estimated; // roll back
+      logger.warn(`🚦 Proactive monthly budget block: ${monthlyTokensUsed}/${limit} tokens used (safe limit ${safeCeiling})`);
+      throw new QuotaExceededError(`Monthly token budget reached: ${monthlyTokensUsed} of ${safeCeiling} safe limit used`);
+    }
+  }
+
+  // Reconcile actual vs estimated after a successful call
   async recordActualTokens(actual: number, estimated: number): Promise<void> {
+    monthlyTokensUsed += (actual - estimated); // SWAP: persist to DB — monthly quota usage
     if (!isRedisAvailable()) return;
     const diff = actual - estimated;
     if (diff === 0) return;
     try {
       const redis  = getRedisClient();
       const tpmKey = this.windowKey('openai:tpm');
-      await redis.incrBy(tpmKey, diff); // negative diff reduces the window count
+      await redis.incrBy(tpmKey, diff);
     } catch { /* non-critical */ }
   }
 
-  /** Log current window usage — useful for debugging */
   async getUsage(): Promise<{ rpm: number; tpm: number }> {
     if (!isRedisAvailable()) return { rpm: 0, tpm: 0 };
     try {
@@ -122,9 +132,6 @@ class TokenBudget {
   }
 }
 
-/**
- * Custom error class for connection timeout errors
- */
 export class ConnectionTimeoutError extends Error {
   constructor(message: string) {
     super(message);
@@ -132,9 +139,6 @@ export class ConnectionTimeoutError extends Error {
   }
 }
 
-/**
- * Custom error class for rate limit errors
- */
 export class RateLimitError extends Error {
   constructor(message: string, public retryAfter?: number) {
     super(message);
@@ -142,9 +146,6 @@ export class RateLimitError extends Error {
   }
 }
 
-/**
- * Custom error class for quota exceeded errors
- */
 export class QuotaExceededError extends Error {
   constructor(message: string) {
     super(message);
@@ -163,10 +164,6 @@ interface CompletionOptions {
 
 type Message = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
-/**
- * OpenAI Client Singleton
- * Handles all LLM and embedding operations
- */
 class OpenAIClient {
   private client: OpenAI | null;
   private readonly embeddingModel: string;
@@ -178,9 +175,6 @@ class OpenAIClient {
     this.chatModel = 'gpt-4o';
   }
 
-  /**
-   * Initialize OpenAI client
-   */
   initialize(): OpenAI {
     if (this.client) return this.client;
 
@@ -197,11 +191,6 @@ class OpenAIClient {
     }
   }
 
-  /**
-   * Create embeddings for text
-   * @param {string|Array<string>} input - Text or array of texts to embed
-   * @returns {Promise<Array<number>|Array<Array<number>>>} Embedding vector(s)
-   */
   async createEmbedding(input: string | string[]): Promise<number[] | number[][]> {
     try {
       if (!this.client) this.initialize();
@@ -225,19 +214,13 @@ class OpenAIClient {
     }
   }
 
-  /**
-   * Generate chat completion
-   * @param {Array<Object>} messages - Array of message objects
-   * @param {Object} options - Additional options (temperature, max_tokens, etc.)
-   * @returns {Promise<string>} Generated response text
-   */
   async generateCompletion(messages: Message[], options: CompletionOptions = {}): Promise<string> {
     try {
       if (!this.client) this.initialize();
 
       const {
         temperature = 0.7,
-        max_tokens = 16000,  // Increased for comprehensive JSON responses
+        max_tokens = 16000,
         model = this.chatModel,
         response_format = null,
       } = options;
@@ -246,6 +229,7 @@ class OpenAIClient {
 
       // ── Proactive budget check before every OpenAI call ──
       const estimatedTokens = tokenBudget.estimateTokens(messages as { content?: string }[], max_tokens);
+      tokenBudget.checkMonthlyBudget(estimatedTokens);
       await tokenBudget.checkAndIncrementRPM();
       await tokenBudget.checkAndIncrementTPM(estimatedTokens);
 
@@ -270,11 +254,14 @@ class OpenAIClient {
       }
 
       logger.info(`✓ Generated completion (${tokensUsed} tokens)`);
-      // Reconcile actual vs estimated tokens in the TPM window
       await tokenBudget.recordActualTokens(tokensUsed, estimatedTokens);
       
       return responseText;
     } catch (error: any) {
+      // Already-classified errors
+      if (error instanceof RateLimitError || error instanceof QuotaExceededError || error instanceof ConnectionTimeoutError) {
+        throw error;
+      }
       // Connection timeout — don't retry, propagate immediately
       if (error?.constructor?.name === 'APIConnectionTimeoutError' || error?.code === 'ETIMEDOUT') {
         logger.error('⏱️  OpenAI connection timeout — not retrying');
@@ -295,13 +282,6 @@ class OpenAIClient {
     }
   }
 
-  /**
-   * Generate structured JSON completion
-   * @param {string} systemPrompt - System prompt
-   * @param {string} userPrompt - User prompt
-   * @param {Object} options - Additional options
-   * @returns {Promise<Object>} Parsed JSON response
-   */
   async generateJSONCompletion(systemPrompt: string, userPrompt: string, options: CompletionOptions = {}): Promise<Record<string, unknown>> {
     try {
       const messages: Message[] = [
@@ -309,7 +289,6 @@ class OpenAIClient {
         { role: 'user', content: userPrompt },
       ];
 
-      // Force JSON mode for structured output
       const jsonOptions: CompletionOptions = {
         ...options,
         response_format: { type: 'json_object' },
@@ -317,7 +296,7 @@ class OpenAIClient {
 
       const responseText = await this.generateCompletion(messages, jsonOptions);
 
-      // Clean markdown code blocks if present
+      // Strip markdown code fences if present
       const cleanedText = responseText
         .replace(/```json\n?/g, '')
         .replace(/```\n?/g, '')

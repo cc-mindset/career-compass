@@ -1,18 +1,12 @@
 import { logger } from './logger.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MockDbCache — Temporary cache controller (in-memory Map)
-//
-// Stores ONLY the location key + a timestamp. No actual insight data is held.
-// Returns clearly-labelled mock/fallback objects so the FE can render something.
-//
-// ── SWAP GUIDE (when DB is ready) ────────────────────────────────────────────
+// MockDbCache — temp in-memory cache (location key + timestamp only, no insight data)
+// SWAP GUIDE when DB is ready:
 //   check()           → db.marketInsights.findOne({ location }) + TTL check
-//   set()             → db.marketInsights.upsert({ location }, { generatedAt })
+//   set()             → db.marketInsights.upsert({ location }, { generatedAt, insights })
 //   invalidate()      → db.marketInsights.deleteOne({ location })
-//   getMockInsights() → db.marketInsights.findOne({ location }).insights
-//   getMockFallback() → same query but stale-ok (ignore TTL)
-// ─────────────────────────────────────────────────────────────────────────────
+//   getMockInsights() → return real insights from DB
+//   getMockFallback() → return last stored insights (stale-ok)
 
 const CACHE_TTL_MS =
   parseInt(process.env.INSIGHTS_CACHE_TTL_HOURS || '24') * 60 * 60 * 1000;
@@ -23,29 +17,22 @@ interface CacheEntry {
 
 export interface CacheStatus {
   hit: boolean;
-  isLTS: boolean; // Long Term (within TTL) — true = safe to serve from cache
+  isLTS: boolean; // true = within TTL, safe to serve
 }
 
 class MockDbCache {
-  // SWAP: replace with DB collection reference
-  private store: Map<string, CacheEntry>;
+  private store: Map<string, CacheEntry>; // SWAP: DB collection reference
 
   constructor() {
     this.store = new Map();
   }
 
-  // SWAP: keep this normalisation helper
   private normalize(location: string): string {
     return location.toLowerCase().trim();
   }
 
-  /**
-   * Check if location has a valid (and optionally fresh) cache entry.
-   * SWAP: replace Map lookup with DB query.
-   */
   check(location: string): CacheStatus {
     const key = this.normalize(location);
-
     // SWAP: const doc = await db.marketInsights.findOne({ location: key });
     const entry = this.store.get(key);
 
@@ -59,31 +46,20 @@ class MockDbCache {
     return { hit: true, isLTS };
   }
 
-  /**
-   * Mark a location as successfully cached after generation.
-   * SWAP: replace with DB upsert that also stores the real insights object.
-   */
   set(location: string): void {
     const key = this.normalize(location);
-    // SWAP: await db.marketInsights.updateOne({ location: key }, { $set: { generatedAt: new Date(), insights: data } }, { upsert: true });
+    // SWAP: db.marketInsights.updateOne({ location: key }, { $set: { generatedAt, insights } }, { upsert: true })
     this.store.set(key, { generatedAt: Date.now() });
     logger.info(`📦 MockDbCache SET: "${key}"`);
   }
 
-  /**
-   * Force-remove a location (e.g., manual refresh).
-   * SWAP: await db.marketInsights.deleteOne({ location: key });
-   */
   invalidate(location: string): void {
     const key = this.normalize(location);
     this.store.delete(key);
     logger.info(`📦 MockDbCache INVALIDATED: "${key}"`);
   }
 
-  /**
-   * Returns clearly-labelled MOCK data for a cached location.
-   * SWAP: return the real insights object from DB instead of this stub.
-   */
+  // SWAP: return real insights object from DB
   getMockInsights(location: string): Record<string, unknown> {
     const loc = location.trim();
     return {
@@ -135,10 +111,7 @@ class MockDbCache {
     };
   }
 
-  /**
-   * Returns clearly-labelled FALLBACK data when OpenAI is unavailable.
-   * SWAP: return the last stored (stale-ok) insights from DB instead of this stub.
-   */
+  // SWAP: return last stored insights from DB (stale-ok)
   getMockFallback(location: string): Record<string, unknown> {
     const loc = location.trim();
     return {
@@ -191,10 +164,7 @@ class MockDbCache {
     };
   }
 
-  /**
-   * Debug: list all cached entries.
-   * SWAP: db.marketInsights.find({}) 
-   */
+  // SWAP: db.marketInsights.find({})
   listAll(): Array<{ location: string; generatedAt: Date; ageHours: number; isLTS: boolean }> {
     const now = Date.now();
     return Array.from(this.store.entries()).map(([location, entry]) => ({
@@ -206,5 +176,5 @@ class MockDbCache {
   }
 }
 
-// Singleton — same instance across the whole process
+// Singleton
 export const mockDbCache = new MockDbCache();

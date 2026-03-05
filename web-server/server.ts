@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
+import { tokenBudget } from './lib/openai.js';
 // Load environment variables FIRST before any other imports
 dotenv.config();
+tokenBudget.logLimits();
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
@@ -125,10 +127,14 @@ async function processQueue() {
         console.log(`🔄 Processing queued job: ${job.id} for ${job.location}${retryInfo}`);
         
         try {
-          const insights = await generateMarketInsights(job.location, job.userId, job.id);
+          const { insights, failedSections } = await generateMarketInsights(job.location, job.userId, job.id);
           await storeJobResult(job.id, insights);
           await completeJob(job.id);
-          mockDbCache.set(job.location); // mark location as cached
+          if (failedSections.length === 0) {
+            mockDbCache.set(job.location); // only cache fully complete results
+          } else {
+            console.warn(`⚠️ Job ${job.id} partial: ${failedSections.join(', ')} failed — skipping cache`);
+          }
           console.log(`✅ Job ${job.id} completed successfully`);
         } catch (jobError: any) {
           // Handle quota exceeded - pause queue and fail job

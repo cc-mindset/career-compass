@@ -247,7 +247,7 @@ Return ONLY valid JSON with NO markdown formatting.`;
  */
 export async function generateMarketInsights(
   location: string, _userId: string, jobId?: string
-): Promise<MarketInsightsData> {
+): Promise<{ insights: MarketInsightsData; failedSections: string[] }> {
   const sectionStates: Record<SectionName, SectionState> = {
     marketReport: { status: 'idle' },
     industryTrends: { status: 'idle' },
@@ -357,7 +357,7 @@ export async function generateMarketInsights(
         logger.warn('Failed to write temp file', fsErr);
       }
 
-      return combinedInsights;
+      return { insights: combinedInsights, failedSections };
     } catch (error) {
       const err = error as Error;
       logger.error(`Pipeline error for ${location}:`, err.message);

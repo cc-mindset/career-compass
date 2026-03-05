@@ -237,18 +237,45 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         case 'job_complete':
           console.log('[MarketInsights] \u2713 Job complete');
           updateServerAvailable(true);
+          // Resolve any sections still in loading — succeeded ones get data, failed ones get error
+          if (payload.failedSections?.length) {
+            setSections(prev => {
+              const next = { ...prev };
+              (payload.failedSections as string[]).forEach(name => {
+                const key = name as keyof SectionsState;
+                if (next[key]?.status === 'loading') {
+                  next[key] = { status: 'error', error: 'Section could not be generated' };
+                }
+              });
+              return next;
+            });
+          }
           setGenerateState({
             status: 'success',
             data: { success: true, insights: payload.insights },
             error: undefined,
           });
           setLoadingStage('complete');
-          setProgressText('Insights ready');
+          setProgressText(
+            payload.failedSections?.length
+              ? `Partial results — ${(payload.failedSections as string[]).length} section(s) unavailable`
+              : 'Insights ready'
+          );
           setActiveJobId(null);
           break;
 
         case 'job_error':
-          console.error('[MarketInsights] \u2717 Job error:', payload.error);
+          console.error('[MarketInsights] ✗ Job error:', payload.error);
+          // Resolve any sections still stuck in loading
+          setSections(prev => {
+            const next = { ...prev };
+            (Object.keys(next) as (keyof SectionsState)[]).forEach(key => {
+              if (next[key]?.status === 'loading') {
+                next[key] = { status: 'error', error: payload.error || 'Failed to generate' };
+              }
+            });
+            return next;
+          });
           setGenerateState({
             status: 'error',
             error: payload.error,
@@ -279,8 +306,18 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
 
     socket.on('progress', handleProgress);
 
+    // On reconnect, re-subscribe to the active job — socket gets new ID and loses room membership
+    const handleReconnect = () => {
+      if (activeJobId) {
+        console.log(`[MarketInsights] Socket reconnected — re-subscribing to job:${activeJobId}`);
+        socket.emit('subscribe', activeJobId);
+      }
+    };
+    socket.on('connect', handleReconnect);
+
     return () => {
       socket.off('progress', handleProgress);
+      socket.off('connect', handleReconnect);
     };
   }, [activeJobId]);
 
