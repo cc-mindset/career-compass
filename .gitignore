@@ -58,6 +58,7 @@ coverage/
 *.lcov
 
 # nyc test coverage
+temp_auto_push.bat
 .nyc_output
 
 # Dependency directories
@@ -99,7 +100,6 @@ tmp/
 temp/
 
 # IDE and editor files
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -120,3 +120,5 @@ __tests__/__snapshots__/
 # Misc
 *.tsbuildinfo
 
+.gitignore
+temp_interactive_push.bat

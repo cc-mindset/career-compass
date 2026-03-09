@@ -1,5 +1,6 @@
+import pLimit from 'p-limit';
 import { pineconeClient } from '../lib/pinecone.js';
-import { openaiClient, RateLimitError, QuotaExceededError } from '../lib/openai.js';
+import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 
@@ -7,6 +8,7 @@ interface RetrieveOptions {
   namespaces?: string[];
   topKPerNamespace?: Record<string, number>;
   useCache?: boolean;
+  useRetrievalCache?: boolean; // explicit override for Pinecone/embedding cache only
 }
 
 interface MatchMetadata {
@@ -44,7 +46,8 @@ interface RAGOptions {
   namespaces?: string[];
   topKPerNamespace?: Record<string, number>;
   responseFormat?: 'json' | 'text';
-  useCache?: boolean;
+  useCache?: boolean;           // controls LLM generation result caching
+  useRetrievalCache?: boolean;  // controls Pinecone/embedding caching (defaults to useCache)
   contextFormatter?: ContextFormatter;
   cacheTTL?: number;
   retrievalQuery?: string;
@@ -274,8 +277,8 @@ async function generateSingleResponse(
         return response;
       }
     } catch (error) {
-      // Don't retry on rate limit or quota errors - propagate immediately
-      if (error instanceof RateLimitError || error instanceof QuotaExceededError) {
+      // Don't retry on rate limit, quota, or timeout errors — propagate immediately
+      if (error instanceof RateLimitError || error instanceof QuotaExceededError || error instanceof ConnectionTimeoutError) {
         logger.error(`🚫 ${error.name}: ${error.message} - Not retrying`);
         throw error;
       }
@@ -319,11 +322,15 @@ export async function generateMultipleWithSharedContext(
     topKPerNamespace = { 'news-data': 12, 'bls-data': 15, 'reports-data': 10 },
     responseFormat = 'json',
     useCache = true,
+    useRetrievalCache,        // falls back to useCache if not explicitly set
     contextFormatter = formatGenericContext,
     cacheTTL = 24 * 60 * 60 * 1000,
     retrievalQuery,
     onSectionComplete,
   } = options;
+
+  // Pinecone/embedding cache can be controlled independently of LLM generation cache
+  const pineconeCache = useRetrievalCache ?? useCache;
 
   try {
     logger.info(`🤖 Generating ${prompts.length} responses from shared context`);
@@ -332,7 +339,7 @@ export async function generateMultipleWithSharedContext(
     const contextCacheKey = cache.generateKey('context-shared', ...namespaces, ...prompts.map(p => p.label));
     let context: Context;
     
-    if (useCache) {
+    if (pineconeCache) {
       const cachedContext = cache.get<Context>(contextCacheKey);
       if (cachedContext) {
         logger.info(`✓ Using cached shared context for ${prompts.length} prompts`);
@@ -340,21 +347,26 @@ export async function generateMultipleWithSharedContext(
       } else {
         logger.info('📚 Retrieving shared context from Pinecone...');
         const queryText = retrievalQuery || prompts[0]?.query || 'general query';
-        context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache });
+        context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache: pineconeCache });
         cache.set(contextCacheKey, context, 60 * 60 * 1000); // 1 hour
       }
     } else {
       const queryText = retrievalQuery || prompts[0]?.query || 'general query';
-      context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache });
+      context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache: pineconeCache });
     }
 
     // Step 2: Format context ONCE using provided formatter
     const formattedContext = contextFormatter(context);
     logger.info('✓ Context formatted for LLM');
 
-    // Step 3: Generate responses in PARALLEL with streaming callbacks
+    // Step 3: Generate responses in PARALLEL with concurrency cap
+    // Max concurrent OpenAI calls per job is capped via env var (default 3)
+    const concurrency = parseInt(process.env.OPENAI_MAX_CONCURRENT || '3');
+    const limit = pLimit(concurrency);
+    logger.info(`🔀 Section concurrency: ${concurrency} (${prompts.length} sections)`);
+
     const results: Record<string, Record<string, unknown> | string> = {};
-    const generationPromises = prompts.map(async (prompt) => {
+    const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
         const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix, systemPrompt.substring(0, 50));
         
@@ -390,7 +402,7 @@ export async function generateMultipleWithSharedContext(
         if (onSectionComplete) onSectionComplete(prompt.label, null, err.message);
         throw error;
       }
-    });
+    }));
 
     await Promise.allSettled(generationPromises);
     logger.info(`✓ All ${prompts.length} sections processed`);
