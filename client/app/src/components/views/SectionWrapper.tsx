@@ -57,5 +57,5 @@ export const SectionWrapper: React.FC<SectionWrapperProps> = ({
     return <>{children}</>;
   }
 
-  return null;
+  return <>{children}</>;
 };
