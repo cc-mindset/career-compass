@@ -235,7 +235,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         updateServerAvailable(false);
         setGenerateState((prev) => ({
           ...prev,
-          status: "idlle",
+          status: "idle",
           error: undefined,
         }));
         setSections({
