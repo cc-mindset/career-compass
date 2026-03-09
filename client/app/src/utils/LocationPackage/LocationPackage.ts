@@ -17,7 +17,11 @@ export const buildLocations = (): LocationOption[] => {
         return (
           !name.includes("county") &&
           !name.includes("parish") &&
-          !name.includes("borough")
+          !name.includes("borough") &&
+    !name.includes("province") &&
+    !name.includes("region") &&
+    city.stateCode !== undefined && // must have a state/province code = it's a city
+    city.name !== city.stateCode    // name shouldn't equal its own state code
         );
       })
       .map((city) => ({
