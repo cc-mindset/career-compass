@@ -247,7 +247,7 @@ Return ONLY valid JSON with NO markdown formatting.`;
  */
 export async function generateMarketInsights(
   location: string, _userId: string, jobId?: string
-): Promise<MarketInsightsData> {
+): Promise<{ insights: MarketInsightsData; failedSections: string[] }> {
   const sectionStates: Record<SectionName, SectionState> = {
     marketReport: { status: 'idle' },
     industryTrends: { status: 'idle' },
@@ -310,9 +310,9 @@ export async function generateMarketInsights(
           namespaces: ['bls-data', 'news-data', 'reports-data'],
           topKPerNamespace: { 'bls-data': 15, 'news-data': 12, 'reports-data': 10 },
           responseFormat: 'json',
-          useCache: true,
+          useCache: false,           // LLM generation result cache OFF — handled by mockDbCache (→ DB later)
+          useRetrievalCache: true,     // Pinecone/embedding namespace cache ON — avoids redundant vector DB calls
           contextFormatter: formatMarketInsightsContext,
-          cacheTTL: 24 * 60 * 60 * 1000,
           retrievalQuery: `market insights for ${location}`,
           onSectionComplete,
         }
@@ -357,7 +357,7 @@ export async function generateMarketInsights(
         logger.warn('Failed to write temp file', fsErr);
       }
 
-      return combinedInsights;
+      return { insights: combinedInsights, failedSections };
     } catch (error) {
       const err = error as Error;
       logger.error(`Pipeline error for ${location}:`, err.message);

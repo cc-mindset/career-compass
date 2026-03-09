@@ -1,11 +1,14 @@
 import dotenv from 'dotenv';
+import { tokenBudget } from './lib/openai.js';
 // Load environment variables FIRST before any other imports
 dotenv.config();
+tokenBudget.logLimits();
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import http from 'http';
-import { initializeWebSocket, isWebSocketAvailable } from './lib/websocket.js';
+import { initializeWebSocket, isWebSocketAvailable, emitToJob } from './lib/websocket.js';
+import { mockDbCache } from './utils/mockDbCache.js';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -29,7 +32,7 @@ import {
   retryJob,
   type QueueJob
 } from './lib/redisQueue.js';
-import { RateLimitError, QuotaExceededError } from './lib/openai.js';
+import { RateLimitError, QuotaExceededError, ConnectionTimeoutError } from './lib/openai.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -124,9 +127,14 @@ async function processQueue() {
         console.log(`🔄 Processing queued job: ${job.id} for ${job.location}${retryInfo}`);
         
         try {
-          const insights = await generateMarketInsights(job.location, job.userId, job.id);
+          const { insights, failedSections } = await generateMarketInsights(job.location, job.userId, job.id);
           await storeJobResult(job.id, insights);
           await completeJob(job.id);
+          if (failedSections.length === 0) {
+            mockDbCache.set(job.location); // only cache fully complete results
+          } else {
+            console.warn(`⚠️ Job ${job.id} partial: ${failedSections.join(', ')} failed — skipping cache`);
+          }
           console.log(`✅ Job ${job.id} completed successfully`);
         } catch (jobError: any) {
           // Handle quota exceeded - pause queue and fail job
@@ -140,6 +148,13 @@ async function processQueue() {
             
             await failJob(job.id, `Quota exceeded: ${jobError.message}`);
             await pauseQueue('OpenAI quota exceeded - admin action required', 3600);
+            // Emit fallback mock to client (swap: return last DB-stored insights instead)
+            emitToJob(job.id, 'progress', {
+              type: 'job_fallback',
+              insights: mockDbCache.getMockFallback(job.location),
+              reason: 'OpenAI is at capacity. Showing fallback data — please try again later.',
+              jobId: job.id,
+            });
             continue;
           }
           
@@ -154,12 +169,40 @@ async function processQueue() {
             const requeued = await retryJob(job);
             if (!requeued) {
               await failJob(job.id, `Rate limit exceeded and max retries reached`);
+              // Emit fallback mock to client (swap: return last DB-stored insights instead)
+              emitToJob(job.id, 'progress', {
+                type: 'job_fallback',
+                insights: mockDbCache.getMockFallback(job.location),
+                reason: 'Service is temporarily rate-limited. Showing fallback data — please try again in a few minutes.',
+                jobId: job.id,
+              });
             }
             continue;
           }
           
+          // Handle connection timeout — emit fallback immediately, retry job
+          if (jobError instanceof ConnectionTimeoutError) {
+            console.warn(`⏱️  TIMEOUT: Job ${job.id} timed out. Emitting fallback and requeuing...`);
+            // Always notify the client immediately with fallback
+            emitToJob(job.id, 'progress', {
+              type: 'job_fallback',
+              insights: mockDbCache.getMockFallback(job.location),
+              reason: 'Request timed out. Showing fallback data — your request has been requeued and will retry automatically.',
+              jobId: job.id,
+            });
+            await retryJob(job);
+            continue;
+          }
+
           // Handle other errors - retry if possible
           console.error(`❌ Job ${job.id} failed:`, jobError.message);
+          // Always notify client immediately regardless of requeue status
+          emitToJob(job.id, 'progress', {
+            type: 'job_fallback',
+            insights: mockDbCache.getMockFallback(job.location),
+            reason: 'Something went wrong generating your insights. Showing fallback data — please try again shortly.',
+            jobId: job.id,
+          });
           const requeued = await retryJob(job);
           if (!requeued) {
             await failJob(job.id, jobError.message || 'Unknown error');
@@ -293,7 +336,20 @@ app.post('/api/market-insights/generate', async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'Location cannot be empty' });
     }
 
-    // Try to queue the job
+    // ── Step 1: Check mock DB cache (swap with real DB check later) ──
+    const cacheStatus = mockDbCache.check(sanitizedLocation);
+    if (cacheStatus.hit && cacheStatus.isLTS) {
+      console.log(`📦 Mock DB Cache HIT (LTS): "${sanitizedLocation}" — returning mock cached data`);
+      return res.json({
+        success: true,
+        insights: mockDbCache.getMockInsights(sanitizedLocation),
+        fromCache: true,
+        generated_at: new Date().toISOString(),
+      });
+    }
+
+    // Cache miss or stale → enter queue
+    // ── Step 2: Try to queue the job ──
     const jobId = await enqueueJob(sanitizedLocation, userId || '');
     
     if (jobId) {

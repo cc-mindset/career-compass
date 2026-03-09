@@ -15,6 +15,7 @@ export interface MarketInsightsGenerateResponse {
   message?: string;
   insights?: unknown;
   generated_at?: string;
+  fromCache?: boolean;
 }
 
 interface MarketInsightsContextValue {
@@ -131,6 +132,23 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
       }
 
       const data = (await res.json()) as MarketInsightsGenerateResponse;
+
+      // ── Cache hit: insights returned directly, no WebSocket events will fire ──
+      if (data.fromCache && data.insights) {
+        const insightsData = data.insights as Record<string, unknown>;
+        updateServerAvailable(true);
+        // Resolve all sections immediately from the merged insights object
+        setSections({
+          marketReport: { status: 'success', data: insightsData },
+          industryTrends: { status: 'success', data: insightsData },
+          newsAndCareerIntel: { status: 'success', data: insightsData },
+        });
+        setGenerateState({ status: 'success', data, error: undefined });
+        setLoadingStage('complete');
+        setProgressText('Insights ready (cached)');
+        setActiveJobId(null);
+        return;
+      }
 
       if (data.queued && data.jobId) {
         const jobId = data.jobId;
@@ -337,6 +355,19 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         case "job_complete":
           console.log("[MarketInsights] \u2713 Job complete");
           updateServerAvailable(true);
+          // Resolve any sections still in loading — succeeded ones get data, failed ones get error
+          if (payload.failedSections?.length) {
+            setSections(prev => {
+              const next = { ...prev };
+              (payload.failedSections as string[]).forEach(name => {
+                const key = name as keyof SectionsState;
+                if (next[key]?.status === 'loading') {
+                  next[key] = { status: 'error', error: 'Section could not be generated' };
+                }
+              });
+              return next;
+            });
+          }
           setGenerateState({
             status: "success",
             data: { success: true, insights: payload.insights },
@@ -358,13 +389,39 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           setProgressText(payload.error);
           setActiveJobId(null);
           break;
-      }
+        case 'job_fallback':
+          console.warn('[MarketInsights] ⚠ Fallback data received:', payload.reason);
+          // Show fallback mock data so the user sees something instead of an indefinite spinner
+          setSections({
+            marketReport:     { status: 'success', data: payload.insights },
+            industryTrends:   { status: 'success', data: payload.insights },
+            newsAndCareerIntel: { status: 'success', data: payload.insights },
+          });
+          setGenerateState({
+            status: 'success',
+            data: { success: true, insights: payload.insights },
+            error: undefined,
+          });
+          setLoadingStage('complete');
+          setProgressText(payload.reason || 'Service temporarily unavailable — showing fallback data');
+          setActiveJobId(null);
+          break;      }
     };
 
     socket.on("progress", handleProgress);
 
+    // On reconnect, re-subscribe to the active job — socket gets new ID and loses room membership
+    const handleReconnect = () => {
+      if (activeJobId) {
+        console.log(`[MarketInsights] Socket reconnected — re-subscribing to job:${activeJobId}`);
+        socket.emit('subscribe', activeJobId);
+      }
+    };
+    socket.on('connect', handleReconnect);
+
     return () => {
-      socket.off("progress", handleProgress);
+      socket.off('progress', handleProgress);
+      socket.off('connect', handleReconnect);
     };
   }, [activeJobId]);
 

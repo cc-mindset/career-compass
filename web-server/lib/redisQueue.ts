@@ -12,6 +12,8 @@ export interface QueueJob {
 const QUEUE_NAME = 'market_insights_queue';
 const PROCESSING_SET = 'market_insights_processing';
 const QUEUE_PAUSED_KEY = 'market_insights_queue_paused';
+const INFLIGHT_KEY = 'location_inflight';    // dedup: normalizedLocation → jobId
+const JOB_LOCATION_KEY = 'job_location';     // reverse lookup: jobId → location (for cleanup)
 const MAX_RETRIES = 2; // Maximum retry attempts before marking as failed
 
 /**
@@ -25,6 +27,16 @@ export async function enqueueJob(location: string, userId: string): Promise<stri
 
   try {
     const redis = getRedisClient();
+
+    // ── Location dedup: return existing jobId if same location is already in-flight ──
+    const normalizedLoc = location.toLowerCase().trim();
+    const dedupKey = `${INFLIGHT_KEY}:${normalizedLoc}`;
+    const existingJobId = await redis.get(dedupKey);
+    if (existingJobId) {
+      logger.info(`♻️  Dedup: "${location}" already in-flight as job ${existingJobId}`);
+      return existingJobId;
+    }
+
     const jobId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const job: QueueJob = {
       id: jobId,
@@ -34,6 +46,11 @@ export async function enqueueJob(location: string, userId: string): Promise<stri
     };
 
     await redis.rPush(QUEUE_NAME, JSON.stringify(job));
+    // Store inflight dedup key (30 min TTL — cleared earlier by completeJob/failJob)
+    await redis.set(dedupKey, jobId, { EX: 1800 });
+    // Reverse lookup so completeJob/failJob can clean up without needing location param
+    await redis.set(`${JOB_LOCATION_KEY}:${jobId}`, normalizedLoc, { EX: 1800 });
+
     logger.info(`✓ Job queued: ${jobId} for ${location}`);
     return jobId;
   } catch (error) {
@@ -75,6 +92,12 @@ export async function completeJob(jobId: string): Promise<void> {
   try {
     const redis = getRedisClient();
     await redis.sRem(PROCESSING_SET, jobId);
+    // Clean up dedup key so the location can be re-queued fresh
+    const loc = await redis.get(`${JOB_LOCATION_KEY}:${jobId}`);
+    if (loc) {
+      await redis.del(`${INFLIGHT_KEY}:${loc}`);
+      await redis.del(`${JOB_LOCATION_KEY}:${jobId}`);
+    }
     logger.info(`✓ Job completed: ${jobId}`);
   } catch (error) {
     logger.error('Failed to complete job:', error);
@@ -134,6 +157,12 @@ export async function failJob(jobId: string, reason: string): Promise<void> {
   try {
     const redis = getRedisClient();
     await redis.sRem(PROCESSING_SET, jobId);
+    // Clean up dedup key so the location can be re-queued
+    const loc = await redis.get(`${JOB_LOCATION_KEY}:${jobId}`);
+    if (loc) {
+      await redis.del(`${INFLIGHT_KEY}:${loc}`);
+      await redis.del(`${JOB_LOCATION_KEY}:${jobId}`);
+    }
     logger.error(`❌ Job failed: ${jobId} - Reason: ${reason}`);
   } catch (error) {
     logger.error('Failed to mark job as failed:', error);
