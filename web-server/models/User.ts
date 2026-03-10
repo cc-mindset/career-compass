@@ -1,53 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
-
-interface ILocation {
-  formatted?: string;
-  city?: string;
-  lat?: number;
-  lng?: number;
-}
-
-interface IProject {
-  name?: string;
-  description?: string;
-  technologies?: string[];
-}
-
-interface IExperience {
-  title?: string;
-  company?: string;
-  duration?: string;
-  description?: string;
-}
-
-interface IEducation {
-  degree?: string;
-  institution?: string;
-  year?: string;
-}
-
-interface IProfile {
-  name?: string;
-  university?: string;
-  major?: string;
-  skills?: string[];
-  projects?: IProject[];
-  experience?: IExperience[];
-  education?: IEducation[];
-}
-
-interface IResume {
-  fileName?: string;
-  fileUrl?: string;
-  uploadedAt?: Date;
-  content?: string;
-}
-
-interface IPreferences {
-  industry?: string;
-  experienceLevel?: string;
-  notifications?: boolean;
-}
+import { ILocation, IPreferences, IProfile, IResume } from '../types/user';
 
 export interface IUser extends Document {
   clerkId: string;
@@ -149,4 +101,5 @@ userSchema.virtual('fullName').get(function(this: IUser) {
   return `${this.firstName || ''} ${this.lastName || ''}`.trim();
 });
 
-export default mongoose.model<IUser>('User', userSchema);
+const User = mongoose.model<IUser>('User', userSchema);
+export default User;
