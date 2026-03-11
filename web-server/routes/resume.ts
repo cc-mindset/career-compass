@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import multer from "multer";
-import User from "../models/user";
+import User from "../db/models/user";
 import { parseResume } from "../services/resumeParser";
 
 const resumeRouter = express.Router();

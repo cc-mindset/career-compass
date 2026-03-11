@@ -6,7 +6,7 @@ let io: Server | null = null;
 let isWebSocketEnabled = false;
 
 /**
- * Initialize WebSocket server (call once in server.ts)
+ * Initialize WebSocket server (call once in server/index.ts)
  * Returns true if successful, false if failed (non-blocking)
  */
 export function initializeWebSocket(httpServer: HttpServer): boolean {

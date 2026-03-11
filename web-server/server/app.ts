@@ -1,9 +1,9 @@
 import express, { Request, Response } from "express";
-import { corsCheck } from "./middlewares/cors";
-import userRouter from "./routes/user";
-import marketInsightRouter from "./routes/marketInsight";
-import testResumeRouter from "./routes/testResume";
-import resumeRouter from "./routes/resume";
+import { corsCheck } from "../middlewares/cors";
+import userRouter from "../routes/user";
+import marketInsightRouter from "../routes/marketInsight";
+import testResumeRouter from "../routes/testResume";
+import resumeRouter from "../routes/resume";
 
 const app = express();
 

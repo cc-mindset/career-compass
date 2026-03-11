@@ -1,16 +1,16 @@
 import dotenv from "dotenv";
-import { tokenBudget } from "./lib/openai.js";
+import { tokenBudget } from "../lib/openai.js";
 
 // Load environment variables FIRST before any other imports
 dotenv.config();
 tokenBudget.logLimits();
 
 import http from "http";
-import { initializeWebSocket } from "./lib/websocket.js";
-import { connectRedis } from "./lib/redis.js";
-import { app } from "./app";
-import { mongodbClient } from "./db/controller.js";
-import { processQueue } from "./utils/serverQueue.js";
+import { initializeWebSocket } from "../lib/websocket.js";
+import { connectRedis } from "../lib/redis.js";
+import { app } from "./app.js";
+import { mongodbClient } from "../db/controller.js";
+import { processQueue } from "../utils/serverQueue.js";
 
 const server = http.createServer(app);
 

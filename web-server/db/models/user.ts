@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
-import { ILocation, IPreferences, IProfile, IResume } from '../types/user';
+import { ILocation, IPreferences, IProfile, IResume } from '../../types/user';
 
 export interface IUser extends Document {
   clerkId: string;

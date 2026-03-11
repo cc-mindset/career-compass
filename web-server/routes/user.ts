@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import User from "../models/user";
+import User from "../db/models/user";
 const userRouter = express.Router();
 
 // Save location endpoint
