@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile } from '../../utils/types/types';
+import { UserProfile } from '../../types';
 import { getCareerSuggestions } from '../../providers/gemini/geminiService';
 import {
   CAREER_STAGE_LABELS,
@@ -10,7 +10,7 @@ import {
 } from '../../consts/careerIntelContent';
 import { Target, Lightbulb, ChevronRight, BrainCircuit, GraduationCap, Briefcase, Globe, Sparkles, ClipboardList, Library } from 'lucide-react';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
-import { SectionWrapper } from './SectionWrapper';
+import { SectionWrapper } from '../../components/section-wrapper';
 
 interface CareerIntelViewProps {
   user: UserProfile;

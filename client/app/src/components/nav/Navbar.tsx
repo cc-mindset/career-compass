@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Bell, ChevronDown, Briefcase } from 'lucide-react';
-import { UserProfile } from '../../utils/types/types';
+import { UserProfile } from '../../types';
 
 interface NavbarProps {
   user: UserProfile;

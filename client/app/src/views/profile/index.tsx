@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserProfile } from '../../utils/types/types';
+import { UserProfile } from '../../types';
 import { MapPin, Linkedin, Twitter, Github, CheckCircle2, Newspaper, GraduationCap, Lightbulb, Compass, Zap } from 'lucide-react';
 import { StatCard } from '../../ui-kit';
 

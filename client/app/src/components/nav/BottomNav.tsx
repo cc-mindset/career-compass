@@ -1,6 +1,6 @@
 import React from 'react';
 import { LayoutGrid, Sparkles, BarChart3, Settings, User } from 'lucide-react';
-import { AppView } from '../../utils/types/types';
+import { AppView } from '../../types';
 
 const MOBILE_NAV_ITEMS: { id: AppView; label: string; icon: React.ElementType }[] = [
   { id: 'market-insights', label: 'Insights', icon: LayoutGrid },

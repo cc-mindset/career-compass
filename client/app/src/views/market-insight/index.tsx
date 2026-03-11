@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../utils/types/types';
-import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA, FALLBACK_EXECUTIVE_SUMMARY_BRIEF, FALLBACK_LABOUR_MARKET_OVERVIEW, FALLBACK_KEY_STATS, FALLBACK_MAJOR_DRIVERS, FALLBACK_MARKET_HEALTH, FALLBACK_CITY_VS_REGION } from '../../consts/constants';
+import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../types';
+import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA, FALLBACK_EXECUTIVE_SUMMARY_BRIEF, FALLBACK_LABOUR_MARKET_OVERVIEW, FALLBACK_KEY_STATS, FALLBACK_MAJOR_DRIVERS, FALLBACK_MARKET_HEALTH, FALLBACK_CITY_VS_REGION } from '../../consts';
 import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench, Loader2, Newspaper } from 'lucide-react';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
-import { SectionWrapper } from './SectionWrapper';
+import { SectionWrapper } from '../../components/section-wrapper';
 
 interface MarketInsightViewProps {
   user: UserProfile;
@@ -865,7 +865,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
                 onTouchEnd={onTouchEnd}
                 className="flex overflow-x-auto gap-4 md:gap-6 pb-6 px-2 hide-scrollbar snap-x snap-mandatory md:snap-none"
               >
-                {MOCK_NEWS.map((article, index) => (
+                {MOCK_NEWS.map((article) => (
                   <div 
                     key={article.id} 
                     className="min-w-full md:min-w-[45%] lg:min-w-[calc(33.333%-1rem)] snap-start"
