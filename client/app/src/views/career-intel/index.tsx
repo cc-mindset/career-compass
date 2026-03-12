@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { UserProfile } from '../../types';
-import { getCareerSuggestions } from '../../providers/gemini/geminiService';
 import {
   CAREER_STAGE_LABELS,
   GUIDANCE_BY_STAGE,
+  IMPACT_ORDER,
   RECOMMENDED_ACTIONS,
   type CareerStageId,
   type ImpactLevel,
 } from '../../consts/careerIntelContent';
-import { Target, Lightbulb, ChevronRight, BrainCircuit, GraduationCap, Briefcase, Globe, Sparkles, ClipboardList, Library } from 'lucide-react';
+import { Target, ChevronRight, GraduationCap, Briefcase, Globe, Sparkles, ClipboardList, Library } from 'lucide-react';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
 import { SectionWrapper } from '../../components/section-wrapper';
 
@@ -26,18 +26,11 @@ const IMPACT_STYLES: Record<ImpactLevel, { pill: string }> = {
   low: { pill: 'border-indigo-500/30 text-indigo-600 bg-indigo-50' },
 };
 
-const IMPACT_ORDER: Record<ImpactLevel, number> = { high: 0, medium: 1, low: 2 };
-const SORTED_RECOMMENDED_ACTIONS = [...RECOMMENDED_ACTIONS].sort(
-  (a, b) => IMPACT_ORDER[a.impact] - IMPACT_ORDER[b.impact]
-);
-
 const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [guidanceStage, setGuidanceStage] = useState<CareerStageId>('new-graduates');
   const [expandedActionIdx, setExpandedActionIdx] = useState<number | null>(null);
   
-  const { generateState, sections, retrySection } = useMarketInsightsState();
+  const { sections, retrySection } = useMarketInsightsState();
   // Read from per-section data directly (available on section_success, not job_complete)
   const newsIntelData = sections.newsAndCareerIntel.data as any;
   

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, NewsArticle, AppView, RecentNewsArticle } from '../../types';
 import { MOCK_NEWS, TREND_REPORTS, HIGH_GROWTH_DATA, AT_RISK_DATA, TOP_SKILLS_DATA, MARKET_RISKS_DATA, RECENT_NEWS_DATA, FALLBACK_EXECUTIVE_SUMMARY_BRIEF, FALLBACK_LABOUR_MARKET_OVERVIEW, FALLBACK_KEY_STATS, FALLBACK_MAJOR_DRIVERS, FALLBACK_MARKET_HEALTH, FALLBACK_CITY_VS_REGION } from '../../consts';
-import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Globe, Gauge, Star, Wrench, Loader2, Newspaper } from 'lucide-react';
+import { Lightbulb, MapPin, ArrowRight, ChevronsRight, TrendingUp, AlertTriangle, Target, Zap, BarChart2, ArrowLeft, Rocket, Shield, RefreshCw, FileText, Activity, Briefcase, GraduationCap, Library, Calendar, Gauge, Star, Wrench, Loader2, Newspaper } from 'lucide-react';
 import { useMarketInsightsState } from '../../state/marketInsights/MarketInsightsContext';
 import { SectionWrapper } from '../../components/section-wrapper';
 
@@ -11,8 +11,8 @@ interface MarketInsightViewProps {
   onNavigate: (view: AppView) => void;
 }
 
-const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate }) => {
-  const { generateStatus, generateError, progressText, generateState, sections, retrySection } = useMarketInsightsState();
+const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
+  const { generateStatus, generateError, progressText, sections, retrySection } = useMarketInsightsState();
   
   // Read from per-section data (available immediately on section_success)
   // instead of generateState.data.insights (only set on job_complete)
@@ -46,7 +46,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user, onNavigate 
   // Backend sends nested structure with categories/quadrants/skills
   // Frontend expects flat array with icon, color, badge properties
   const topSkillsDemand = industryTrendsData?.top_skills_demand?.categories 
-    ? industryTrendsData.top_skills_demand.categories.flatMap((quadrant: any, qIdx: number) => {
+    ? industryTrendsData.top_skills_demand.categories.flatMap((quadrant: any) => {
         // Map quadrant names to UI styling
         const quadrantStyles: Record<string, any> = {
           'Emerging Stars': { color: 'border-emerald-200', badge: 'bg-indigo-600 text-white', icon: Rocket, iconColor: 'bg-emerald-500' },
