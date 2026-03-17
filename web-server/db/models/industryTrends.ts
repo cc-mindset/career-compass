@@ -23,7 +23,7 @@ export interface IIndustryTrend extends Document {
   updatedAt?: Date;
 }
 
-const highGrowthSectorSchema = new Schema<GrowthSector>({
+const growthSectorSchema = new Schema<GrowthSector>({
   sector: { type: String, required: true },
   growth_outlook: { type: String, required: true },
   example_roles: [{ type: String, required: true }],
@@ -67,7 +67,7 @@ const marketRiskSchema = new Schema<MarketRisk>({
 });
 
 const industryTrendDataSchema = new Schema<IndustryTrendData>({
-  high_growth_sectors: [highGrowthSectorSchema],
+  growth_sectors: [growthSectorSchema],
   at_risk_sectors: [atRiskSectorSchema],
   top_skills_demand: topSkillsDemandSchema,
   market_risks: [marketRiskSchema],

@@ -42,7 +42,7 @@ export interface MarketRisk {
 }
 
 export interface IndustryTrendData {
-  high_growth_sectors: GrowthSector[];
+  growth_sectors: GrowthSector[];
   at_risk_sectors: AtRiskSector[];
   top_skills_demand: TopSkillsDemand;
   market_risks: MarketRisk[];
