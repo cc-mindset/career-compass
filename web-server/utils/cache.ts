@@ -1,22 +1,5 @@
+import { CacheEntry, CacheStats } from '../types/cache.js';
 import { logger } from './logger.js';
-
-interface CacheEntry<T> {
-  value: T;
-  expiresAt: number | null;
-  createdAt: number;
-}
-
-interface CacheStats {
-  total: number;
-  active: number;
-  expired: number;
-}
-
-interface TTLDefaults {
-  marketInsights: number;
-  pineconeResults: number;
-  embeddings: number;
-}
 
 /**
  * Simple in-memory cache with TTL support
@@ -24,15 +7,15 @@ interface TTLDefaults {
  */
 class Cache {
   private store: Map<string, CacheEntry<unknown>>;
-  private ttlDefaults: TTLDefaults;
+  // private ttlDefaults: TTLDefaults;
 
   constructor() {
     this.store = new Map();
-    this.ttlDefaults = {
-      marketInsights: 24 * 60 * 60 * 1000, // 24 hours
-      pineconeResults: 60 * 60 * 1000,      // 1 hour
-      embeddings: 7 * 24 * 60 * 60 * 1000,  // 7 days
-    };
+    // this.ttlDefaults = {
+    //   marketInsights: 24 * 60 * 60 * 1000, // 24 hours
+    //   pineconeResults: 60 * 60 * 1000,      // 1 hour
+    //   embeddings: 7 * 24 * 60 * 60 * 1000,  // 7 days
+    // };
   }
 
   /**

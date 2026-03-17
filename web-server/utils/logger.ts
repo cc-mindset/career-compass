@@ -44,7 +44,7 @@ class Logger {
   /**
    * Format log message with color
    */
-  private formatMessage(level: LogLevel, message: string, ...args: unknown[]): string {
+  private formatMessage(level: LogLevel, message: string, ..._args: unknown[]): string {
     const timestamp = this.getTimestamp();
     const colorMap: Record<LogLevel, string> = {
       DEBUG: colors.dim,

@@ -1,27 +1,32 @@
 import React, { useState, useRef, useEffect } from "react";
-import { UserProfile } from "../../utils/types/types";
+import { UserProfile } from "../../types";
 import { useMarketInsightsState } from "../../state/marketInsights/MarketInsightsContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { getSocket } from "../../providers/socket/socket";
-import { Briefcase, MapPin, ChevronRight, User, Building2, Sparkles, Search, Check, ArrowLeft, ArrowRight, Target, BarChart3, GraduationCap, X, Plus, Upload, FileText } from "lucide-react";
-import { buildLocations } from "../../utils/LocationPackage/LocationPackage";
-import professions from "professions";
-import { techRolesRaw } from "../../consts/techRolesRaw";
-import { PRIORITY_CITIES } from "../../consts/techRolesRaw";
+import {
+  Briefcase,
+  MapPin,
+  ChevronRight,
+  User,
+  Search,
+  Check,
+  ArrowLeft,
+  ArrowRight,
+  Target,
+  BarChart3,
+  GraduationCap,
+  Plus,
+  Upload,
+  FileText,
+} from "lucide-react";
+import { buildLocations } from "../../utils/location-package";
+import { PRIORITY_CITIES, TECH_ROLES } from "../../consts/techRolesRaw";
+import FeatureHoverItem from "./feature-hover-item";
+import { StepConfig } from "../../types/landing";
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
 }
-
-const techRoleSet = new Set(techRolesRaw.map((r) => r.toLowerCase()));
-const otherRoles = professions
-  .filter((r: string) => !techRoleSet.has(r.toLowerCase()))
-  .sort((a: string, b: string) => a.localeCompare(b));
-
-const techRoles = [
-  ...techRolesRaw.sort((a, b) => a.localeCompare(b)), // tech roles first
-  ...otherRoles, // everything else after
-];
 
 const allLocations = buildLocations().map((l) => l.label); //
 const remainingLocations = allLocations.filter(
@@ -31,20 +36,41 @@ const remainingLocations = allLocations.filter(
 // Mock data for searchable dropdowns
 const OPTIONS = {
   locations: [...PRIORITY_CITIES, ...remainingLocations],
-  roles: techRoles,
-  seniority: [ "Junior (0-2 Yrs)", "Mid-Level (3-5 Yrs)", "Senior (6-9 Yrs)", "Lead (10+ Yrs)", "Director / Executive" ],
-  employers: [ "Google", "Meta", "Tesla", "Tech Corp Inc.", "Stealth Startup", "Amazon", "Microsoft", "NVIDIA", "OpenAI" ],
-  skills: [ "Figma", "React", "TypeScript", "Python", "Machine Learning", "Strategic Thinking", "Product Strategy", "User Research", "Agile Methodology", "Tailwind CSS", "Node.js", "GraphQL", "AWS" ],
+  roles: TECH_ROLES,
+  seniority: [
+    "Junior (0-2 Yrs)",
+    "Mid-Level (3-5 Yrs)",
+    "Senior (6-9 Yrs)",
+    "Lead (10+ Yrs)",
+    "Director / Executive",
+  ],
+  employers: [
+    "Google",
+    "Meta",
+    "Tesla",
+    "Tech Corp Inc.",
+    "Stealth Startup",
+    "Amazon",
+    "Microsoft",
+    "NVIDIA",
+    "OpenAI",
+  ],
+  skills: [
+    "Figma",
+    "React",
+    "TypeScript",
+    "Python",
+    "Machine Learning",
+    "Strategic Thinking",
+    "Product Strategy",
+    "User Research",
+    "Agile Methodology",
+    "Tailwind CSS",
+    "Node.js",
+    "GraphQL",
+    "AWS",
+  ],
 };
-
-interface StepConfig {
-  key: string;
-  label: string;
-  placeholder: string;
-  icon: React.ReactNode;
-  options: string[];
-  allowCustom?: boolean;
-}
 
 const STEPS: StepConfig[] = [
   {
@@ -640,95 +666,6 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
           />
         </div>
       </main>
-    </div>
-  );
-};
-
-interface FeatureHoverItemProps {
-  index: number;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  isOpen: boolean;
-  onToggle: () => void;
-}
-
-const FeatureHoverItem: React.FC<FeatureHoverItemProps> = ({
-  index,
-  icon,
-  title,
-  description,
-  isOpen,
-  onToggle,
-}) => {
-  const featureRef = useRef<HTMLDivElement>(null);
-
-  // Shift popup towards center on mobile for first (0) and third (2) icons
-  const getMobilePosition = () => {
-    if (index === 0) {
-      // First icon: shift right (towards center) - increased shift
-      return "sm:left-1/2 sm:-translate-x-1/2 left-[calc(50%+4rem)] -translate-x-1/2";
-    } else if (index === 2) {
-      // Third icon: shift left (towards center) - increased shift
-      return "sm:left-1/2 sm:-translate-x-1/2 left-[calc(50%-4rem)] -translate-x-1/2";
-    }
-    return "left-1/2 -translate-x-1/2";
-  };
-
-  // Close popover when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      if (
-        featureRef.current &&
-        !featureRef.current.contains(event.target as Node)
-      ) {
-        if (isOpen) {
-          onToggle();
-        }
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("touchstart", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, [isOpen, onToggle]);
-
-  return (
-    <div ref={featureRef} className="group relative flex flex-col items-center">
-      <button
-        onClick={onToggle}
-        className={`p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[1.75rem] bg-indigo-50 text-indigo-600 border border-indigo-100 transition-all duration-300 cursor-pointer shadow-lg shadow-indigo-600/5 touch-manipulation ${
-          isOpen
-            ? "scale-110 bg-indigo-100"
-            : "hover:scale-110 hover:bg-indigo-100"
-        }`}
-        aria-expanded={isOpen}
-        aria-label={`${title} - ${description}`}
-      >
-        {icon}
-      </button>
-
-      {/* Detail: shown on click (mobile) or hover (desktop) */}
-      <div
-        className={`absolute bottom-full mb-4 sm:mb-6 ${getMobilePosition()} w-64 p-4 sm:p-5 bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xl shadow-indigo-500/10 z-50 transition-all duration-300 ${
-          isOpen
-            ? "opacity-100 visible transform translate-y-0 pointer-events-auto"
-            : "opacity-0 invisible transform translate-y-2 pointer-events-none md:group-hover:opacity-100 md:group-hover:visible md:group-hover:translate-y-0 md:group-hover:pointer-events-auto"
-        }`}
-      >
-        <h4 className="font-bold text-slate-900 mb-1.5 sm:mb-2 text-sm">
-          {title}
-        </h4>
-        <p className="text-sm text-slate-500 font-normal leading-relaxed">
-          {description}
-        </p>
-      </div>
     </div>
   );
 };

@@ -1,6 +1,5 @@
 import React from 'react';
 import Card from '../atom/Card';
-import Button from '../atom/Button';
 import { ChevronRight, Lightbulb } from 'lucide-react';
 
 export interface FeatureCardProps {

@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { NAVIGATION_ITEMS, BOTTOM_NAV_ITEMS, INITIAL_USER } from './consts/constants';
-import { AppView, UserProfile } from './utils/types/types';
+import { INITIAL_USER } from './consts';
+import { AppView, UserProfile } from './types';
 import Sidebar from './components/nav/Sidebar';
 import Navbar from './components/nav/Navbar';
 import BottomNav from './components/nav/BottomNav';
-import MarketInsightView from './components/views/MarketInsightView';
-import ProfileView from './components/views/ProfileView';
-import CareerIntelView from './components/views/CareerIntelView';
-import EcoSimulatorView from './components/views/EcoSimulatorView';
+import MarketInsightView from './views/market-insight';
+import ProfileView from './views/profile';
+import CareerIntelView from './views/career-intel';
+import EcoSimulatorView from './views/eco-simulator';
 import { UnderConstruction } from './ui-kit';
-import LandingPageView from './components/views/LandingPageView';
+import LandingPageView from './views/landing-page';
 import { AppProvider } from './state/contexts/AppContext';
 import { MarketInsightsProvider, useMarketInsightsState } from './state/marketInsights/MarketInsightsContext';
 

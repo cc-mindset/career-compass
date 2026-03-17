@@ -1,7 +1,7 @@
 import React from 'react';
 import { Edit2, MapPin } from 'lucide-react';
-import { AppView, UserProfile } from '../../utils/types/types';
-import { NAVIGATION_ITEMS, BOTTOM_NAV_ITEMS } from '../../consts/constants';
+import { AppView, UserProfile } from '../../types';
+import { NAVIGATION_ITEMS, BOTTOM_NAV_ITEMS } from '../../consts';
 
 interface SidebarProps {
   currentView: AppView;
