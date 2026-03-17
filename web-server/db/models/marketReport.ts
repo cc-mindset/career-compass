@@ -2,8 +2,8 @@ import mongoose, { Document, Schema } from "mongoose";
 import {
   CityVsRegionComparison,
   ComparisonData,
-  ExecutiveSummary,
-  KeyStats,
+  MarketReportSummary,
+  SummaryKeyStats,
   LabourMarketSnapshot,
   MarketHealth,
   MarketReportData,
@@ -19,20 +19,20 @@ export interface IMarketReport extends Document {
   data: MarketReportData;
   status: MarketReportStatus;
   location: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const keyStatsSchema = new Schema<KeyStats>({
+const summaryKeyStatsSchema = new Schema<SummaryKeyStats>({
   strongest_opportunity: { type: String, required: true },
   highest_risk_sector: { type: String, required: true },
   top_skill_demand: { type: String, required: true },
   pivot_necessity: { type: String, required: true },
 });
 
-const executiveSummarySchema = new Schema<ExecutiveSummary>({
+const marketReportSummarySchema = new Schema<MarketReportSummary>({
   overview: { type: String, required: true },
-  key_stats: keyStatsSchema,
+  summary_key_stats: { type: summaryKeyStatsSchema, required: true, _id: false },
 });
 
 const marketHealthSchema = new Schema<MarketHealth>({
@@ -56,14 +56,17 @@ const comparisonDataSchema = new Schema<ComparisonData>({
 
 const cityVsRegionComparisonSchema = new Schema<CityVsRegionComparison>({
   title: { type: String, required: true },
-  data: [comparisonDataSchema],
+  data: { type: [comparisonDataSchema], required: true, default: [] },
 });
 
 const marketReportDataSchema = new Schema<MarketReportData>({
-  executive_summary_brief: { type: String, required: true },
-  executive_summary: executiveSummarySchema,
-  labour_market_snapshot: labourMarketSnapshotSchema,
-  city_vs_region_comparison: cityVsRegionComparisonSchema,
+  market_report_summary_brief: { type: String, required: true },
+  market_report_summary: { type: marketReportSummarySchema, required: true },
+  labour_market_snapshot: { type: labourMarketSnapshotSchema, required: true },
+  city_vs_region_comparison: {
+    type: cityVsRegionComparisonSchema,
+    required: true,
+  },
   report_sources: [{ type: String, required: true }],
 });
 
@@ -86,8 +89,8 @@ const marketReportSchema = new Schema<IMarketReport>(
   },
 );
 
-const MarketReport = mongoose.model<IMarketReport>(
-  "MarketReport",
+const MarketReportLlm = mongoose.model<IMarketReport>(
+  "market_report_llm",
   marketReportSchema,
 );
-export default MarketReport;
+export default MarketReportLlm;

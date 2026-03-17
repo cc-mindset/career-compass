@@ -7,7 +7,7 @@ export interface MarketNewsItem {
   date: string;
 }
 
-export interface StrategiesByProfile {
+export interface StrategiesByExperience {
   new_graduates: string[];
   mid_career_pivoting: string[];
   newcomers_international: string[];
@@ -22,7 +22,7 @@ export interface KeyFinding {
 
 export interface MarketNewsData {
   market_news: MarketNewsItem[];
-  strategies_by_profile: StrategiesByProfile;
+  strategies_by_experience: StrategiesByExperience;
   key_findings: KeyFinding[];
   report_sources: string[];
 }

@@ -1,10 +1,10 @@
 import mongoose, { Document, Schema } from "mongoose";
 import {
   AtRiskSector,
-  HighGrowthSector,
+  GrowthSector,
   IndustryTrendData,
   MarketRisk,
-  Quadrant,
+  SkillCategory,
   Skill,
   TopSkillsDemand,
 } from "../../types/industryTrend";
@@ -19,11 +19,11 @@ export interface IIndustryTrend extends Document {
   data: IndustryTrendData;
   status: IndustryTrendStatus;
   location: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const highGrowthSectorSchema = new Schema<HighGrowthSector>({
+const highGrowthSectorSchema = new Schema<GrowthSector>({
   sector: { type: String, required: true },
   growth_outlook: { type: String, required: true },
   example_roles: [{ type: String, required: true }],
@@ -48,15 +48,15 @@ const skillSchema = new Schema<Skill>({
   so_what: { type: String, required: true },
 });
 
-const quadrantSchema = new Schema<Quadrant>({
-  quadrant: { type: String, required: true },
+const skillCategorySchema = new Schema<SkillCategory>({
+  category: { type: String, required: true },
   description: { type: String, required: true },
-  skills: [skillSchema],
+  skills: { type: [skillSchema], required: true, default: [] },
 });
 
 const topSkillsDemandSchema = new Schema<TopSkillsDemand>({
   title: { type: String, required: true },
-  categories: [quadrantSchema],
+  categories: { type: [skillCategorySchema], required: true, default: [] },
 });
 
 const marketRiskSchema = new Schema<MarketRisk>({
@@ -93,8 +93,8 @@ const industryTrendSchema = new Schema<IIndustryTrend>(
   },
 );
 
-const IndustryTrend = mongoose.model<IIndustryTrend>(
-  "IndustryTrend",
+const IndustryTrendLlm = mongoose.model<IIndustryTrend>(
+  "industry_trend_llm",
   industryTrendSchema,
 );
-export default IndustryTrend;
+export default IndustryTrendLlm;

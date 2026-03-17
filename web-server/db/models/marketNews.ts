@@ -3,7 +3,7 @@ import {
   KeyFinding,
   MarketNewsData,
   MarketNewsItem,
-  StrategiesByProfile,
+  StrategiesByExperience,
 } from "../../types/marketNews";
 
 export enum MarketNewsStatus {
@@ -16,8 +16,8 @@ export interface IMarketNews extends Document {
   data: MarketNewsData;
   status: MarketNewsStatus;
   location: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const marketNewsItemSchema = new Schema<MarketNewsItem>({
@@ -29,10 +29,10 @@ const marketNewsItemSchema = new Schema<MarketNewsItem>({
   date: { type: String, required: true },
 });
 
-const strategiesByProfileSchema = new Schema<StrategiesByProfile>({
-  new_graduates: [{ type: String, required: true }],
-  mid_career_pivoting: [{ type: String, required: true }],
-  newcomers_international: [{ type: String, required: true }],
+const strategiesByExperienceSchema = new Schema<StrategiesByExperience>({
+  new_graduates: { type: [String], required: true, default: [] },
+  mid_career_pivoting: { type: [String], required: true, default: [] },
+  newcomers_international: { type: [String], required: true, default: [] },
 });
 
 const keyFindingSchema = new Schema<KeyFinding>({
@@ -43,9 +43,9 @@ const keyFindingSchema = new Schema<KeyFinding>({
 });
 
 const marketNewsDataSchema = new Schema<MarketNewsData>({
-  market_news: [marketNewsItemSchema],
-  strategies_by_profile: strategiesByProfileSchema,
-  key_findings: [keyFindingSchema],
+  market_news: { type: [marketNewsItemSchema], required: true, default: [] },
+  strategies_by_experience: { type: strategiesByExperienceSchema, required: true },
+  key_findings: { type: [keyFindingSchema], required: true, default: [] },
   report_sources: [{ type: String, required: true }],
 });
 
@@ -68,5 +68,5 @@ const marketNewsSchema = new Schema<IMarketNews>(
   },
 );
 
-const MarketNews = mongoose.model<IMarketNews>("MarketNews", marketNewsSchema);
-export default MarketNews;
+const MarketNewsLlm = mongoose.model<IMarketNews>("market_news_llm", marketNewsSchema);
+export default MarketNewsLlm;

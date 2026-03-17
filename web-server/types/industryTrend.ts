@@ -1,4 +1,4 @@
-export interface HighGrowthSector {
+export interface GrowthSector {
   sector: string;
   growth_outlook: string;
   example_roles: string[];
@@ -23,15 +23,15 @@ export interface Skill {
   so_what: string;
 }
 
-export interface Quadrant {
-  quadrant: string;
+export interface SkillCategory {
+  category: string;
   description: string;
   skills: Skill[];
 }
 
 export interface TopSkillsDemand {
   title: string;
-  categories: Quadrant[];
+  categories: SkillCategory[];
 }
 
 export interface MarketRisk {
@@ -42,7 +42,7 @@ export interface MarketRisk {
 }
 
 export interface IndustryTrendData {
-  high_growth_sectors: HighGrowthSector[];
+  high_growth_sectors: GrowthSector[];
   at_risk_sectors: AtRiskSector[];
   top_skills_demand: TopSkillsDemand;
   market_risks: MarketRisk[];

@@ -1,13 +1,13 @@
-export interface KeyStats {
+export interface SummaryKeyStats {
   strongest_opportunity: string;
   highest_risk_sector: string;
   top_skill_demand: string;
   pivot_necessity: string;
 }
 
-export interface ExecutiveSummary {
+export interface MarketReportSummary {
   overview: string;
-  key_stats: KeyStats;
+  summary_key_stats: SummaryKeyStats;
 }
 
 export interface MarketHealth {
@@ -35,8 +35,8 @@ export interface CityVsRegionComparison {
 }
 
 export interface MarketReportData {
-  executive_summary_brief: string;
-  executive_summary: ExecutiveSummary;
+  market_report_summary_brief: string;
+  market_report_summary: MarketReportSummary;
   labour_market_snapshot: LabourMarketSnapshot;
   city_vs_region_comparison: CityVsRegionComparison;
   report_sources: string[];
