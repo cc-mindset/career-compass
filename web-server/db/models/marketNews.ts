@@ -10,7 +10,7 @@ export enum MarketNewsStatus {
 
 export interface IMarketNews extends Document {
   vars_id: string;
-  data: MarketNewsData;
+  data: MarketNewsData[];
   status: MarketNewsStatus;
   location: string;
   createdAt?: Date;
@@ -29,7 +29,7 @@ const marketNewsDataSchema = new Schema<MarketNewsData>({
 const marketNewsSchema = new Schema<IMarketNews>(
   {
     location: { type: String, required: true },
-    data: marketNewsDataSchema,
+    data: { type: [marketNewsDataSchema], required: true, default: [] },
     vars_id: { type: String, required: true, unique: true },
     status: {
       type: String,
