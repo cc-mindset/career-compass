@@ -1,34 +1,35 @@
-import {createClient} from 'redis';
+import { createClient } from "redis";
 
-const sleep = (ms: number): Promise<void> => new Promise(res => setTimeout(res, ms));
+const sleep = (ms: number): Promise<void> =>
+  new Promise((res) => setTimeout(res, ms));
 let redisAvailable = false;
 
 const redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-    socket: {
-        reconnectStrategy: false //already handling reconnection manually
-    }   
+  url: process.env.REDIS_URL || "redis://localhost:6379",
+  socket: {
+    reconnectStrategy: false, //already handling reconnection manually
+  },
 });
 
-redisClient.on('error', (err) => {
-    console.error('Redis Client Error', err);
+redisClient.on("error", (err) => {
+  console.error("Redis Client Error", err);
 });
 
 export const connectRedis = async (retries = 2) => {
-    // if (!redisClient.isOpen) {
-    //     await redisClient.connect();
-    // }
-    if (redisClient.isOpen) {
-        redisAvailable = true;
-        return true;
-        }
-    for (let i = 1; i <= retries; i++) {
+  // if (!redisClient.isOpen) {
+  //     await redisClient.connect();
+  // }
+  if (redisClient.isOpen) {
+    redisAvailable = true;
+    return true;
+  }
+  for (let i = 1; i <= retries; i++) {
     try {
       await redisClient.connect();
       redisAvailable = true;
       return true;
     } catch (e) {
-    if (i < retries) await sleep(2000);
+      if (i < retries) await sleep(2000);
     }
   }
   redisAvailable = false;
@@ -37,16 +38,15 @@ export const connectRedis = async (retries = 2) => {
 
 export const isRedisAvailable = () => redisAvailable;
 
-
 export const getRedisClient = () => {
-    return redisClient;
-}; 
+  return redisClient;
+};
 
 //not using now but may be useful in future
 export const disconnectRedis = async () => {
-    if (redisClient.isOpen) {
-        await redisClient.disconnect();
-    }
+  if (redisClient.isOpen) {
+    await redisClient.disconnect();
+  }
 };
 export const safeGet = async (key: string) => {
   if (!redisAvailable) return null;
@@ -60,7 +60,7 @@ export const safeGet = async (key: string) => {
 export const safeSet = async (key: string, value: string, ttl: number) => {
   if (!redisAvailable) return null;
   try {
-    await redisClient.set(key, value, { EX: ttl });
+    return await redisClient.set(key, value, { EX: ttl });
   } catch {
     return null;
   }

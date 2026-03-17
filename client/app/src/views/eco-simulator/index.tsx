@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserProfile } from '../../utils/types/types';
+import { UserProfile } from '../../types';
 import { BarChart3, TrendingUp, ShieldCheck, Zap, ChevronRight } from 'lucide-react';
 import { TipCard } from '../../ui-kit';
 

@@ -53,7 +53,7 @@ class PineconeClient {
 
     try {
       this.client = new Pinecone({
-        apiKey: process.env.PINECONE_API_KEY,
+        apiKey: process.env.PINECONE_API_KEY || "",
       });
 
       this.index = this.client.index(this.indexName);
@@ -73,7 +73,7 @@ class PineconeClient {
    * @param {number} topK - Number of results to return
    * @returns {Promise<Array>} Query results with metadata
    */
-  async queryNamespace(namespace: string, queryText: string, topK = 10): Promise<never> {
+  async queryNamespace(namespace: string, queryText: string, _topK = 10): Promise<never> {
     try {
       if (!this.index) await this.initialize();
 

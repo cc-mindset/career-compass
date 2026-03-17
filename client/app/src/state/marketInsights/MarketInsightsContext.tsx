@@ -64,7 +64,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     const appContext = useAppContext();
     setServerAvailable = appContext.setServerAvailable;
   } catch (e) {
-    console.warn("MarketInsightsProvider: AppContext not available");
+    console.warn(`MarketInsightsProvider: AppContext not available ${e || ""}`);
   }
 
   const updateServerAvailable = (available: boolean) => {

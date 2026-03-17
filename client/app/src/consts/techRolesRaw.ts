@@ -1,3 +1,4 @@
+import professions from "professions";
 
 // Your custom tech roles
 export const techRolesRaw = [
@@ -54,4 +55,14 @@ export const PRIORITY_CITIES = [
   'Los Angeles, CA',
   'San Francisco, CA',
   'Washington, DC',
+];
+
+const techRoleSet = new Set(techRolesRaw.map((r) => r.toLowerCase()));
+const otherRoles = professions
+  .filter((r: string) => !techRoleSet.has(r.toLowerCase()))
+  .sort((a: string, b: string) => a.localeCompare(b));
+
+export const TECH_ROLES = [
+  ...techRolesRaw.sort((a, b) => a.localeCompare(b)), // tech roles first
+  ...otherRoles, // everything else after
 ];
