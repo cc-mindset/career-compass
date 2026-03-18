@@ -53,5 +53,5 @@ const careerIntelSchema = new Schema<ICareerIntel>(
     },
 );
 
-const CareerIntelLlm = mongoose.model<ICareerIntel>("career_intel_llm", careerIntelSchema);
-export default CareerIntelLlm;
+const LlmCareerIntel = mongoose.model<ICareerIntel>("llm_career_intel", careerIntelSchema);
+export default LlmCareerIntel;

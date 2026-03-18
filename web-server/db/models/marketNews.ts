@@ -45,5 +45,5 @@ const marketNewsSchema = new Schema<IMarketNews>(
   },
 );
 
-const MarketNewsLlm = mongoose.model<IMarketNews>("market_news_llm", marketNewsSchema);
-export default MarketNewsLlm;
+const LlmMarketNews = mongoose.model<IMarketNews>("llm_market_news", marketNewsSchema);
+export default LlmMarketNews;

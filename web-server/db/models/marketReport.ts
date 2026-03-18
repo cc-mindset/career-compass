@@ -89,8 +89,8 @@ const marketReportSchema = new Schema<IMarketReport>(
   },
 );
 
-const MarketReportLlm = mongoose.model<IMarketReport>(
-  "market_report_llm",
+const LlmMarketReport = mongoose.model<IMarketReport>(
+  "llm_market_report",
   marketReportSchema,
 );
-export default MarketReportLlm;
+export default LlmMarketReport;

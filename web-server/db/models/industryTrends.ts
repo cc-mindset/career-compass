@@ -93,8 +93,8 @@ const industryTrendSchema = new Schema<IIndustryTrend>(
   },
 );
 
-const IndustryTrendLlm = mongoose.model<IIndustryTrend>(
-  "industry_trend_llm",
+const LlmIndustryTrend = mongoose.model<IIndustryTrend>(
+  "llm_industry_trend",
   industryTrendSchema,
 );
-export default IndustryTrendLlm;
+export default LlmIndustryTrend;
