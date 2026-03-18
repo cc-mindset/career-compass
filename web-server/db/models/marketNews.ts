@@ -2,16 +2,12 @@ import mongoose, { Document, Schema } from "mongoose";
 import {
   MarketNewsData,
 } from "../../types/marketNews";
-
-export enum MarketNewsStatus {
-  ACTIVE = "active",
-  INACTIVE = "inactive",
-}
+import { LlmcacheStatus } from "../../constants/db";
 
 export interface IMarketNews extends Document {
   vars_id: string;
   data: MarketNewsData[];
-  status: MarketNewsStatus;
+  status: LlmcacheStatus;
   location: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -33,9 +29,9 @@ const marketNewsSchema = new Schema<IMarketNews>(
     vars_id: { type: String, required: true, unique: true },
     status: {
       type: String,
-      enum: MarketNewsStatus,
+      enum: LlmcacheStatus,
       required: true,
-      default: MarketNewsStatus.ACTIVE,
+      default: LlmcacheStatus.ACTIVE,
     },
   },
   {

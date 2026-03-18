@@ -3,6 +3,13 @@ import { pineconeClient } from '../lib/pinecone.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
+import { getDbCacheKeyForLlmResponse } from '../utils/db.js';
+import { LLM_SECTION_LABELS } from '../constants/index.js';
+import LlmMarketReport from '../db/models/marketReport.js';
+import LlmIndustryTrend from '../db/models/industryTrends.js';
+import { LlmcacheStatus } from '../constants/db.js';
+import LlmMarketNews from '../db/models/marketNews.js';
+import LlmCareerIntel from '../db/models/careerIntel.js';
 
 interface RetrieveOptions {
   namespaces?: string[];
@@ -77,7 +84,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
     // Step 1: Check cache for each namespace individually
     const cachedNamespaces: Record<string, NamespaceContext> = {};
     const namespacesToQuery: string[] = [];
-    
+
     if (useCache) {
       for (const namespace of namespaces) {
         const nsCacheKey = cache.generateKey('context-ns', queryText, namespace);
@@ -88,7 +95,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
           namespacesToQuery.push(namespace);
         }
       }
-      
+
       if (Object.keys(cachedNamespaces).length > 0) {
         logger.info(`✓ Cache hit for ${Object.keys(cachedNamespaces).length}/${namespaces.length} namespaces`);
       }
@@ -106,7 +113,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
     let freshResults: Record<string, { matches?: Array<{ id: string; score?: number; metadata?: Record<string, unknown> }> }> = {};
     if (namespacesToQuery.length > 0 && queryVector) {
       logger.info(`🔍 Querying ${namespacesToQuery.length} uncached namespaces from Pinecone`);
-      
+
       const queries = namespacesToQuery.map(namespace => ({
         namespace,
         vector: queryVector,
@@ -130,7 +137,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
         context.namespaces[namespace] = cachedNamespaces[namespace];
       } else {
         const nsResults = freshResults[namespace];
-        
+
         if (!nsResults || !nsResults.matches) {
           context.namespaces[namespace] = { matches: [], count: 0 };
         } else {
@@ -170,7 +177,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
     }
 
     logger.info(`✓ Retrieved context from ${namespaces.length} namespaces (${Object.keys(cachedNamespaces).length} cached, ${namespacesToQuery.length} fresh)`);
-    
+
     return context;
   } catch (error) {
     logger.error('Error retrieving context:', error);
@@ -185,7 +192,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
  */
 export function formatGenericContext(context: Context): string {
   const sections: string[] = [];
-  
+
   Object.entries(context.namespaces).forEach(([namespace, data]) => {
     if (data.matches.length > 0) {
       sections.push(`=== ${namespace.toUpperCase()} ===\n`);
@@ -194,7 +201,7 @@ export function formatGenericContext(context: Context): string {
       });
     }
   });
-  
+
   return sections.join('\n\n');
 }
 
@@ -205,7 +212,7 @@ export function formatGenericContext(context: Context): string {
  */
 export function formatMarketInsightsContext(context: Context): string {
   const sections: string[] = [];
-  
+
   // Add explicit instruction
   sections.push('=== AVAILABLE DATA SOURCES (ONLY USE THESE) ===\n');
 
@@ -232,7 +239,7 @@ export function formatMarketInsightsContext(context: Context): string {
       sections.push(`[Market ${idx + 1}] ${match.text.substring(0, 500)}...`);
     });
   }
-  
+
   sections.push('\n=== END OF AVAILABLE SOURCES ===');
   sections.push('IMPORTANT: Your report_sources array must ONLY include sources from the three categories above.');
   sections.push('DO NOT add: Career centers, chambers of commerce, job boards (Indeed/Upwork), or meetup groups unless they appear in the content above.');
@@ -252,7 +259,7 @@ async function generateSingleResponse(
   maxRetries: number = 3
 ): Promise<Record<string, unknown> | string> {
   let response: Record<string, unknown> | string;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       if (responseFormat === 'json') {
@@ -261,11 +268,11 @@ async function generateSingleResponse(
           max_tokens: 16000,
           temperature: 0.7,
         });
-        
+
         if (!response || typeof response !== 'object') {
           throw new Error('Invalid JSON response: not an object');
         }
-        
+
         logger.info('📊 Generated JSON response with keys:', Object.keys(response).join(', '));
         return response;
       } else {
@@ -282,21 +289,21 @@ async function generateSingleResponse(
         logger.error(`🚫 ${error.name}: ${error.message} - Not retrying`);
         throw error;
       }
-      
+
       const err = error as Error;
       logger.warn(`⚠️  Generation attempt ${attempt}/${maxRetries} failed:`, err.message);
-      
+
       if (attempt === maxRetries) {
         logger.error('❌ All retry attempts exhausted');
         throw error;
       }
-      
+
       const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
       logger.info(`⏳ Retrying in ${waitTime}ms...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
-  
+
   throw new Error('Failed to generate response');
 }
 
@@ -310,6 +317,60 @@ type SectionCallback = (section: string, result: Record<string, unknown> | strin
 
 interface MultiRAGOptions extends RAGOptions {
   onSectionComplete?: SectionCallback;
+}
+
+export async function cacheLlmResponseToDb(cacheKey: string, response: Record<string, unknown>, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]): Promise<void> {
+  let result;
+  console.log(response, 'caching response to DB', section)
+  let commonCacheData = {
+    vars_id: cacheKey,
+    status: LlmcacheStatus.ACTIVE,
+    location: cacheKey.split(':')?.[1]?.split("__")?.[0] || '',
+  };
+  switch (section) {
+    case LLM_SECTION_LABELS.marketReport:
+      result = await LlmMarketReport.updateOne(
+        { vars_id: cacheKey },
+        { ...commonCacheData, data: response },
+        { upsert: true }
+      );
+      break;
+    case LLM_SECTION_LABELS.industryTrends:
+      result = await LlmIndustryTrend.updateOne(
+        { vars_id: cacheKey },
+        { ...commonCacheData, data: response },
+        { upsert: true }
+      );
+      break;
+    case LLM_SECTION_LABELS.newsAndCareerIntel:
+      result = await Promise.all([
+        LlmMarketNews.updateOne(
+          { vars_id: cacheKey },
+          { ...commonCacheData, data: response.market_news },
+          { upsert: true }
+        ),
+        LlmCareerIntel.updateOne(
+          { vars_id: cacheKey },
+          {
+            ...commonCacheData, data: {
+              strategies_by_experience: response.strategies_by_experience,
+              key_findings: response.key_findings,
+              report_sources: response.report_sources
+            }
+          },
+          { upsert: true }
+        )
+      ]);
+      // result = await LlmMarketReport.updateOne(
+      //   { vars_id: cacheKey },
+      //   { ...commonCacheData, data: response },
+      //   { upsert: true }
+      // );
+      break;
+    default:
+      logger.warn(`⚠️  Unknown section: ${section}`);
+      return result;
+  }
 }
 
 export async function generateMultipleWithSharedContext(
@@ -338,7 +399,6 @@ export async function generateMultipleWithSharedContext(
     // Step 1: Retrieve context ONCE
     const contextCacheKey = cache.generateKey('context-shared', ...namespaces, ...prompts.map(p => p.label));
     let context: Context;
-    
     if (pineconeCache) {
       const cachedContext = cache.get<Context>(contextCacheKey);
       if (cachedContext) {
@@ -368,8 +428,8 @@ export async function generateMultipleWithSharedContext(
     const results: Record<string, Record<string, unknown> | string> = {};
     const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
-        const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix, systemPrompt.substring(0, 50));
-        
+        const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix);
+        const dbCacheKey = getDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
         if (useCache) {
           const cached = cache.get<Record<string, unknown> | string>(cacheKey);
           if (cached) {
@@ -390,7 +450,7 @@ export async function generateMultipleWithSharedContext(
         );
 
         if (useCache) {
-          cache.set(cacheKey, response, cacheTTL);
+          cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label)
         }
 
         results[prompt.label] = response;
@@ -465,7 +525,7 @@ export async function generateWithRAG(query: string, systemPrompt: string, optio
     }
 
     logger.info('✓ Generated RAG response');
-    
+
     return response;
   } catch (error) {
     logger.error('Error in RAG generation:', error);
