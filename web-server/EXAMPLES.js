@@ -280,6 +280,9 @@ import { generateCareerPath } from './services/careerPathService.js';
 import { analyzeSkillGap } from './services/skillGapService.js';
 import { analyzeTrends } from './services/trendAnalysisService.js';
 import { generateNegotiationStrategy } from './services/salaryNegotiationService.js';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
 
 // Resume analysis
 app.post('/api/resume/analyze', async (req, res) => {
