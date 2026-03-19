@@ -3,13 +3,7 @@ import { pineconeClient } from '../lib/pinecone.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { getDbCacheKeyForLlmResponse } from '../utils/db.js';
-import { LLM_SECTION_LABELS } from '../constants/index.js';
-import LlmMarketReport from '../db/models/marketReport.js';
-import LlmIndustryTrend from '../db/models/industryTrends.js';
-import { LlmcacheStatus } from '../constants/db.js';
-import LlmMarketNews from '../db/models/marketNews.js';
-import LlmCareerIntel from '../db/models/careerIntel.js';
+import { cacheLlmResponseToDb, getUniqueDbCacheKeyForLlmResponse } from './dbCacheService.js';
 
 interface RetrieveOptions {
   namespaces?: string[];
@@ -319,60 +313,6 @@ interface MultiRAGOptions extends RAGOptions {
   onSectionComplete?: SectionCallback;
 }
 
-export async function cacheLlmResponseToDb(cacheKey: string, response: Record<string, unknown>, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]): Promise<void> {
-  let result;
-  console.log(response, 'caching response to DB', section)
-  let commonCacheData = {
-    vars_id: cacheKey,
-    status: LlmcacheStatus.ACTIVE,
-    location: cacheKey.split(':')?.[1]?.split("__")?.[0] || '',
-  };
-  switch (section) {
-    case LLM_SECTION_LABELS.marketReport:
-      result = await LlmMarketReport.updateOne(
-        { vars_id: cacheKey },
-        { ...commonCacheData, data: response },
-        { upsert: true }
-      );
-      break;
-    case LLM_SECTION_LABELS.industryTrends:
-      result = await LlmIndustryTrend.updateOne(
-        { vars_id: cacheKey },
-        { ...commonCacheData, data: response },
-        { upsert: true }
-      );
-      break;
-    case LLM_SECTION_LABELS.newsAndCareerIntel:
-      result = await Promise.all([
-        LlmMarketNews.updateOne(
-          { vars_id: cacheKey },
-          { ...commonCacheData, data: response.market_news },
-          { upsert: true }
-        ),
-        LlmCareerIntel.updateOne(
-          { vars_id: cacheKey },
-          {
-            ...commonCacheData, data: {
-              strategies_by_experience: response.strategies_by_experience,
-              key_findings: response.key_findings,
-              report_sources: response.report_sources
-            }
-          },
-          { upsert: true }
-        )
-      ]);
-      // result = await LlmMarketReport.updateOne(
-      //   { vars_id: cacheKey },
-      //   { ...commonCacheData, data: response },
-      //   { upsert: true }
-      // );
-      break;
-    default:
-      logger.warn(`⚠️  Unknown section: ${section}`);
-      return result;
-  }
-}
-
 export async function generateMultipleWithSharedContext(
   systemPrompt: string,
   prompts: MultiPromptRequest[],
@@ -429,7 +369,7 @@ export async function generateMultipleWithSharedContext(
     const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
         const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix);
-        const dbCacheKey = getDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
+        const dbCacheKey = getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
         if (useCache) {
           const cached = cache.get<Record<string, unknown> | string>(cacheKey);
           if (cached) {
@@ -450,7 +390,7 @@ export async function generateMultipleWithSharedContext(
         );
 
         if (useCache) {
-          cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label)
+          cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label);
         }
 
         results[prompt.label] = response;
