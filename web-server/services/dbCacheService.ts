@@ -4,6 +4,9 @@ import LlmCareerIntel from "../db/models/careerIntel";
 import LlmIndustryTrend from "../db/models/industryTrends";
 import LlmMarketNews from "../db/models/marketNews";
 import LlmMarketReport from "../db/models/marketReport";
+import { IndustryTrendData } from "../types/industryTrend";
+import { MarketNewsData } from "../types/marketNews";
+import { MarketReportData } from "../types/marketReport";
 import { logger } from "../utils/logger";
 
 export const getUniqueDbCacheKeyForLlmResponse = (prefix: string, ...vars: string[]): string => {
@@ -65,4 +68,34 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
             logger.warn(`⚠️  Unknown section: ${section}`);
             return result;
     }
+}
+
+export const getCachedLlmResponseFromDb = async (cacheKey: string, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]): Promise<Record<string, unknown> | string | null> => {
+    let doc;
+    switch (section) {
+        case LLM_SECTION_LABELS.marketReport:
+            doc = await LlmMarketReport.findOne({ vars_id: cacheKey });
+            break;
+        case LLM_SECTION_LABELS.industryTrends:
+            doc = await LlmIndustryTrend.findOne({ vars_id: cacheKey });
+            break;
+        case LLM_SECTION_LABELS.newsAndCareerIntel:
+            let data = (await Promise.all([
+                LlmMarketNews.findOne({ vars_id: cacheKey }),
+                LlmCareerIntel.findOne({ vars_id: cacheKey })
+            ]))?.map(d => d?.data) || null;
+            if (data) {
+                doc = { data };
+            }
+            break;
+        default:
+            logger.warn(`⚠️  Unknown section: ${section}`);
+            return null;
+    }
+    if (!doc) {
+        logger.info(`📂 DB Cache MISS for key: ${cacheKey} (section: ${section})`);
+        return null;
+    }
+    logger.info(`📂 DB Cache HIT for key: ${cacheKey} (section: ${section})`);
+    return doc.data;
 }

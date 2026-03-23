@@ -3,7 +3,8 @@ import { pineconeClient } from '../lib/pinecone.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { cacheLlmResponseToDb, getUniqueDbCacheKeyForLlmResponse } from './dbCacheService.js';
+import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse } from './dbCacheService.js';
+import { LLM_SECTION_LABELS } from '../constants/index.js';
 
 interface RetrieveOptions {
   namespaces?: string[];
@@ -368,10 +369,9 @@ export async function generateMultipleWithSharedContext(
     const results: Record<string, Record<string, unknown> | string> = {};
     const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
-        const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix);
         const dbCacheKey = getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
         if (useCache) {
-          const cached = cache.get<Record<string, unknown> | string>(cacheKey);
+          const cached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
           if (cached) {
             logger.info(`✓ Cached: ${prompt.label}`);
             results[prompt.label] = cached;

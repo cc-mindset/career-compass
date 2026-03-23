@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { mockDbCache } from "../utils/mockDbCache";
+// import { mockDbCache } from "../utils/mockDbCache";
 import { enqueueJob, getJobResult, getQueueLength } from "../lib/redisQueue";
 import { generateMarketInsights } from "../services/marketInsightsService_multipart";
 
@@ -25,18 +25,18 @@ marketInsightRouter.post(
       }
 
       // ── Step 1: Check mock DB cache (swap with real DB check later) ──
-      const cacheStatus = mockDbCache.check(sanitizedLocation);
-      if (cacheStatus.hit && cacheStatus.isLTS) {
-        console.log(
-          `📦 Mock DB Cache HIT (LTS): "${sanitizedLocation}" — returning mock cached data`,
-        );
-        return res.json({
-          success: true,
-          insights: mockDbCache.getMockInsights(sanitizedLocation),
-          fromCache: true,
-          generated_at: new Date().toISOString(),
-        });
-      }
+      // const cacheStatus = mockDbCache.check(sanitizedLocation);
+      // if (cacheStatus.hit && cacheStatus.isLTS) {
+      //   console.log(
+      //     `📦 Mock DB Cache HIT (LTS): "${sanitizedLocation}" — returning mock cached data`,
+      //   );
+      //   return res.json({
+      //     success: true,
+      //     insights: mockDbCache.getMockInsights(sanitizedLocation),
+      //     fromCache: true,
+      //     generated_at: new Date().toISOString(),
+      //   });
+      // }
 
       // Cache miss or stale → enter queue
       // ── Step 2: Try to queue the job ──
