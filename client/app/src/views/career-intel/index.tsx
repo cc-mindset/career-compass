@@ -34,10 +34,10 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
   // Read from per-section data directly (available on section_success, not job_complete)
   const newsIntelData = sections.newsAndCareerIntel.data as any;
   
-  // Transform strategies_by_profile to match expected format
-  const strategiesByProfile = newsIntelData?.strategies_by_profile 
+  // Transform strategies_by_experience to match expected format
+  const strategiesByProfile = newsIntelData?.strategies_by_experience 
     ? Object.fromEntries(
-        Object.entries(newsIntelData.strategies_by_profile).map(([key, value]: [string, any]) => {
+        Object.entries(newsIntelData.strategies_by_experience).map(([key, value]: [string, any]) => {
           const mappedKey = key === 'new_graduates' ? 'new-graduates' 
             : key === 'mid_career_pivoting' ? 'mid-career'
             : key === 'newcomers_international' ? 'newcomers'

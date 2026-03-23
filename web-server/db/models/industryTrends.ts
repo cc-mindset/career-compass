@@ -8,16 +8,12 @@ import {
   Skill,
   TopSkillsDemand,
 } from "../../types/industryTrend";
-
-export enum IndustryTrendStatus {
-  ACTIVE = "active",
-  INACTIVE = "inactive",
-}
+import { LlmcacheStatus } from "../../constants/db";
 
 export interface IIndustryTrend extends Document {
   vars_id: string;
   data: IndustryTrendData;
-  status: IndustryTrendStatus;
+  status: LlmcacheStatus;
   location: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -81,9 +77,9 @@ const industryTrendSchema = new Schema<IIndustryTrend>(
     vars_id: { type: String, required: true, unique: true },
     status: {
       type: String,
-      enum: IndustryTrendStatus,
+      enum: LlmcacheStatus,
       required: true,
-      default: IndustryTrendStatus.ACTIVE,
+      default: LlmcacheStatus.ACTIVE,
     },
   },
   {
