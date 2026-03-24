@@ -45,7 +45,7 @@ const skillSchema = new Schema<Skill>({
 });
 
 const skillCategorySchema = new Schema<SkillCategory>({
-  category: { type: String, required: true },
+  quadrant: { type: String, required: true },
   description: { type: String, required: true },
   skills: { type: [skillSchema], required: true, default: [] },
 });

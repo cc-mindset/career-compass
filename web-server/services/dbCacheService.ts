@@ -4,10 +4,9 @@ import LlmCareerIntel from "../db/models/careerIntel";
 import LlmIndustryTrend from "../db/models/industryTrends";
 import LlmMarketNews from "../db/models/marketNews";
 import LlmMarketReport from "../db/models/marketReport";
-import { IndustryTrendData } from "../types/industryTrend";
-import { MarketNewsData } from "../types/marketNews";
-import { MarketReportData } from "../types/marketReport";
 import { logger } from "../utils/logger";
+
+export const LLM_RESPONSE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export const getUniqueDbCacheKeyForLlmResponse = (prefix: string, ...vars: string[]): string => {
     return `${prefix}:${vars.join('__')}`;
@@ -74,18 +73,18 @@ export const getCachedLlmResponseFromDb = async (cacheKey: string, section: type
     let doc;
     switch (section) {
         case LLM_SECTION_LABELS.marketReport:
-            doc = await LlmMarketReport.findOne({ vars_id: cacheKey });
+            doc = await LlmMarketReport.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean();
             break;
         case LLM_SECTION_LABELS.industryTrends:
-            doc = await LlmIndustryTrend.findOne({ vars_id: cacheKey });
+            doc = await LlmIndustryTrend.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean();
             break;
         case LLM_SECTION_LABELS.newsAndCareerIntel:
-            let data = (await Promise.all([
-                LlmMarketNews.findOne({ vars_id: cacheKey }),
-                LlmCareerIntel.findOne({ vars_id: cacheKey })
+            let [marketNewsData, careerIntelData] = (await Promise.all([
+                LlmMarketNews.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean(),
+                LlmCareerIntel.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean() 
             ]))?.map(d => d?.data) || null;
-            if (data) {
-                doc = { data };
+            if (marketNewsData || careerIntelData) {
+                doc = { data: { market_news: marketNewsData || [], ...careerIntelData } };
             }
             break;
         default:
@@ -97,5 +96,5 @@ export const getCachedLlmResponseFromDb = async (cacheKey: string, section: type
         return null;
     }
     logger.info(`📂 DB Cache HIT for key: ${cacheKey} (section: ${section})`);
-    return doc.data;
+    return doc?.data as Record<string, unknown>;
 }

@@ -311,7 +311,7 @@ export async function generateMarketInsights(
           namespaces: ['bls-data', 'news-data', 'reports-data'],
           topKPerNamespace: { 'bls-data': 15, 'news-data': 12, 'reports-data': 10 },
           responseFormat: 'json',
-          useCache: false,           // LLM generation result cache OFF — handled by mockDbCache (→ DB later)
+          useCache: true,
           useRetrievalCache: true,     // Pinecone/embedding namespace cache ON — avoids redundant vector DB calls
           contextFormatter: formatMarketInsightsContext,
           retrievalQuery: `market insights for ${location}`,

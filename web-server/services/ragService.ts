@@ -370,8 +370,9 @@ export async function generateMultipleWithSharedContext(
     const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
         const dbCacheKey = getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
+        let cached
         if (useCache) {
-          const cached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
+          cached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
           if (cached) {
             logger.info(`✓ Cached: ${prompt.label}`);
             results[prompt.label] = cached;
@@ -389,7 +390,7 @@ export async function generateMultipleWithSharedContext(
           3
         );
 
-        if (useCache) {
+        if (useCache && !cached) {
           cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label);
         }
 
