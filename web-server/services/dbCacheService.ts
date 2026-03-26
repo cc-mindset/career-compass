@@ -1,5 +1,5 @@
 import { LLM_SECTION_LABELS } from "../constants";
-import { LlmcacheStatus } from "../constants/db";
+import { LlmCacheStatus } from "../constants/db";
 import LlmCareerIntel from "../db/models/careerIntel";
 import LlmIndustryTrend from "../db/models/industryTrends";
 import LlmMarketNews from "../db/models/marketNews";
@@ -21,11 +21,18 @@ export const getVariablesFromDbCacheKey = (cacheKey: string): string[] => {
     return parts?.[1]?.split('__');
 }
 
+const getCombinedStatusForCache = (statusOne: LlmCacheStatus, statusTwo: LlmCacheStatus) => {
+    if ([statusOne, statusTwo].includes(LlmCacheStatus.UPDATING)) return LlmCacheStatus.UPDATING
+    if ([statusOne, statusTwo].includes(LlmCacheStatus.INACTIVE)) return LlmCacheStatus.INACTIVE
+    if (statusOne === LlmCacheStatus.ACTIVE && statusTwo === LlmCacheStatus.ACTIVE) return LlmCacheStatus.ACTIVE
+    return LlmCacheStatus.UPDATING
+}
+
 export async function cacheLlmResponseToDb(cacheKey: string, response: Record<string, unknown>, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]): Promise<void> {
     let result;
     let commonCacheData = {
         vars_id: cacheKey,
-        status: LlmcacheStatus.ACTIVE,
+        status: LlmCacheStatus.ACTIVE,
         location: getVariablesFromDbCacheKey(cacheKey)?.[0] || '',
     };
     switch (section) {
@@ -69,7 +76,49 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
     }
 }
 
-export const getCachedLlmResponseFromDb = async (cacheKey: string, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]): Promise<Record<string, unknown> | string | null> => {
+export async function updateCacheResponseInDb(cacheKey: string, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]): Promise<void> {
+    let result;
+    let statusData = {
+        vars_id: cacheKey,
+        status: LlmCacheStatus.UPDATING,
+        location: getVariablesFromDbCacheKey(cacheKey)?.[0] || '',
+    };
+    switch (section) {
+        case LLM_SECTION_LABELS.marketReport:
+            result = await LlmMarketReport.updateOne(
+                { vars_id: cacheKey },
+                statusData,
+                { upsert: true }
+            );
+            break;
+        case LLM_SECTION_LABELS.industryTrends:
+            result = await LlmIndustryTrend.updateOne(
+                { vars_id: cacheKey },
+                statusData,
+                { upsert: true }
+            );
+            break;
+        case LLM_SECTION_LABELS.newsAndCareerIntel:
+            result = await Promise.all([
+                LlmMarketNews.updateOne(
+                    { vars_id: cacheKey },
+                    statusData,
+                    { upsert: true }
+                ),
+                LlmCareerIntel.updateOne(
+                    { vars_id: cacheKey },
+                    statusData,
+                    { upsert: true }
+                )
+            ]);
+            break;
+        default:
+            logger.warn(`⚠️  Unknown section: ${section}`);
+            return result;
+    }
+}
+
+export const getCachedLlmResponseFromDb = async (cacheKey: string, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]) => {
     let doc;
     switch (section) {
         case LLM_SECTION_LABELS.marketReport:
@@ -79,12 +128,13 @@ export const getCachedLlmResponseFromDb = async (cacheKey: string, section: type
             doc = await LlmIndustryTrend.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean();
             break;
         case LLM_SECTION_LABELS.newsAndCareerIntel:
-            let [marketNewsData, careerIntelData] = (await Promise.all([
+            const marketNewsCareerIntelCache = await Promise.all([
                 LlmMarketNews.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean(),
-                LlmCareerIntel.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean() 
-            ]))?.map(d => d?.data) || null;
+                LlmCareerIntel.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean()
+            ])
+            let [marketNewsData, careerIntelData] = (marketNewsCareerIntelCache)?.map(d => d?.data) || null;
             if (marketNewsData || careerIntelData) {
-                doc = { data: { market_news: marketNewsData || [], ...careerIntelData } };
+                doc = { data: { market_news: marketNewsData || [], ...careerIntelData }, status: getCombinedStatusForCache(marketNewsCareerIntelCache?.[0]?.status as LlmCacheStatus, marketNewsCareerIntelCache?.[1]?.status as LlmCacheStatus) };
             }
             break;
         default:
@@ -96,5 +146,5 @@ export const getCachedLlmResponseFromDb = async (cacheKey: string, section: type
         return null;
     }
     logger.info(`📂 DB Cache HIT for key: ${cacheKey} (section: ${section})`);
-    return doc?.data as Record<string, unknown>;
+    return doc;
 }

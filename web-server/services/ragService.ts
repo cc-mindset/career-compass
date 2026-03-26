@@ -3,8 +3,9 @@ import { pineconeClient } from '../lib/pinecone.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse } from './dbCacheService.js';
+import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from './dbCacheService.js';
 import { LLM_SECTION_LABELS } from '../constants/index.js';
+import { LlmCacheStatus } from '../constants/db.js';
 
 interface RetrieveOptions {
   namespaces?: string[];
@@ -370,15 +371,26 @@ export async function generateMultipleWithSharedContext(
     const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
         const dbCacheKey = getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
-        let cached
+        let cached;
         if (useCache) {
           cached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
           if (cached) {
-            logger.info(`✓ Cached: ${prompt.label}`);
-            results[prompt.label] = cached;
-            if (onSectionComplete) onSectionComplete(prompt.label, cached);
+            //Check if data is still updating
+            if (cached.status === LlmCacheStatus.UPDATING) {
+              logger.info(`Cache Getting Updated: ${prompt.label}`);
+              onSectionComplete?.(prompt.label, { status: LlmCacheStatus.UPDATING })
+              return
+            }
+            results[prompt.label] = cached?.data;
+            logger.info(`✓ Cache Retrieved: ${prompt.label}`);
+            onSectionComplete?.(prompt.label, cached.data);
             return;
           }
+        }
+
+        //Updating caching status in DB
+        if (useCache) {
+          updateCacheResponseInDb(dbCacheKey, prompt.label);
         }
 
         logger.info(`🔄 Generating: ${prompt.label}`);
@@ -390,7 +402,9 @@ export async function generateMultipleWithSharedContext(
           3
         );
 
+        //Caching fresh data to DB
         if (useCache && !cached) {
+          logger.info(`✓ Cached: ${prompt.label}`);
           cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label);
         }
 

@@ -1,11 +1,11 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { CareerIntelData, KeyFinding, StrategiesByExperience } from "../../types/careerIntel";
-import { LlmcacheStatus } from "../../constants/db";
+import { LlmCacheStatus } from "../../constants/db";
 
 export interface ICareerIntel extends Document {
     vars_id: string;
     data: CareerIntelData;
-    status: LlmcacheStatus;
+    status: LlmCacheStatus;
     location: string;
     createdAt?: Date;
     updatedAt?: Date;
@@ -37,9 +37,9 @@ const careerIntelSchema = new Schema<ICareerIntel>(
         vars_id: { type: String, required: true, unique: true },
         status: {
             type: String,
-            enum: LlmcacheStatus,
+            enum: LlmCacheStatus,
             required: true,
-            default: LlmcacheStatus.ACTIVE,
+            default: LlmCacheStatus.ACTIVE,
         },
     },
     {

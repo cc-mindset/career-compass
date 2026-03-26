@@ -11,7 +11,7 @@ export interface SectionState<T = any> {
 export type SectionsState = Record<SectionName, SectionState>;
 
 export interface WSProgressEvent {
-  type: 'job_start' | 'section_success' | 'section_error' | 'job_complete' | 'job_error' | 'job_fallback';
+  type: 'job_start' | 'section_success' | 'section_error' | 'job_complete' | 'job_error' | 'job_fallback' | 'section_in_progress';
   jobId: string;
   section?: SectionName;
   data?: any;

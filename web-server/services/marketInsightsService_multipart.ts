@@ -4,6 +4,7 @@ import { emitToJob } from '../lib/websocket.js';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { LLM_SECTION_LABELS } from '../constants/index.js';
+import { LlmCacheStatus } from '../constants/db.js';
 
 type SectionName = 'marketReport' | 'industryTrends' | 'newsAndCareerIntel';
 
@@ -259,20 +260,20 @@ export async function generateMarketInsights(
     logger.info(`📊 Starting independent section generation for: ${location}`);
 
     if (jobId) {
-      emitToJob(jobId, 'progress', { 
+      emitToJob(jobId, 'progress', {
         type: 'job_start',
         stage: 'Preparing market insights',
-        jobId 
+        jobId
       });
     }
 
     const onSectionComplete = (section: string, result: Record<string, unknown> | string | null, error?: string) => {
       const sectionName = section as SectionName;
-      
+
       if (error) {
         logger.error(`❌ Section failed: ${section} - ${error}`);
         sectionStates[sectionName] = { status: 'error', error };
-        
+
         if (jobId) {
           emitToJob(jobId, 'progress', {
             type: 'section_error',
@@ -284,10 +285,10 @@ export async function generateMarketInsights(
         return;
       }
 
-      if (result) {
+      if (result && (result as Record<string, string>).status !== LlmCacheStatus.UPDATING) {
         logger.info(`✓ Section complete: ${section}`);
         sectionStates[sectionName] = { status: 'success', data: result as MarketInsightsData };
-        
+
         if (jobId) {
           emitToJob(jobId, 'progress', {
             type: 'section_success',

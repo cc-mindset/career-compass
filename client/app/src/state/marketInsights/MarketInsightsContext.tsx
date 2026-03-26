@@ -327,7 +327,10 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         case "job_start":
           setProgressText(payload.stage || "Starting...");
           break;
-
+        case "section_in_progress":
+          setProgressText(payload.stage || "Processing...");
+          break;
+        
         case "section_success":
           if (payload.section && payload.data) {
             console.log(

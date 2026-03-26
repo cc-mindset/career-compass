@@ -8,12 +8,12 @@ import {
   MarketHealth,
   MarketReportData,
 } from "../../types/marketReport";
-import { LlmcacheStatus } from "../../constants/db";
+import { LlmCacheStatus } from "../../constants/db";
 
 export interface IMarketReport extends Document {
   vars_id: string;
   data: MarketReportData;
-  status: LlmcacheStatus;
+  status: LlmCacheStatus;
   location: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -73,9 +73,9 @@ const marketReportSchema = new Schema<IMarketReport>(
     vars_id: { type: String, required: true, unique: true },
     status: {
       type: String,
-      enum: LlmcacheStatus,
+      enum: LlmCacheStatus,
       required: true,
-      default: LlmcacheStatus.ACTIVE,
+      default: LlmCacheStatus.ACTIVE,
     },
   },
   {
