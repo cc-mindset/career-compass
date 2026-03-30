@@ -385,6 +385,13 @@ export async function generateMultipleWithSharedContext(
             logger.info(`✓ Cache Retrieved: ${prompt.label}`);
             onSectionComplete?.(prompt.label, cached.data);
             return;
+          } else {
+            const expiredCached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS], true);
+            if (expiredCached) {
+              logger.info(`✓ Cache Expired: ${prompt.label} - showing stale data while updating`);
+              results[prompt.label] = expiredCached?.data;
+              onSectionComplete?.(prompt.label, { ...expiredCached.data, status: LlmCacheStatus.UPDATING });
+            }
           }
         }
 

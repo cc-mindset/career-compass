@@ -336,10 +336,21 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           setProgressText(payload.stage || "Starting...");
           break;
         case "section_in_progress":
-          setProgressText(payload.stage || "Processing...");
-          setTimeout(() => {
-            retrySection(payload.section)
-          }, 3000)
+          if (payload.section && payload.data) {
+            console.log(
+              `[MarketInsights] \u2713 Section ready with previous data: ${payload.section}`,
+            );
+            setSections((prev) => ({
+              ...prev,
+              [payload.section!]: { status: "success", data: payload.data },
+            }));
+          }
+          else {
+            setProgressText(payload.stage || "Processing...");
+            setTimeout(() => {
+              retrySection(payload.section)
+            }, 3000)
+          }
           break;
         
         case "section_success":

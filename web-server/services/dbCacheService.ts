@@ -118,19 +118,20 @@ export async function updateCacheResponseInDb(cacheKey: string, section: typeof 
     }
 }
 
-export const getCachedLlmResponseFromDb = async (cacheKey: string, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]) => {
+export const getCachedLlmResponseFromDb = async (cacheKey: string, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS], isSkipExpireCheck = false) => {
     let doc;
+    const llmRetrievalFilter = isSkipExpireCheck ? { vars_id: cacheKey } : { vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } };
     switch (section) {
         case LLM_SECTION_LABELS.marketReport:
-            doc = await LlmMarketReport.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean();
+            doc = await LlmMarketReport.findOne(llmRetrievalFilter).lean();
             break;
         case LLM_SECTION_LABELS.industryTrends:
-            doc = await LlmIndustryTrend.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean();
+            doc = await LlmIndustryTrend.findOne(llmRetrievalFilter).lean();
             break;
         case LLM_SECTION_LABELS.newsAndCareerIntel:
             const marketNewsCareerIntelCache = await Promise.all([
-                LlmMarketNews.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean(),
-                LlmCareerIntel.findOne({ vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } }).lean()
+                LlmMarketNews.findOne(llmRetrievalFilter).lean(),
+                LlmCareerIntel.findOne(llmRetrievalFilter).lean()
             ])
             let [marketNewsData, careerIntelData] = (marketNewsCareerIntelCache)?.map(d => d?.data) || null;
             if (marketNewsData || careerIntelData) {

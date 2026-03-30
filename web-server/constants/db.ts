@@ -1,6 +1,6 @@
 
 export enum LlmCacheStatus {
   ACTIVE = "active",
-  UPDATING = "updating",
+  UPDATING = "in_progress",
   INACTIVE = "inactive",
 }
