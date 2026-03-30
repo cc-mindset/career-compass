@@ -76,9 +76,11 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
   const generateMarketInsights = async ({
     location,
     userId,
+    section
   }: {
     location: string;
     userId?: string;
+    section?: string
   }) => {
     const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -95,11 +97,17 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     }
 
     setCurrentLocation(location);
-    setSections({
-      marketReport: { status: "loading" },
-      industryTrends: { status: "loading" },
-      newsAndCareerIntel: { status: "loading" },
-    });
+
+    if(!!section) {
+      setSections(prev => ({...prev, [section]: { status: "loading" } }))
+    } else {
+      setSections({
+        marketReport: { status: "loading" },
+        industryTrends: { status: "loading" },
+        newsAndCareerIntel: { status: "loading" },
+      });
+    }
+
     setGenerateState((prev) => ({
       ...prev,
       status: "in-progress",
@@ -310,7 +318,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
       ...prev,
       [section]: { status: "loading" },
     }));
-    await generateMarketInsights({ location: currentLocation });
+    await generateMarketInsights({ location: currentLocation, section });
   };
 
   useEffect(() => {
@@ -329,6 +337,9 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           break;
         case "section_in_progress":
           setProgressText(payload.stage || "Processing...");
+          setTimeout(() => {
+            retrySection(payload.section)
+          }, 3000)
           break;
         
         case "section_success":

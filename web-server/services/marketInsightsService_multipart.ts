@@ -285,18 +285,27 @@ export async function generateMarketInsights(
         return;
       }
 
-      if (result && (result as Record<string, string>).status !== LlmCacheStatus.UPDATING) {
+      if (result) {
+        if ((result as Record<string, string>).status === LlmCacheStatus.UPDATING) {
+          if (jobId)
+            emitToJob(jobId, 'progress', {
+              type: 'section_in_progress',
+              section: sectionName,
+              data: result,
+              jobId,
+            });
+        } else {
+          if (jobId) {
+            emitToJob(jobId, 'progress', {
+              type: 'section_success',
+              section: sectionName,
+              data: result,
+              jobId,
+            });
+          }
+        }
         logger.info(`✓ Section complete: ${section}`);
         sectionStates[sectionName] = { status: 'success', data: result as MarketInsightsData };
-
-        if (jobId) {
-          emitToJob(jobId, 'progress', {
-            type: 'section_success',
-            section: sectionName,
-            data: result,
-            jobId,
-          });
-        }
       }
     };
 
