@@ -23,6 +23,7 @@ import { buildLocations } from "../../utils/location-package";
 import { PRIORITY_CITIES, TECH_ROLES } from "../../consts/techRolesRaw";
 import FeatureHoverItem from "./feature-hover-item";
 import { StepConfig } from "../../types/landing";
+import { SignedIn, SignedOut, UserButton, useSignIn } from "@clerk/clerk-react";
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
@@ -123,6 +124,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     resumeFile: null as File | null,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { signIn } = useSignIn();
 
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState(""); //Handles search input for dropdowns
@@ -326,6 +328,14 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     if (file) applyResumeFile(file);
   };
 
+  const signInWithGoogle = () => {
+    return signIn.authenticateWithRedirect({
+      strategy: "oauth_google",
+      redirectUrl: "/sso-callback",
+      redirectUrlComplete: "/",
+    });
+  };
+
   const [visibleCount, setVisibleCount] = useState(20);
 
   return (
@@ -353,9 +363,17 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
             CareerCompass
           </h1>
         </div>
-        <button className="text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors flex-shrink-0 touch-manipulation">
-          Sign In
-        </button>
+        <SignedOut>
+          <button
+            className="text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors flex-shrink-0 touch-manipulation"
+            onClick={signInWithGoogle}
+          >
+            Sign In
+          </button>
+        </SignedOut>
+        <SignedIn>
+          <UserButton />
+        </SignedIn>
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 pt-0 pb-12 flex flex-col items-center justify-center text-center">
