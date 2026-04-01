@@ -24,7 +24,7 @@ export interface Skill {
 }
 
 export interface SkillCategory {
-  category: string;
+  quadrant: string;
   description: string;
   skills: Skill[];
 }

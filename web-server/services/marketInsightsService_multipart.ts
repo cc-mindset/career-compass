@@ -4,6 +4,7 @@ import { emitToJob } from '../lib/websocket.js';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { LLM_SECTION_LABELS } from '../constants/index.js';
+import { LlmCacheStatus } from '../constants/db.js';
 
 type SectionName = 'marketReport' | 'industryTrends' | 'newsAndCareerIntel';
 
@@ -259,20 +260,20 @@ export async function generateMarketInsights(
     logger.info(`📊 Starting independent section generation for: ${location}`);
 
     if (jobId) {
-      emitToJob(jobId, 'progress', { 
+      emitToJob(jobId, 'progress', {
         type: 'job_start',
         stage: 'Preparing market insights',
-        jobId 
+        jobId
       });
     }
 
     const onSectionComplete = (section: string, result: Record<string, unknown> | string | null, error?: string) => {
       const sectionName = section as SectionName;
-      
+
       if (error) {
         logger.error(`❌ Section failed: ${section} - ${error}`);
         sectionStates[sectionName] = { status: 'error', error };
-        
+
         if (jobId) {
           emitToJob(jobId, 'progress', {
             type: 'section_error',
@@ -285,17 +286,26 @@ export async function generateMarketInsights(
       }
 
       if (result) {
+        if ((result as Record<string, string>).status === LlmCacheStatus.UPDATING) {
+          if (jobId)
+            emitToJob(jobId, 'progress', {
+              type: 'section_in_progress',
+              section: sectionName,
+              data: result,
+              jobId,
+            });
+        } else {
+          if (jobId) {
+            emitToJob(jobId, 'progress', {
+              type: 'section_success',
+              section: sectionName,
+              data: result,
+              jobId,
+            });
+          }
+        }
         logger.info(`✓ Section complete: ${section}`);
         sectionStates[sectionName] = { status: 'success', data: result as MarketInsightsData };
-        
-        if (jobId) {
-          emitToJob(jobId, 'progress', {
-            type: 'section_success',
-            section: sectionName,
-            data: result,
-            jobId,
-          });
-        }
       }
     };
 
@@ -311,7 +321,7 @@ export async function generateMarketInsights(
           namespaces: ['bls-data', 'news-data', 'reports-data'],
           topKPerNamespace: { 'bls-data': 15, 'news-data': 12, 'reports-data': 10 },
           responseFormat: 'json',
-          useCache: false,           // LLM generation result cache OFF — handled by mockDbCache (→ DB later)
+          useCache: true,
           useRetrievalCache: true,     // Pinecone/embedding namespace cache ON — avoids redundant vector DB calls
           contextFormatter: formatMarketInsightsContext,
           retrievalQuery: `market insights for ${location}`,
