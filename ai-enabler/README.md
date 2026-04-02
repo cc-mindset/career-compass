@@ -1,5 +1,7 @@
 # RAG Data Pipeline
 
+The API testing sandbox lives in [testing/](testing/).
+
 - Set your Pinecone API key before running:
  PINECONE_API_KEY="your-pinecone-api-key"
 

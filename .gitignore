@@ -120,3 +120,6 @@ __tests__/__snapshots__/
 # Misc
 *.tsbuildinfo
 
+# Local-only interview prep notes
+private-interview-prep/
+

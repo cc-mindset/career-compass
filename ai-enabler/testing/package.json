@@ -1,0 +1,8 @@
+{
+  "name": "career-compass-api-testing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "jolts": "node bls/scripts/jolts.mjs"
+  }
+}
