@@ -23,7 +23,15 @@ import { buildLocations } from "../../utils/location-package";
 import { PRIORITY_CITIES, TECH_ROLES } from "../../consts/techRolesRaw";
 import FeatureHoverItem from "./feature-hover-item";
 import { StepConfig } from "../../types/landing";
-import { SignedIn, SignedOut, UserButton, useSignIn } from "@clerk/clerk-react";
+import {
+  SignedIn,
+  SignedOut,
+  UserButton,
+  useSignIn,
+  useUser,
+} from "@clerk/clerk-react";
+import AuthPage from "../auth";
+import SyncUser from "./sync-user";
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
@@ -125,6 +133,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { signIn } = useSignIn();
+  const { user } = useUser();
 
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState(""); //Handles search input for dropdowns
@@ -338,8 +347,15 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
 
   const [visibleCount, setVisibleCount] = useState(20);
 
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-indigo-100 overflow-x-hidden flex flex-col">
+      <SignedIn>
+        <SyncUser />
+      </SignedIn>
       <style>{`
         .resume-label-marquee {
           display: inline-flex;
