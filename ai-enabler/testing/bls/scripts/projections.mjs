@@ -14,6 +14,21 @@ function numberValue(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function buildRows(sheet) {
+  const table = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  const headers = table[1] || [];
+
+  return table.slice(2).map((values) => {
+    const record = {};
+    headers.forEach((header, index) => {
+      if (header) {
+        record[String(header).trim()] = values[index] ?? '';
+      }
+    });
+    return record;
+  });
+}
+
 function pick(record, names) {
   const lowerMap = new Map(Object.keys(record).map((key) => [key.toLowerCase(), key]));
 
@@ -29,15 +44,17 @@ function pick(record, names) {
 
 function summarizeRow(record) {
   return {
-    occupation: pick(record, ['Occupation', 'Detailed occupation']),
-    employment2024: pick(record, ['Employment 2024']),
-    employment2034: pick(record, ['Employment 2034']),
-    employmentChange: pick(record, ['Employment change']),
-    employmentPercentChange: pick(record, ['Employment percent change']),
-    annualOpenings: pick(record, ['Annual openings']),
-    medianWage: pick(record, ['Median wage']),
-    entryLevelEducation: pick(record, ['Entry level education']),
-    onTheJobTraining: pick(record, ['On-the-job training']),
+    occupation: pick(record, ['2024 National Employment Matrix title']),
+    code: pick(record, ['2024 National Employment Matrix code']),
+    occupationType: pick(record, ['Occupation type']),
+    employment2024: pick(record, ['Employment, 2024']),
+    employment2034: pick(record, ['Employment, 2034']),
+    employmentChange: pick(record, ['Employment change, numeric, 2024–34']),
+    employmentPercentChange: pick(record, ['Employment change, percent, 2024–34']),
+    annualOpenings: pick(record, ['Occupational openings, 2024–34 annual average']),
+    medianWage: pick(record, ['Median annual wage, dollars, 2024[1]']),
+    entryLevelEducation: pick(record, ['Typical education needed for entry']),
+    onTheJobTraining: pick(record, ['Typical on-the-job training needed to attain competency in the occupation']),
   };
 }
 
@@ -51,7 +68,7 @@ async function main() {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheetName = workbook.SheetNames.find((name) => name === 'Table 1.2') || workbook.SheetNames.find((name) => name.startsWith('Table 1.2')) || workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  const rows = buildRows(sheet);
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const rawPath = path.join(outputDir, `projections-${stamp}.xlsx`);
@@ -59,13 +76,16 @@ async function main() {
 
   await writeFile(rawPath, buffer);
 
-  const occupationRows = rows.filter((row) => pick(row, ['Occupation', 'Detailed occupation']));
+  const occupationRows = rows.filter((row) => pick(row, ['2024 National Employment Matrix title']));
   const percentRanked = occupationRows
     .map((row) => ({
       ...summarizeRow(row),
-      employmentPercentChangeValue: numberValue(pick(row, ['Employment percent change'])),
-      annualOpeningsValue: numberValue(pick(row, ['Annual openings'])),
-      medianWageValue: numberValue(pick(row, ['Median wage'])),
+      employment2024Value: numberValue(pick(row, ['Employment, 2024'])),
+      employment2034Value: numberValue(pick(row, ['Employment, 2034'])),
+      employmentChangeValue: numberValue(pick(row, ['Employment change, numeric, 2024–34'])),
+      employmentPercentChangeValue: numberValue(pick(row, ['Employment change, percent, 2024–34'])),
+      annualOpeningsValue: numberValue(pick(row, ['Occupational openings, 2024–34 annual average'])),
+      medianWageValue: numberValue(pick(row, ['Median annual wage, dollars, 2024[1]'])),
     }))
     .filter((row) => row.occupation);
 
@@ -81,14 +101,14 @@ async function main() {
 
   const headers = rows[0] ? Object.keys(rows[0]) : [];
   const fieldPresence = {
-    employment2024: headers.some((header) => header.toLowerCase() === 'employment 2024'),
-    employment2034: headers.some((header) => header.toLowerCase() === 'employment 2034'),
-    employmentChange: headers.some((header) => header.toLowerCase() === 'employment change'),
-    employmentPercentChange: headers.some((header) => header.toLowerCase() === 'employment percent change'),
-    annualOpenings: headers.some((header) => header.toLowerCase() === 'annual openings'),
-    medianWage: headers.some((header) => header.toLowerCase() === 'median wage'),
-    entryLevelEducation: headers.some((header) => header.toLowerCase() === 'entry level education'),
-    onTheJobTraining: headers.some((header) => header.toLowerCase() === 'on-the-job training'),
+    employment2024: headers.includes('Employment, 2024'),
+    employment2034: headers.includes('Employment, 2034'),
+    employmentChange: headers.includes('Employment change, numeric, 2024–34'),
+    employmentPercentChange: headers.includes('Employment change, percent, 2024–34'),
+    annualOpenings: headers.includes('Occupational openings, 2024–34 annual average'),
+    medianWage: headers.includes('Median annual wage, dollars, 2024[1]'),
+    entryLevelEducation: headers.includes('Typical education needed for entry'),
+    onTheJobTraining: headers.includes('Typical on-the-job training needed to attain competency in the occupation'),
   };
 
   await writeFile(reportPath, JSON.stringify({
