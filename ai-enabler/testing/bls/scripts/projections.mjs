@@ -1,73 +1,11 @@
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import XLSX from 'xlsx';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const outputDir = path.join(rootDir, 'bls', 'outputs', 'projections');
-const csvUrl = 'https://www.bls.gov/emp/data/occupational-data.csv';
-
-function parseCsv(text) {
-  const rows = [];
-  let current = '';
-  let row = [];
-  let quoted = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (char === '"' && quoted && next === '"') {
-      current += '"';
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      quoted = !quoted;
-      continue;
-    }
-
-    if (char === ',' && !quoted) {
-      row.push(current);
-      current = '';
-      continue;
-    }
-
-    if ((char === '\n' || char === '\r') && !quoted) {
-      if (char === '\r' && next === '\n') {
-        index += 1;
-      }
-
-      row.push(current);
-      current = '';
-
-      if (row.some((value) => value.trim() !== '')) {
-        rows.push(row);
-      }
-
-      row = [];
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current.length > 0 || row.length > 0) {
-    row.push(current);
-    if (row.some((value) => value.trim() !== '')) {
-      rows.push(row);
-    }
-  }
-
-  const headers = rows.shift() || [];
-  return rows.map((values) => {
-    const record = {};
-    headers.forEach((header, index) => {
-      record[header.trim()] = (values[index] ?? '').trim();
-    });
-    return record;
-  });
-}
+const workbookUrl = 'https://www.bls.gov/emp/ind-occ-matrix/occupation.xlsx';
 
 function numberValue(value) {
   const cleaned = String(value || '').replace(/[$,%]/g, '').replace(/,/g, '').trim();
@@ -107,15 +45,19 @@ async function main() {
   await mkdir(outputDir, { recursive: true });
 
   const startedAt = Date.now();
-  const response = await fetch(csvUrl);
-  const csvText = await response.text();
-  const rows = parseCsv(csvText);
+  const response = await fetch(workbookUrl);
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const sheetName = workbook.SheetNames.find((name) => name === 'Table 1.2') || workbook.SheetNames.find((name) => name.startsWith('Table 1.2')) || workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const rawPath = path.join(outputDir, `projections-${stamp}.csv`);
+  const rawPath = path.join(outputDir, `projections-${stamp}.xlsx`);
   const reportPath = path.join(outputDir, `projections-${stamp}.report.json`);
 
-  await writeFile(rawPath, csvText);
+  await writeFile(rawPath, buffer);
 
   const occupationRows = rows.filter((row) => pick(row, ['Occupation', 'Detailed occupation']));
   const percentRanked = occupationRows
@@ -150,7 +92,8 @@ async function main() {
   };
 
   await writeFile(reportPath, JSON.stringify({
-    url: csvUrl,
+    url: workbookUrl,
+    sheetName,
     status: response.status,
     ok: response.ok,
     durationMs: Date.now() - startedAt,
