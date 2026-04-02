@@ -1,3 +1,5 @@
 output/
-bls/outputs/
+bls/outputs/*
+!bls/outputs/.gitkeep
+!bls/outputs/**/.gitkeep
 .env
