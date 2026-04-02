@@ -1,15 +1,21 @@
-# BLS Testing Sandbox
+# Testing Sandboxes
 
-Temporary Node.js scripts for checking BLS data before ingestion.
+Temporary Node.js scripts for checking BLS and Statistics Canada data before ingestion.
 
-Run one family at a time:
+US stack lives in `bls/`:
 
 - `npm run jolts`
 - `npm run ces`
 - `npm run cps`
 - `npm run projections`
 
-Output goes to `bls/outputs/jolts/`, `bls/outputs/ces/`, `bls/outputs/cps/`, and `bls/outputs/projections/`.
+Canada stack lives in `statscan/`:
+
+- `npm run statcan:lfs`
+- `npm run statcan:jvws`
+- `npm run statcan:seph`
+
+Output goes to `bls/outputs/jolts/`, `bls/outputs/ces/`, `bls/outputs/cps/`, `bls/outputs/projections/`, `statscan/outputs/lfs/`, `statscan/outputs/jvws/`, and `statscan/outputs/seph/`.
 Copy `.env.example` to `.env` if you want to keep local keys in one place.
 
 CPS / LFS → “How healthy is the job market overall?”

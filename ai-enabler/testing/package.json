@@ -6,9 +6,13 @@
     "jolts": "node bls/scripts/jolts.mjs",
     "ces": "node bls/scripts/ces.mjs",
     "cps": "node bls/scripts/cps.mjs",
-    "projections": "node bls/scripts/projections.mjs"
+    "projections": "node bls/scripts/projections.mjs",
+    "statcan:lfs": "node statscan/scripts/lfs.mjs",
+    "statcan:jvws": "node statscan/scripts/jvws.mjs",
+    "statcan:seph": "node statscan/scripts/seph.mjs"
   },
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "xlsx": "^0.18.5"
   }
 }

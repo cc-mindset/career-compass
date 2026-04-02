@@ -2,4 +2,7 @@ output/
 bls/outputs/*
 !bls/outputs/.gitkeep
 !bls/outputs/**/.gitkeep
+statscan/outputs/*
+!statscan/outputs/.gitkeep
+!statscan/outputs/**/.gitkeep
 .env
