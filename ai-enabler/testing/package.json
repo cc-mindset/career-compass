@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "jolts": "node bls/scripts/jolts.mjs"
+    "jolts": "node bls/scripts/jolts.mjs",
+    "ces": "node bls/scripts/ces.mjs",
+    "cps": "node bls/scripts/cps.mjs",
+    "projections": "node bls/scripts/projections.mjs"
   }
 }

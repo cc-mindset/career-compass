@@ -2,9 +2,12 @@
 
 Temporary Node.js scripts for checking BLS data before ingestion.
 
-Run the JOLTS test:
+Run one family at a time:
 
 - `npm run jolts`
+- `npm run ces`
+- `npm run cps`
+- `npm run projections`
 
-Output goes to `bls/outputs/jolts/`.
+Output goes to `bls/outputs/jolts/`, `bls/outputs/ces/`, `bls/outputs/cps/`, and `bls/outputs/projections/`.
 Copy `.env.example` to `.env` if you want to keep local keys in one place.
