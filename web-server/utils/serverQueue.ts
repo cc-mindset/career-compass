@@ -13,7 +13,7 @@ import {
   ConnectionTimeoutError,
 } from "../lib/openai.js";
 import { mockDbCache } from "../utils/mockDbCache.js";
-import { generateMarketInsights } from "../services/marketInsightsService_multipart.js";
+import { generateMarketInsights } from "../services/market-insights/marketInsightsService_multipart.js";
 import { emitToJob } from "../lib/websocket.js";
 
 // Queue processor - runs in background with proper error handling
