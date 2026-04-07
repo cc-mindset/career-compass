@@ -76,9 +76,11 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
   const generateMarketInsights = async ({
     location,
     userId,
+    section
   }: {
     location: string;
     userId?: string;
+    section?: string
   }) => {
     const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -95,11 +97,17 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     }
 
     setCurrentLocation(location);
-    setSections({
-      marketReport: { status: "loading" },
-      industryTrends: { status: "loading" },
-      newsAndCareerIntel: { status: "loading" },
-    });
+
+    if(!!section) {
+      setSections(prev => ({...prev, [section]: { status: "loading" } }))
+    } else {
+      setSections({
+        marketReport: { status: "loading" },
+        industryTrends: { status: "loading" },
+        newsAndCareerIntel: { status: "loading" },
+      });
+    }
+
     setGenerateState((prev) => ({
       ...prev,
       status: "in-progress",
@@ -310,7 +318,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
       ...prev,
       [section]: { status: "loading" },
     }));
-    await generateMarketInsights({ location: currentLocation });
+    await generateMarketInsights({ location: currentLocation, section });
   };
 
   useEffect(() => {
@@ -327,7 +335,24 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         case "job_start":
           setProgressText(payload.stage || "Starting...");
           break;
-
+        case "section_in_progress":
+          if (payload.section && payload.data) {
+            console.log(
+              `[MarketInsights] \u2713 Section ready with previous data: ${payload.section}`,
+            );
+            setSections((prev) => ({
+              ...prev,
+              [payload.section!]: { status: "success", data: payload.data },
+            }));
+          }
+          else {
+            setProgressText(payload.stage || "Processing...");
+            setTimeout(() => {
+              retrySection(payload.section)
+            }, 3000)
+          }
+          break;
+        
         case "section_success":
           if (payload.section && payload.data) {
             console.log(
