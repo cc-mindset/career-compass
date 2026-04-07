@@ -1,0 +1,22 @@
+@keyframes ekg-draw {
+  0% {
+    stroke-dashoffset: 1000;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  90%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+.animate-ekg {
+  stroke-dasharray: 1000;
+  animation: ekg-draw 2s ease-in-out infinite;
+}
