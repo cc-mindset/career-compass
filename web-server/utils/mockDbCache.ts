@@ -69,13 +69,13 @@ class MockDbCache {
       _notice: `[MOCK CACHE] Showing cached data for "${loc}". Real DB integration pending — this will return stored insights once live.`,
 
       // ── Shape mirrors the real combined insights object ──
-      executive_summary_brief:
+      market_report_summary_brief:
         `[MOCK CACHE — ${loc}] This is placeholder cached content. ` +
         `Once the database integration is complete, real previously-generated ` +
         `market insights for ${loc} will appear here.`,
-      executive_summary: {
+      market_report_summary: {
         overview: `[MOCK CACHE — ${loc}] Real cached overview pending DB integration.`,
-        key_stats: {
+        summary_key_stats: {
           strongest_opportunity: 'Pending DB integration',
           highest_risk_sector: 'Pending DB integration',
           top_skill_demand: 'Pending DB integration',
@@ -96,12 +96,12 @@ class MockDbCache {
         title: `${loc} vs Broader Region (MOCK CACHE)`,
         data: [],
       },
-      high_growth_sectors: [],
+      growth_sectors: [],
       at_risk_sectors: [],
       top_skills_demand: { title: `Top Skills — ${loc} (MOCK CACHE)`, categories: [] },
       market_risks: [],
       market_news: [],
-      strategies_by_profile: {
+      strategies_by_experience: {
         new_graduates: [`[MOCK CACHE — ${loc}] Real strategies pending DB integration.`],
         mid_career_pivoting: [`[MOCK CACHE — ${loc}] Real strategies pending DB integration.`],
         newcomers_international: [`[MOCK CACHE — ${loc}] Real strategies pending DB integration.`],
@@ -122,13 +122,13 @@ class MockDbCache {
         `[FALLBACK] OpenAI is temporarily unavailable. Showing fallback data for "${loc}". ` +
         `Once DB integration is live, this will return the last known good insights instead.`,
 
-      executive_summary_brief:
+      market_report_summary_brief:
         `[FALLBACK — ${loc}] Our AI service is currently at capacity or temporarily unavailable. ` +
         `Please try again in a few minutes. ` +
         `Once the database integration is complete, this will show the last known insights for ${loc}.`,
-      executive_summary: {
+      market_report_summary: {
         overview: `[FALLBACK — ${loc}] Service temporarily unavailable. Please try again shortly.`,
-        key_stats: {
+        summary_key_stats: {
           strongest_opportunity: 'Service temporarily unavailable',
           highest_risk_sector: 'Service temporarily unavailable',
           top_skill_demand: 'Service temporarily unavailable',
@@ -149,12 +149,12 @@ class MockDbCache {
         title: `${loc} vs Broader Region (FALLBACK)`,
         data: [],
       },
-      high_growth_sectors: [],
+      growth_sectors: [],
       at_risk_sectors: [],
       top_skills_demand: { title: `Top Skills — ${loc} (FALLBACK)`, categories: [] },
       market_risks: [],
       market_news: [],
-      strategies_by_profile: {
+      strategies_by_experience: {
         new_graduates: [`[FALLBACK — ${loc}] Service temporarily unavailable. Please try again later.`],
         mid_career_pivoting: [`[FALLBACK — ${loc}] Service temporarily unavailable. Please try again later.`],
         newcomers_international: [`[FALLBACK — ${loc}] Service temporarily unavailable. Please try again later.`],

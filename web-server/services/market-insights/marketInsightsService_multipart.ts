@@ -3,6 +3,8 @@ import { logger } from '../../utils/logger.js';
 import { emitToJob } from '../../lib/websocket.js';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { LLM_SECTION_LABELS } from '../constants/index.js';
+import { LlmCacheStatus } from '../constants/db.js';
 
 type SectionName = 'marketReport' | 'industryTrends' | 'newsAndCareerIntel';
 
@@ -30,7 +32,7 @@ type MarketInsightsData = Record<string, unknown>;
 
 /**
  * Part 1: Market Report Section (3 articles)
- * Focuses on: executive_summary_brief, executive_summary, labour_market_snapshot, city_vs_region_comparison
+ * Focuses on: market_report_summary_brief, market_report_summary, labour_market_snapshot, city_vs_region_comparison
  */
 function buildMarketReportPrompt(location: string): string {
   return `You are analyzing labor market data for ${location}. Use ONLY THE DATA provided in the context below. DO NOT make up sources or statistics.
@@ -39,7 +41,7 @@ IMPORTANT: The context contains documents from your knowledge base. ONLY cite so
 
 Generate a JSON response with these sections:
 
-1. executive_summary_brief: 
+1. market_report_summary_brief: 
    - A 2-4 paragraph executive summary focused on the LAST 2 MONTHS of market news and structural shifts for ${location}. 
    - Include: recent layoffs, policy changes, emerging sectors, AI adoption impact, hybrid/remote work trends
    - Use specific numbers and recent dates from the context documents
@@ -47,9 +49,9 @@ Generate a JSON response with these sections:
    - Example structure for SF: "Over the next 3-10 years, [location] will stay a global jobs hotspot, but the centre of gravity is shifting..."
    - Format as plain text (NOT JSON nested), ~400-600 words
 
-2. executive_summary:
+2. market_report_summary:
    - overview: 2-3 paragraphs analyzing the ACTUAL labor market conditions based on the data sources. Reference specific BLS statistics, recent news, and economic trends.
-   - key_stats: 
+   - summary_key_stats: 
      * strongest_opportunity: Specific sector/role backed by data (e.g., "Cloud Infrastructure Engineering - 23% YoY growth per BLS Q3 2024")
      * highest_risk_sector: Specific sector with declining data (e.g., "Retail Management - 8% contraction due to e-commerce shift")
      * top_skill_demand: Actual in-demand skill from job postings data
@@ -91,14 +93,14 @@ Return ONLY valid JSON with NO markdown formatting.`;
 
 /**
  * Part 2: Industry Growth and Decline Trends Section (4 trend cards)
- * Focuses on: high_growth_sectors, at_risk_sectors, top_skills_demand, market_risks
+ * Focuses on: growth_sectors, at_risk_sectors, top_skills_demand, market_risks
  */
 function buildIndustryTrendsPrompt(location: string): string {
   return `Generate industry trends and skills data for ${location}.
 
 Provide a JSON response with these sections:
 
-1. high_growth_sectors: Array of EXACTLY 10 sectors with:
+1. growth_sectors: Array of EXACTLY 10 sectors with:
    - sector: High-Growth Sector name (e.g., "AI & Advanced Tech (SF, Palo Alto, South Bay)")
    - growth_outlook: "Expanding" | "Growing" (one of these two)
    - example_roles: Array of 4-6 specific job titles and specializations
@@ -149,7 +151,7 @@ Use coaching language. Cite sources. Return ONLY valid JSON.`;
 
 /**
  * Part 3: Market News & Career Intelligence
- * Focuses on: market_news, strategies_by_profile, key_findings
+ * Focuses on: market_news, strategies_by_experience, key_findings
  */
 function buildNewsAndCareerIntelPrompt(location: string): string {
   return `Generate market news and career intelligence for ${location}. Use ONLY data from the context provided. DO NOT invent sources.
@@ -166,7 +168,7 @@ Provide a JSON response with these sections:
    - source: ACTUAL news source from context
    - date: ACTUAL date from context
 
-2. strategies_by_profile:
+2. strategies_by_experience:
    - new_graduates: Array of 10+ specific, actionable strategies
    - mid_career_pivoting: Array of 10+ specific, actionable strategies  
    - newcomers_international: Array of 10+ specific, actionable strategies
@@ -258,20 +260,20 @@ export async function generateMarketInsights(
     logger.info(`📊 Starting independent section generation for: ${location}`);
 
     if (jobId) {
-      emitToJob(jobId, 'progress', { 
+      emitToJob(jobId, 'progress', {
         type: 'job_start',
         stage: 'Preparing market insights',
-        jobId 
+        jobId
       });
     }
 
     const onSectionComplete = (section: string, result: Record<string, unknown> | string | null, error?: string) => {
       const sectionName = section as SectionName;
-      
+
       if (error) {
         logger.error(`❌ Section failed: ${section} - ${error}`);
         sectionStates[sectionName] = { status: 'error', error };
-        
+
         if (jobId) {
           emitToJob(jobId, 'progress', {
             type: 'section_error',
@@ -284,17 +286,26 @@ export async function generateMarketInsights(
       }
 
       if (result) {
+        if ((result as Record<string, string>).status === LlmCacheStatus.UPDATING) {
+          if (jobId)
+            emitToJob(jobId, 'progress', {
+              type: 'section_in_progress',
+              section: sectionName,
+              data: result,
+              jobId,
+            });
+        } else {
+          if (jobId) {
+            emitToJob(jobId, 'progress', {
+              type: 'section_success',
+              section: sectionName,
+              data: result,
+              jobId,
+            });
+          }
+        }
         logger.info(`✓ Section complete: ${section}`);
         sectionStates[sectionName] = { status: 'success', data: result as MarketInsightsData };
-        
-        if (jobId) {
-          emitToJob(jobId, 'progress', {
-            type: 'section_success',
-            section: sectionName,
-            data: result,
-            jobId,
-          });
-        }
       }
     };
 
@@ -302,15 +313,15 @@ export async function generateMarketInsights(
       const results = await generateMultipleWithSharedContext(
         SYSTEM_PROMPT,
         [
-          { label: 'marketReport', query: buildMarketReportPrompt(location), cacheKeySuffix: `market-report-${location}` },
-          { label: 'industryTrends', query: buildIndustryTrendsPrompt(location), cacheKeySuffix: `industry-trends-${location}` },
-          { label: 'newsAndCareerIntel', query: buildNewsAndCareerIntelPrompt(location), cacheKeySuffix: `news-career-${location}` },
+          { label: LLM_SECTION_LABELS.marketReport, query: buildMarketReportPrompt(location), cacheKeySuffix: `${location}` },
+          { label: LLM_SECTION_LABELS.industryTrends, query: buildIndustryTrendsPrompt(location), cacheKeySuffix: `${location}` },
+          { label: LLM_SECTION_LABELS.newsAndCareerIntel, query: buildNewsAndCareerIntelPrompt(location), cacheKeySuffix: `${location}` },
         ],
         {
           namespaces: ['bls-data', 'news-data', 'reports-data'],
           topKPerNamespace: { 'bls-data': 15, 'news-data': 12, 'reports-data': 10 },
           responseFormat: 'json',
-          useCache: false,           // LLM generation result cache OFF — handled by mockDbCache (→ DB later)
+          useCache: true,
           useRetrievalCache: true,     // Pinecone/embedding namespace cache ON — avoids redundant vector DB calls
           contextFormatter: formatMarketInsightsContext,
           retrievalQuery: `market insights for ${location}`,

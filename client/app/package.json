@@ -12,6 +12,7 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.4",
     "@google/genai": "^1.38.0",
     "country-state-city": "^3.2.1",
     "lucide-react": "^0.562.0",

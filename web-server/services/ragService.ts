@@ -3,6 +3,9 @@ import { pineconeClient } from '../lib/pinecone.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
+import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from './dbCacheService.js';
+import { LLM_SECTION_LABELS } from '../constants/index.js';
+import { LlmCacheStatus } from '../constants/db.js';
 
 interface RetrieveOptions {
   namespaces?: string[];
@@ -77,7 +80,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
     // Step 1: Check cache for each namespace individually
     const cachedNamespaces: Record<string, NamespaceContext> = {};
     const namespacesToQuery: string[] = [];
-    
+
     if (useCache) {
       for (const namespace of namespaces) {
         const nsCacheKey = cache.generateKey('context-ns', queryText, namespace);
@@ -88,7 +91,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
           namespacesToQuery.push(namespace);
         }
       }
-      
+
       if (Object.keys(cachedNamespaces).length > 0) {
         logger.info(`✓ Cache hit for ${Object.keys(cachedNamespaces).length}/${namespaces.length} namespaces`);
       }
@@ -106,7 +109,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
     let freshResults: Record<string, { matches?: Array<{ id: string; score?: number; metadata?: Record<string, unknown> }> }> = {};
     if (namespacesToQuery.length > 0 && queryVector) {
       logger.info(`🔍 Querying ${namespacesToQuery.length} uncached namespaces from Pinecone`);
-      
+
       const queries = namespacesToQuery.map(namespace => ({
         namespace,
         vector: queryVector,
@@ -130,7 +133,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
         context.namespaces[namespace] = cachedNamespaces[namespace];
       } else {
         const nsResults = freshResults[namespace];
-        
+
         if (!nsResults || !nsResults.matches) {
           context.namespaces[namespace] = { matches: [], count: 0 };
         } else {
@@ -170,7 +173,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
     }
 
     logger.info(`✓ Retrieved context from ${namespaces.length} namespaces (${Object.keys(cachedNamespaces).length} cached, ${namespacesToQuery.length} fresh)`);
-    
+
     return context;
   } catch (error) {
     logger.error('Error retrieving context:', error);
@@ -185,7 +188,7 @@ export async function retrieveContext(queryText: string, options: RetrieveOption
  */
 export function formatGenericContext(context: Context): string {
   const sections: string[] = [];
-  
+
   Object.entries(context.namespaces).forEach(([namespace, data]) => {
     if (data.matches.length > 0) {
       sections.push(`=== ${namespace.toUpperCase()} ===\n`);
@@ -194,7 +197,7 @@ export function formatGenericContext(context: Context): string {
       });
     }
   });
-  
+
   return sections.join('\n\n');
 }
 
@@ -205,7 +208,7 @@ export function formatGenericContext(context: Context): string {
  */
 export function formatMarketInsightsContext(context: Context): string {
   const sections: string[] = [];
-  
+
   // Add explicit instruction
   sections.push('=== AVAILABLE DATA SOURCES (ONLY USE THESE) ===\n');
 
@@ -232,7 +235,7 @@ export function formatMarketInsightsContext(context: Context): string {
       sections.push(`[Market ${idx + 1}] ${match.text.substring(0, 500)}...`);
     });
   }
-  
+
   sections.push('\n=== END OF AVAILABLE SOURCES ===');
   sections.push('IMPORTANT: Your report_sources array must ONLY include sources from the three categories above.');
   sections.push('DO NOT add: Career centers, chambers of commerce, job boards (Indeed/Upwork), or meetup groups unless they appear in the content above.');
@@ -252,7 +255,7 @@ async function generateSingleResponse(
   maxRetries: number = 3
 ): Promise<Record<string, unknown> | string> {
   let response: Record<string, unknown> | string;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       if (responseFormat === 'json') {
@@ -261,11 +264,11 @@ async function generateSingleResponse(
           max_tokens: 16000,
           temperature: 0.7,
         });
-        
+
         if (!response || typeof response !== 'object') {
           throw new Error('Invalid JSON response: not an object');
         }
-        
+
         logger.info('📊 Generated JSON response with keys:', Object.keys(response).join(', '));
         return response;
       } else {
@@ -282,21 +285,21 @@ async function generateSingleResponse(
         logger.error(`🚫 ${error.name}: ${error.message} - Not retrying`);
         throw error;
       }
-      
+
       const err = error as Error;
       logger.warn(`⚠️  Generation attempt ${attempt}/${maxRetries} failed:`, err.message);
-      
+
       if (attempt === maxRetries) {
         logger.error('❌ All retry attempts exhausted');
         throw error;
       }
-      
+
       const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
       logger.info(`⏳ Retrying in ${waitTime}ms...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
-  
+
   throw new Error('Failed to generate response');
 }
 
@@ -338,7 +341,6 @@ export async function generateMultipleWithSharedContext(
     // Step 1: Retrieve context ONCE
     const contextCacheKey = cache.generateKey('context-shared', ...namespaces, ...prompts.map(p => p.label));
     let context: Context;
-    
     if (pineconeCache) {
       const cachedContext = cache.get<Context>(contextCacheKey);
       if (cachedContext) {
@@ -368,16 +370,34 @@ export async function generateMultipleWithSharedContext(
     const results: Record<string, Record<string, unknown> | string> = {};
     const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
-        const cacheKey = cache.generateKey('rag', prompt.cacheKeySuffix, systemPrompt.substring(0, 50));
-        
+        const dbCacheKey = getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
+        let cached;
         if (useCache) {
-          const cached = cache.get<Record<string, unknown> | string>(cacheKey);
+          cached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
           if (cached) {
-            logger.info(`✓ Cached: ${prompt.label}`);
-            results[prompt.label] = cached;
-            if (onSectionComplete) onSectionComplete(prompt.label, cached);
+            //Check if data is still updating
+            if (cached.status === LlmCacheStatus.UPDATING) {
+              logger.info(`Cache Getting Updated: ${prompt.label}`);
+              onSectionComplete?.(prompt.label, { status: LlmCacheStatus.UPDATING })
+              return
+            }
+            results[prompt.label] = cached?.data;
+            logger.info(`✓ Cache Retrieved: ${prompt.label}`);
+            onSectionComplete?.(prompt.label, cached.data);
             return;
+          } else {
+            const expiredCached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS], true);
+            if (expiredCached) {
+              logger.info(`✓ Cache Expired: ${prompt.label} - showing stale data while updating`);
+              results[prompt.label] = expiredCached?.data;
+              onSectionComplete?.(prompt.label, { ...expiredCached.data, status: LlmCacheStatus.UPDATING });
+            }
           }
+        }
+
+        //Updating caching status in DB
+        if (useCache) {
+          updateCacheResponseInDb(dbCacheKey, prompt.label);
         }
 
         logger.info(`🔄 Generating: ${prompt.label}`);
@@ -389,8 +409,10 @@ export async function generateMultipleWithSharedContext(
           3
         );
 
-        if (useCache) {
-          cache.set(cacheKey, response, cacheTTL);
+        //Caching fresh data to DB
+        if (useCache && !cached) {
+          logger.info(`✓ Cached: ${prompt.label}`);
+          cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label);
         }
 
         results[prompt.label] = response;
@@ -465,7 +487,7 @@ export async function generateWithRAG(query: string, systemPrompt: string, optio
     }
 
     logger.info('✓ Generated RAG response');
-    
+
     return response;
   } catch (error) {
     logger.error('Error in RAG generation:', error);

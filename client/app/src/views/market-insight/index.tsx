@@ -69,15 +69,15 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
 
   // Market report fields
   const executiveSummaryBrief =
-    marketReportData?.executive_summary_brief || null;
-  const executiveSummary = marketReportData?.executive_summary || null;
+    marketReportData?.market_report_summary_brief || null;
+  const executiveSummary = marketReportData?.market_report_summary || null;
   const labourMarketSnapshot = marketReportData?.labour_market_snapshot || null;
   const cityVsRegionComparison =
     marketReportData?.city_vs_region_comparison || null;
 
-  // Transform high_growth_sectors to match expected format
+  // Transform growth_sectors to match expected format
   const highGrowthSectors =
-    industryTrendsData?.high_growth_sectors?.map((item: any) => ({
+    industryTrendsData?.growth_sectors?.map((item: any) => ({
       title: item.sector || item.title,
       description: item.why_it_matters || item.description,
       roles: item.example_roles || item.roles || [],
@@ -850,7 +850,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
                   </span>
                 </div>
                 <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
-                  {executiveSummary?.key_stats?.strongest_opportunity ||
+                  {executiveSummary?.summary_key_stats?.strongest_opportunity ||
                     FALLBACK_KEY_STATS.strongest_opportunity}
                 </p>
               </div>
@@ -863,7 +863,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
                   </span>
                 </div>
                 <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
-                  {executiveSummary?.key_stats?.highest_risk_sector ||
+                  {executiveSummary?.summary_key_stats?.highest_risk_sector ||
                     FALLBACK_KEY_STATS.highest_risk_sector}
                 </p>
               </div>
@@ -876,7 +876,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
                   </span>
                 </div>
                 <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
-                  {executiveSummary?.key_stats?.top_skill_demand ||
+                  {executiveSummary?.summary_key_stats?.top_skill_demand ||
                     FALLBACK_KEY_STATS.top_skill_demand}
                 </p>
               </div>
@@ -889,7 +889,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
                   </span>
                 </div>
                 <p className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
-                  {executiveSummary?.key_stats?.pivot_necessity ||
+                  {executiveSummary?.summary_key_stats?.pivot_necessity ||
                     FALLBACK_KEY_STATS.pivot_necessity}
                 </p>
               </div>
