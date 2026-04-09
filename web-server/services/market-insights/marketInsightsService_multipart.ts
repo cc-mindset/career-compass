@@ -1,10 +1,10 @@
-import { generateMultipleWithSharedContext, formatMarketInsightsContext } from './ragService.js';
-import { logger } from '../utils/logger.js';
-import { emitToJob } from '../lib/websocket.js';
+import { generateMultipleWithSharedContext, formatMarketInsightsContext } from '../ragService.js';
+import { logger } from '../../utils/logger.js';
+import { emitToJob } from '../../lib/websocket.js';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
-import { LLM_SECTION_LABELS } from '../constants/index.js';
-import { LlmCacheStatus } from '../constants/db.js';
+import { LlmCacheStatus } from '../../constants/db.js';
+import { LLM_SECTION_LABELS } from '../../constants/index.js';
 
 type SectionName = 'marketReport' | 'industryTrends' | 'newsAndCareerIntel';
 
@@ -13,8 +13,6 @@ interface SectionState {
   data?: MarketInsightsData;
   error?: string;
 }
-
-
 
 const SYSTEM_PROMPT = `You are a career developmexnt coach and labor market analyst. 
 

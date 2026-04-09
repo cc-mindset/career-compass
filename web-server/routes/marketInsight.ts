@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 // import { mockDbCache } from "../utils/mockDbCache";
 import { enqueueJob, getJobResult, getQueueLength } from "../lib/redisQueue";
-import { generateMarketInsights } from "../services/marketInsightsService_multipart";
+import { generateMarketInsights } from "../services/market-insights/marketInsightsService_multipart";
 
 const marketInsightRouter = express.Router();
 

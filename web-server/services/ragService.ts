@@ -3,7 +3,7 @@ import { pineconeClient } from '../lib/pinecone.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from './dbCacheService.js';
+import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from './db-cache/dbCacheService.js';
 import { LLM_SECTION_LABELS } from '../constants/index.js';
 import { LlmCacheStatus } from '../constants/db.js';
 
