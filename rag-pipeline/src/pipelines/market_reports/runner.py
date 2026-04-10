@@ -19,6 +19,7 @@ from src.shared.s3_client import (
     move_file, parsed_key, processed_key, failed_key
 )
 from src.pipelines.market_reports.parser import parse_pdf
+
 # ── Lambda handler (incremental) ───────────────────────────────────────────────
 
 def lambda_handler(event, context):
