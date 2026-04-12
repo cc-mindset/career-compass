@@ -7,6 +7,8 @@ Run modes:
   - Lambda handler (incremental, triggered by EventBridge)
   - bulk_run() (one-time local script for initial 200 PDFs)
 """
+import os
+import traceback
 
 from config.settings import S3_PATHS
 from src.shared.registry import (
