@@ -18,9 +18,13 @@ from src.shared.registry import (
 from src.shared.s3_client import (
     list_files, download_to_temp, upload_json,
     hash_s3_file, get_sidecar_metadata,
-    move_file, parsed_key, processed_key, failed_key
+    move_file, parsed_key, enriched_key,
+    processed_key, failed_key, key_exists, delete_file
 )
 from src.pipelines.market_reports.parser import parse_pdf
+from src.pipelines.market_reports.chunker import chunk_document
+from src.shared.embedder import embed_chunks
+from src.shared.pinecone_client import upload_chunks, NAMESPACE_REPORTS
 
 # ── Lambda handler (incremental) ───────────────────────────────────────────────
 
@@ -64,6 +68,7 @@ def _process_inbox() -> dict:
         print(f"\nProcessing: {file_name}")
 
         tmp_path = None
+        file_hash = None
         try:
             # ── Step 1: Hash + dedup check ─────────────────────────────────
             file_hash = hash_s3_file(s3_key)
@@ -98,47 +103,76 @@ def _process_inbox() -> dict:
             output_key = parsed_key(stem)
             upload_json(parsed_doc, output_key)
             print(f"  → Uploaded parsed JSON: {output_key}")
+            update_status(registry, file_hash, Status.PARSED)
 
-            # ── Step 7: Move original PDF to processed/ ────────────────────
+            # ── Step 7: Chunk + enrich ─────────────────────────────────────
+            update_status(registry, file_hash, Status.CHUNKING)
+            enriched_doc = chunk_document(parsed_doc)
+            print(f"  → Chunked: {enriched_doc['totalChunks']} chunks")
+
+            # ── Step 8: Upload enriched JSON to S3 ────────────────────────
+            output_enriched_key = enriched_key(stem)
+            upload_json(enriched_doc, output_enriched_key)
+            print(f"  → Uploaded enriched JSON: {output_enriched_key}")
+            update_status(registry, file_hash, Status.ENRICHED)
+
+            # ── Step 9: Embed chunks ───────────────────────────────────────
+            update_status(registry, file_hash, Status.EMBEDDING)
+            embedded_chunks = embed_chunks(enriched_doc["chunks"])
+
+            # ── Step 10: Upload to Pinecone ────────────────────────────────
+            pinecone_ids = upload_chunks(embedded_chunks,
+                                         namespace=NAMESPACE_REPORTS)
+            print(f"  → Pinecone: {len(pinecone_ids)} vectors uploaded")
+
+            # ── Step 11: Cleanup S3 intermediate files ─────────────────────
+            delete_file(output_key)
+            delete_file(output_enriched_key)
+            print(f"  → Cleaned up S3 intermediate files")
+
+            # ── Step 12: Move original PDF to processed/ ───────────────────
             move_file(s3_key, processed_key(file_name))
 
-            # ── Step 8: Update registry ────────────────────────────────────
+            # ── Step 13: Delete sidecar JSON if exists ─────────────────────
+            sidecar_key = s3_key.replace(".pdf", ".json")
+            if key_exists(sidecar_key):
+                delete_file(sidecar_key)
+
+            # ── Step 14: Update registry ───────────────────────────────────
             needs_review = parsed_doc.get("autoExtracted", False)
-            new_status = Status.NEEDS_REVIEW if needs_review else Status.PARSED
-            update_status(registry, file_hash, new_status)
+            new_status = Status.NEEDS_REVIEW if needs_review else Status.COMPLETED
+            update_status(registry, file_hash, new_status,
+                          pineconeIds=pinecone_ids)
 
             if needs_review:
-                print(f" ⚠ Metadata auto-extracted — flagged for review.")
+                print(f"  ⚠ Metadata auto-extracted — flagged for review.")
             else:
-                print(f" ✓ Complete.")
+                print(f"  ✓ Complete.")
 
             results["processed"] += 1
 
         except Exception as e:
-            err_msg = traceback.format_exc()
             print(f"  ✗ Failed: {e}")
             results["failed"] += 1
             results["errors"].append(f"{file_name}: {e}")
 
-            # Move to failed/ so it doesn't block the queue
             try:
                 move_file(s3_key, failed_key(file_name))
-                update_status(
-                    get_registry(), file_hash,
-                    Status.FAILED,
-                    failedStage="parsing",
-                    errorMessage=str(e)[:500]
-                )
+                if file_hash:
+                    update_status(
+                        registry, file_hash,
+                        Status.FAILED,
+                        failedStage="pipeline",
+                        errorMessage=str(e)[:500]
+                    )
             except Exception:
-                pass  # Don't let cleanup errors mask the original
+                pass
 
         finally:
-            # Always clean up temp file
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
     return results
-
 
 # ── Local entry point ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
