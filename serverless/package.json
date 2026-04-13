@@ -1,0 +1,17 @@
+{
+  "name": "career-compass-cron",
+  "version": "1.0.0",
+  "description": "A serverless function to run scheduled tasks for Career Compass.",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "https": "^1.0.0",
+    "serverless": "^3.37.0"
+  },
+  "devDependencies": {
+    "serverless-dotenv-plugin": "^6.0.0"
+  },
+  "scripts": {
+    "deploy": "sls deploy"
+  }
+}

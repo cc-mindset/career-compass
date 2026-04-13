@@ -1,0 +1,28 @@
+service: career-compass-cron
+frameworkVersion: "3"
+plugins:
+  - serverless-dotenv-plugin
+provider:
+  name: aws
+  runtime: nodejs20.x
+custom:
+  dotenv:
+    path: ./.env
+    basePath: ./
+    logging: false
+    include:
+      - CRON_API_BASE_URL
+      - CRON_API_KEY
+functions:
+  rate1HrHandler:
+    handler: index.rate1hours
+    timeout: 600
+    events:
+      # Invoke Lambda function every 1 hour
+      - schedule: rate(1 hour)
+  cronEveryDayAtSixPmHandler:
+    handler: index.cronEveryDayAtSixPm
+    timeout: 600
+    events:
+      # Invoke Lambda function everyday at 6PM EST
+      - schedule: cron(0 18 * * ? *)
