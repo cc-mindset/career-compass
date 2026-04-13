@@ -354,7 +354,7 @@ def _assemble_sections(blocks: list[dict],
                 })
                 table_cursor[page] = table_cursor.get(page, 0) + 1
 
-            current_section["content"] += block["text"] + " "
+            current_section["content"] += block["text"] + "\n\n" #to preserve para breaks
 
     if current_section and current_section["content"].strip():
         sections.append(current_section)
