@@ -16,7 +16,7 @@ from src.shared.registry import (
     is_already_processed, Status
 )
 from src.shared.s3_client import (
-    list_files, download_to_temp, upload_json,
+    list_files, download_to_temp, upload_json, download_json,
     hash_s3_file, get_sidecar_metadata,
     move_file, parsed_key, enriched_key,
     processed_key, failed_key, key_exists, delete_file
@@ -86,35 +86,44 @@ def _process_inbox() -> dict:
             # ── Step 3: Register in MongoDB ────────────────────────────────
             metadata = sidecar or {}
             register_document(registry, file_name, file_hash, s3_key, metadata)
-            update_status(registry, file_hash, Status.PARSING)
-
-            # ── Step 4: Download PDF to temp file ──────────────────────────
-            tmp_path = download_to_temp(s3_key, suffix=".pdf")
-            print(f"  → Downloaded to temp: {tmp_path}")
-
-            # ── Step 5: Parse PDF ──────────────────────────────────────────
-            parsed_doc = parse_pdf(tmp_path, file_name, sidecar)
-            section_count = len(parsed_doc["sections"])
-            print(f"  → Parsed: {section_count} sections, "
-                  f"{parsed_doc['totalPages']} pages")
-
-            # ── Step 6: Upload parsed JSON to S3 ──────────────────────────
             stem = os.path.splitext(file_name)[0]
             output_key = parsed_key(stem)
-            upload_json(parsed_doc, output_key)
-            print(f"  → Uploaded parsed JSON: {output_key}")
-            update_status(registry, file_hash, Status.PARSED)
-
-            # ── Step 7: Chunk + enrich ─────────────────────────────────────
-            update_status(registry, file_hash, Status.CHUNKING)
-            enriched_doc = chunk_document(parsed_doc)
-            print(f"  → Chunked: {enriched_doc['totalChunks']} chunks")
-
-            # ── Step 8: Upload enriched JSON to S3 ────────────────────────
             output_enriched_key = enriched_key(stem)
-            upload_json(enriched_doc, output_enriched_key)
-            print(f"  → Uploaded enriched JSON: {output_enriched_key}")
-            update_status(registry, file_hash, Status.ENRICHED)
+            parsed_doc = None
+
+            # ── Step 4-8: Resume from enriched JSON if available ───────────
+            if key_exists(output_enriched_key):
+                print("  → Found existing enriched JSON, resuming from embedding.")
+                enriched_doc = download_json(output_enriched_key)
+                print(f"  → Loaded enriched JSON: {enriched_doc.get('totalChunks', 0)} chunks")
+                update_status(registry, file_hash, Status.ENRICHED)
+            else:
+                update_status(registry, file_hash, Status.PARSING)
+
+                # ── Step 4: Download PDF to temp file ──────────────────────
+                tmp_path = download_to_temp(s3_key, suffix=".pdf")
+                print(f"  → Downloaded to temp: {tmp_path}")
+
+                # ── Step 5: Parse PDF ──────────────────────────────────────
+                parsed_doc = parse_pdf(tmp_path, file_name, sidecar)
+                section_count = len(parsed_doc["sections"])
+                print(f"  → Parsed: {section_count} sections, "
+                      f"{parsed_doc['totalPages']} pages")
+
+                # ── Step 6: Upload parsed JSON to S3 ──────────────────────
+                upload_json(parsed_doc, output_key)
+                print(f"  → Uploaded parsed JSON: {output_key}")
+                update_status(registry, file_hash, Status.PARSED)
+
+                # ── Step 7: Chunk + enrich ─────────────────────────────────
+                update_status(registry, file_hash, Status.CHUNKING)
+                enriched_doc = chunk_document(parsed_doc)
+                print(f"  → Chunked: {enriched_doc['totalChunks']} chunks")
+
+                # ── Step 8: Upload enriched JSON to S3 ────────────────────
+                upload_json(enriched_doc, output_enriched_key)
+                print(f"  → Uploaded enriched JSON: {output_enriched_key}")
+                update_status(registry, file_hash, Status.ENRICHED)
 
             # ── Step 9: Embed chunks ───────────────────────────────────────
             update_status(registry, file_hash, Status.EMBEDDING)
@@ -126,8 +135,10 @@ def _process_inbox() -> dict:
             print(f"  → Pinecone: {len(pinecone_ids)} vectors uploaded")
 
             # ── Step 11: Cleanup S3 intermediate files ─────────────────────
-            delete_file(output_key)
-            delete_file(output_enriched_key)
+            if key_exists(output_key):
+                delete_file(output_key)
+            if key_exists(output_enriched_key):
+                delete_file(output_enriched_key)
             print(f"  → Cleaned up S3 intermediate files")
 
             # ── Step 12: Move original PDF to processed/ ───────────────────
@@ -139,7 +150,11 @@ def _process_inbox() -> dict:
                 delete_file(sidecar_key)
 
             # ── Step 14: Update registry ───────────────────────────────────
-            needs_review = parsed_doc.get("autoExtracted", False)
+            needs_review = (
+                parsed_doc.get("autoExtracted", False)
+                if parsed_doc is not None
+                else not bool(sidecar)
+            )
             new_status = Status.NEEDS_REVIEW if needs_review else Status.COMPLETED
             update_status(registry, file_hash, new_status,
                           pineconeIds=pinecone_ids)

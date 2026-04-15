@@ -40,3 +40,8 @@ rag-pipeline/
 pending → parsing → parsed → chunking → chunked → enriching → enriched → embedding → completed
                  ↘ needs_review (auto-extracted metadata, review before continuing)
                  ↘ failed (check failedStage + errorMessage in registry)
+NAMING CONVENTION BEFORE PUTTING PDF IN S3:
+
+    {publisher}-{short-title}-{year}.pdf
+                    +
+    {publisher}-{short-title}-{year}.json
