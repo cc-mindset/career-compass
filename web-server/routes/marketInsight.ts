@@ -2,24 +2,9 @@ import express, { Request, Response } from "express";
 // import { mockDbCache } from "../utils/mockDbCache";
 import { enqueueJob, getJobResult, getQueueLength } from "../lib/redisQueue";
 import { generateMarketInsights } from "../services/market-insights/marketInsightsService_multipart";
-import { getTopCitiesOfState, getTopCityOfDistrictOfACity } from "../utils/city";
+import { getTopCityOfDistrictOfACity } from "../utils/city";
 
 const marketInsightRouter = express.Router();
-
-marketInsightRouter.get("/state", (req: Request, res: Response) => {
-  const { stateCode } = req.body;
-  const cities = getTopCitiesOfState(stateCode);
-
-  cities.forEach((city) => {
-    console.log(city);
-    generateMarketInsights(
-      city,
-      "",
-    );
-  });
-
-  res.json({ stateCode, cities });
-});
 
 // Generate market insights endpoint
 marketInsightRouter.post(

@@ -60,6 +60,7 @@ export const getTopCityOfDistrictOfACity = (cityState: string) => {
 
 export const getTopCitiesOfState = (state: string) => {
     let result: string[] = [];
+    //getting all districts of the state
     const allDistrictCities = cities.filter((c) => c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase()).map((c) => c.admin2);
     let districts: string[] = [];
     allDistrictCities.forEach((district) => {
@@ -68,14 +69,17 @@ export const getTopCitiesOfState = (state: string) => {
         }
     });
 
+    //getting districts of hardcoded top cities of given state
     const topCitiesDistricts = topCities.map((city) => {
         let cityData = cities.find((c) => c.name.toLocaleLowerCase() === city.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
         if (cityData) return cityData.admin2;
         return null;
     }).filter((d): d is string => !!d);
 
+    //removing districts of hardcoded top cities from all districts of the state
     districts = districts.filter((d) => !topCitiesDistricts.includes(d));
 
+    // If there are districts, get the top city of each district and add to result
     if (districts.length > 0) {
         const topCitiesOfState = districts.map((district) => {
             const cityData = cities.find((c) => c.admin2.toLocaleLowerCase() === district.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
@@ -84,6 +88,7 @@ export const getTopCitiesOfState = (state: string) => {
         result = topCitiesOfState.map((c) => `${c.name}, ${c.admin1}`);
     }
 
+    // Finally, add the hardcoded top cities of the state to the result
     result = result.concat(topCities.filter((city) => {
         let cityData = cities.find((c) => c.name.toLocaleLowerCase() === city.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
         return !!cityData;
