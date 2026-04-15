@@ -12,7 +12,7 @@ interface City {
 
 const cities: City[] = citiesJson as City[];
 
-const topCities = ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix",
+const topCities = ["New York City", "Los Angeles", "Chicago", "Houston", "Phoenix",
     "San Antonio", "Philadelphia", "San Diego", "Dallas", "Fort Worth",
     "Jacksonville", "Austin", "San Jose", "Charlotte", "Columbus",
     "Indianapolis", "San Francisco", "Seattle", "Denver", "Oklahoma City",
