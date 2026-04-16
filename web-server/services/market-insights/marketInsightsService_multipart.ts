@@ -14,7 +14,7 @@ interface SectionState {
   error?: string;
 }
 
-const SYSTEM_PROMPT = `You are a career developmexnt coach and labor market analyst. 
+export const SYSTEM_PROMPT = `You are a career developmexnt coach and labor market analyst. 
 
 CRITICAL RULES:
 1. ONLY use data from the context provided below - DO NOT make up sources
@@ -32,7 +32,7 @@ type MarketInsightsData = Record<string, unknown>;
  * Part 1: Market Report Section (3 articles)
  * Focuses on: market_report_summary_brief, market_report_summary, labour_market_snapshot, city_vs_region_comparison
  */
-function buildMarketReportPrompt(location: string): string {
+export function buildMarketReportPrompt(location: string): string {
   return `You are analyzing labor market data for ${location}. Use ONLY THE DATA provided in the context below. DO NOT make up sources or statistics.
 
 IMPORTANT: The context contains documents from your knowledge base. ONLY cite sources that actually appear in the context. Do NOT invent source names.
@@ -93,7 +93,7 @@ Return ONLY valid JSON with NO markdown formatting.`;
  * Part 2: Industry Growth and Decline Trends Section (4 trend cards)
  * Focuses on: growth_sectors, at_risk_sectors, top_skills_demand, market_risks
  */
-function buildIndustryTrendsPrompt(location: string): string {
+export function buildIndustryTrendsPrompt(location: string): string {
   return `Generate industry trends and skills data for ${location}.
 
 Provide a JSON response with these sections:
@@ -151,7 +151,7 @@ Use coaching language. Cite sources. Return ONLY valid JSON.`;
  * Part 3: Market News & Career Intelligence
  * Focuses on: market_news, strategies_by_experience, key_findings
  */
-function buildNewsAndCareerIntelPrompt(location: string): string {
+export function buildNewsAndCareerIntelPrompt(location: string): string {
   return `Generate market news and career intelligence for ${location}. Use ONLY data from the context provided. DO NOT invent sources.
 
 IMPORTANT: ONLY cite sources that actually appear in the retrieved context documents. Do NOT make up source names.

@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 // import { mockDbCache } from "../utils/mockDbCache";
 import { enqueueJob, getJobResult, getQueueLength } from "../lib/redisQueue";
 import { generateMarketInsights } from "../services/market-insights/marketInsightsService_multipart";
+import { getTopCityOfDistrictOfACity } from "../utils/city";
 
 const marketInsightRouter = express.Router();
 
@@ -10,19 +11,21 @@ marketInsightRouter.post(
   "/generate",
   async (req: Request, res: Response) => {
     try {
-      const { location, userId } = req.body;
+      const { location: requestedLocation, userId } = req.body;
 
-      if (!location || typeof location !== "string") {
+      if (!requestedLocation || typeof requestedLocation !== "string") {
         return res
           .status(400)
           .json({ error: "Valid location string is required" });
       }
 
-      const sanitizedLocation = location.trim().substring(0, 500);
+      let sanitizedLocation = requestedLocation.trim().substring(0, 500);
 
       if (sanitizedLocation.length === 0) {
         return res.status(400).json({ error: "Location cannot be empty" });
       }
+
+      sanitizedLocation = getTopCityOfDistrictOfACity(sanitizedLocation);
 
       // ── Step 1: Check mock DB cache (swap with real DB check later) ──
       // const cacheStatus = mockDbCache.check(sanitizedLocation);
