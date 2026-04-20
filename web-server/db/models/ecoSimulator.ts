@@ -6,10 +6,6 @@ export interface IEcoSimulator extends Document {
     location: string;
     current_job_title: string;
     seniority_level: string;
-    user_adoption_level: number;
-    ai_tech_advancement: number;
-    global_Instability_levels: number;
-    upskilling_pace: number;
     data: EcoSimulatorData;
     status: LlmCacheStatus;
     vars_id: string;
@@ -26,15 +22,11 @@ const ecoSimulatorDataSchema = new Schema<EcoSimulatorData>({
     tips: { type: String, required: true },
 });
 
-const ecoSimulatorSchema = new Schema<IEcoSimulator>(
+const EcoSimulatorSchema = new Schema<IEcoSimulator>(
     {
         location: { type: String, required: true },
         current_job_title: { type: String, required: true },
         seniority_level: { type: String, required: true },
-        user_adoption_level: { type: Number, required: true },
-        global_Instability_levels: { type: Number, required: true },
-        upskilling_pace: { type: Number, required: true },
-        ai_tech_advancement: { type: Number, required: true },
         data: ecoSimulatorDataSchema,
         vars_id: { type: String, required: true, unique: true },
         status: {
@@ -51,4 +43,4 @@ const ecoSimulatorSchema = new Schema<IEcoSimulator>(
     },
 );
 
-export default mongoose.model<IEcoSimulator>("EcoSimulator", ecoSimulatorSchema);
+export default mongoose.model<IEcoSimulator>("EcoSimulator", EcoSimulatorSchema);
