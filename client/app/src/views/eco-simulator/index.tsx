@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../../types';
-import { BarChart3, TrendingUp, ShieldCheck, Zap, ChevronRight } from 'lucide-react';
+import { BarChart3, TrendingUp, ShieldCheck, Zap, ChevronRight, Wallet, BriefcaseBusiness } from 'lucide-react';
 import { TipCard } from '../../ui-kit';
 
 interface EcoSimulatorViewProps {
@@ -9,12 +9,15 @@ interface EcoSimulatorViewProps {
 
 const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
   const [aiImpact, setAiImpact] = useState(50);
-  const [marketVolatility, setMarketVolatility] = useState(30);
+  const [aiTechAdvancement, setAiTechAdvancement] = useState(60);
+  const [globalInstabilityLevels, setGlobalInstabilityLevels] = useState(30);
   const [upskillSpeed, setUpskillSpeed] = useState(70);
 
   // Derived metrics
-  const resiliencyScore = Math.max(10, Math.min(100, (upskillSpeed * 0.6) + (100 - aiImpact * 0.3) - (marketVolatility * 0.1)));
-  const marketDemand = Math.max(10, Math.min(100, (aiImpact * 0.4) + (upskillSpeed * 0.3) - (marketVolatility * 0.2)));
+  const resiliencyScore = Math.max(10, Math.min(100, (upskillSpeed * 0.55) + (100 - aiImpact * 0.25) + (100 - aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.1)));
+  const marketDemand = Math.max(10, Math.min(100, (aiImpact * 0.3) + (aiTechAdvancement * 0.25) + (upskillSpeed * 0.3) - (globalInstabilityLevels * 0.2)));
+  const salaryIncreaseChances = Math.max(10, Math.min(100, (upskillSpeed * 0.45) + (aiTechAdvancement * 0.2) + (marketDemand * 0.3) - (globalInstabilityLevels * 0.15)));
+  const careerAdvancementOpportunities = Math.max(10, Math.min(100, (upskillSpeed * 0.4) + (aiImpact * 0.2) + (aiTechAdvancement * 0.2) + (marketDemand * 0.25) - (globalInstabilityLevels * 0.2)));
 
   const getStatus = (score: number) => {
     if (score > 75) return { label: 'Robust', color: 'text-emerald-500', bg: 'bg-emerald-500/10' };
@@ -24,6 +27,8 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
 
   const resiliency = getStatus(resiliencyScore);
   const demand = getStatus(marketDemand);
+  const salaryIncrease = getStatus(salaryIncreaseChances);
+  const careerAdvancement = getStatus(careerAdvancementOpportunities);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -59,14 +64,28 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
 
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <label className="text-sm font-bold text-slate-700">Market Volatility</label>
-                  <span className="text-xs font-extrabold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg">{marketVolatility}%</span>
+                  <label className="text-sm font-bold text-slate-700">AI Tech Advancement</label>
+                  <span className="text-xs font-extrabold text-cyan-600 bg-cyan-50 px-2 py-1 rounded-lg">{aiTechAdvancement}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0" max="100"
+                  value={aiTechAdvancement}
+                  onChange={(e) => setAiTechAdvancement(parseInt(e.target.value))}
+                  className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-bold text-slate-700">Global Instability Levels</label>
+                  <span className="text-xs font-extrabold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg">{globalInstabilityLevels}%</span>
                 </div>
                 <input 
                   type="range" 
                   min="0" max="100" 
-                  value={marketVolatility} 
-                  onChange={(e) => setMarketVolatility(parseInt(e.target.value))}
+                  value={globalInstabilityLevels} 
+                  onChange={(e) => setGlobalInstabilityLevels(parseInt(e.target.value))}
                   className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
                 />
               </div>
@@ -87,7 +106,7 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
             </div>
           </div>
 
-          <TipCard text="Increasing your Upskilling Velocity is the single most effective way to counter high Market Volatility." compact />
+          <TipCard text="Increasing your Upskilling Velocity is the single most effective way to counter high Global Instability Levels." compact />
         </div>
 
         {/* Results Section */}
@@ -97,7 +116,7 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
               <div className={`p-3 md:p-4 rounded-2xl md:rounded-3xl ${resiliency.bg} mb-4 md:mb-6`}>
                 <ShieldCheck className={`w-6 h-6 md:w-8 md:h-8 ${resiliency.color}`} />
               </div>
-              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5 md:mb-2">Market Resiliency</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5 md:mb-2">Layoff Chances</p>
               <h3 className={`text-3xl md:text-4xl font-extrabold ${resiliency.color} mb-1.5 md:mb-2`}>{Math.round(resiliencyScore)}%</h3>
               <p className="text-slate-500 text-xs sm:text-sm font-medium">Status: {resiliency.label}</p>
             </div>
@@ -109,6 +128,24 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
               <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5 md:mb-2">Career Demand</p>
               <h3 className={`text-3xl md:text-4xl font-extrabold ${demand.color} mb-1.5 md:mb-2`}>{Math.round(marketDemand)}%</h3>
               <p className="text-slate-500 text-xs sm:text-sm font-medium">Status: {demand.label}</p>
+            </div>
+
+            <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center text-center">
+              <div className={`p-3 md:p-4 rounded-2xl md:rounded-3xl ${salaryIncrease.bg} mb-4 md:mb-6`}>
+                <Wallet className={`w-6 h-6 md:w-8 md:h-8 ${salaryIncrease.color}`} />
+              </div>
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5 md:mb-2">Salary Increase Chances</p>
+              <h3 className={`text-3xl md:text-4xl font-extrabold ${salaryIncrease.color} mb-1.5 md:mb-2`}>{Math.round(salaryIncreaseChances)}%</h3>
+              <p className="text-slate-500 text-xs sm:text-sm font-medium">Status: {salaryIncrease.label}</p>
+            </div>
+
+            <div className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center text-center">
+              <div className={`p-3 md:p-4 rounded-2xl md:rounded-3xl ${careerAdvancement.bg} mb-4 md:mb-6`}>
+                <BriefcaseBusiness className={`w-6 h-6 md:w-8 md:h-8 ${careerAdvancement.color}`} />
+              </div>
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5 md:mb-2">Career Advancement Opportunities</p>
+              <h3 className={`text-3xl md:text-4xl font-extrabold ${careerAdvancement.color} mb-1.5 md:mb-2`}>{Math.round(careerAdvancementOpportunities)}%</h3>
+              <p className="text-slate-500 text-xs sm:text-sm font-medium">Status: {careerAdvancement.label}</p>
             </div>
           </div>
 
