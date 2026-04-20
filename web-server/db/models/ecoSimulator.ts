@@ -6,9 +6,10 @@ export interface IEcoSimulator extends Document {
     location: string;
     current_job_title: string;
     seniority_level: string;
-    user_adoption_level: string;
-    global_Instability_levels: string;
-    upskilling_pace: string;
+    user_adoption_level: number;
+    ai_tech_advancement: number;
+    global_Instability_levels: number;
+    upskilling_pace: number;
     data: EcoSimulatorData;
     status: LlmCacheStatus;
     vars_id: string;
@@ -17,9 +18,10 @@ export interface IEcoSimulator extends Document {
 }
 
 const ecoSimulatorDataSchema = new Schema<EcoSimulatorData>({
-    chances_of_being_laid_off_formula: { type: String, required: true },
+    layoff_chances_formula: { type: String, required: true },
     career_demand_formula: { type: String, required: true },
     career_growth_opportunities_formula: { type: String, required: true },
+    salary_increment_formula: { type: String, required: true },
     simulation_insights: { type: String, required: true },
     tips: { type: String, required: true },
 });
@@ -29,9 +31,10 @@ const ecoSimulatorSchema = new Schema<IEcoSimulator>(
         location: { type: String, required: true },
         current_job_title: { type: String, required: true },
         seniority_level: { type: String, required: true },
-        user_adoption_level: { type: String, required: true },
-        global_Instability_levels: { type: String, required: true },
-        upskilling_pace: { type: String, required: true },
+        user_adoption_level: { type: Number, required: true },
+        global_Instability_levels: { type: Number, required: true },
+        upskilling_pace: { type: Number, required: true },
+        ai_tech_advancement: { type: Number, required: true },
         data: ecoSimulatorDataSchema,
         vars_id: { type: String, required: true, unique: true },
         status: {
