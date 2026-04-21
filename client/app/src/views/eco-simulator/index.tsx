@@ -1,23 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../../types';
-import { BarChart3, TrendingUp, ShieldCheck, Zap, ChevronRight, Wallet, BriefcaseBusiness } from 'lucide-react';
+import { BarChart3, TrendingUp, ShieldCheck, Zap, ChevronRight, Wallet, BriefcaseBusiness, Loader2 } from 'lucide-react';
 import { TipCard } from '../../ui-kit';
+import { useEcoSimulator } from '../../state/contexts/eco-simulator/EcoSimulatorContext';
 
 interface EcoSimulatorViewProps {
   user: UserProfile;
 }
 
 const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
+  const { data, loading, error, fetchEcoSimulatorData } = useEcoSimulator();
   const [aiImpact, setAiImpact] = useState(50);
   const [aiTechAdvancement, setAiTechAdvancement] = useState(60);
   const [globalInstabilityLevels, setGlobalInstabilityLevels] = useState(30);
   const [upskillSpeed, setUpskillSpeed] = useState(70);
 
+  useEffect(() => {
+    fetchEcoSimulatorData(user.location, user.role, user.experience);
+  }, [user.location, user.role, user.experience, fetchEcoSimulatorData]);
+
+  const calculateScore = (formula: string, variables: Record<string, number>) => {
+    try {
+      const keys = Object.keys(variables);
+      const values = Object.values(variables);
+      return Function(...keys, `return ${formula}`)(...values);
+    } catch (e) {
+      console.error('Error evaluating formula:', formula, e);
+      return 50;
+    }
+  };
+
   // Derived metrics
-  const resiliencyScore = Math.max(10, Math.min(100, (upskillSpeed * 0.55) + (100 - aiImpact * 0.25) + (100 - aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.1)));
-  const marketDemand = Math.max(10, Math.min(100, (aiImpact * 0.3) + (aiTechAdvancement * 0.25) + (upskillSpeed * 0.3) - (globalInstabilityLevels * 0.2)));
-  const salaryIncreaseChances = Math.max(10, Math.min(100, (upskillSpeed * 0.45) + (aiTechAdvancement * 0.2) + (marketDemand * 0.3) - (globalInstabilityLevels * 0.15)));
-  const careerAdvancementOpportunities = Math.max(10, Math.min(100, (upskillSpeed * 0.4) + (aiImpact * 0.2) + (aiTechAdvancement * 0.2) + (marketDemand * 0.25) - (globalInstabilityLevels * 0.2)));
+  const baseVariables = { aiImpact, aiTechAdvancement, globalInstabilityLevels, upskillSpeed };
+  const marketDemand = data ? Math.max(10, Math.min(100, calculateScore(data.career_demand_formula, baseVariables))) : 50;
+  const extendedVariables = { ...baseVariables, marketDemand };
+  const resiliencyScore = data ? Math.max(10, Math.min(100, calculateScore(data.layoff_chances_formula, baseVariables))) : 50;
+  const salaryIncreaseChances = data ? Math.max(10, Math.min(100, calculateScore(data.salary_increment_formula, extendedVariables))) : 50;
+  const careerAdvancementOpportunities = data ? Math.max(10, Math.min(100, calculateScore(data.career_growth_opportunities_formula, extendedVariables))) : 50;
 
   const getStatus = (score: number) => {
     if (score > 75) return { label: 'Robust', color: 'text-emerald-500', bg: 'bg-emerald-500/10' };
@@ -37,6 +56,7 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
           Career Eco Simulator <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 flex-shrink-0" />
         </h1>
         <p className="text-slate-500 text-sm sm:text-base">Model the impact of global economic variables on your role as a {user.role}</p>
+        {loading && <p className="text-slate-500 text-sm mt-2 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading simulation data...</p>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12">
@@ -106,7 +126,7 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
             </div>
           </div>
 
-          <TipCard text="Increasing your Upskilling Velocity is the single most effective way to counter high Global Instability Levels." compact />
+          <TipCard text={data?.tips || "Increasing your Upskilling Velocity is the single most effective way to counter high Global Instability Levels."} compact />
         </div>
 
         {/* Results Section */}
@@ -162,8 +182,8 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
               <div className="flex gap-4 md:gap-6 items-start">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2.5 shrink-0 flex-shrink-0"></div>
                 <div className="min-w-0">
-                  <h4 className="font-bold text-slate-900 mb-1 text-base md:text-lg">Opportunity Delta</h4>
-                  <p className="text-slate-500 leading-relaxed text-sm md:text-base">With your current upskilling velocity of {upskillSpeed}%, you are positioned in the top 15% of candidates for roles in "Platform Design" and "AI-Integrator" clusters in {user.location}.</p>
+                  <h4 className="font-bold text-slate-900 mb-1 text-base md:text-lg">Personalized Insights</h4>
+                  <p className="text-slate-500 leading-relaxed text-sm md:text-base">{data?.simulation_insights || `With your current upskilling velocity of ${upskillSpeed}%, you are positioned in the top 15% of candidates for roles in "Platform Design" and "AI-Integrator" clusters in ${user.location}.`}</p>
                 </div>
               </div>
             </div>

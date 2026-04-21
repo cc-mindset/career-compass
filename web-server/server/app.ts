@@ -5,6 +5,7 @@ import marketInsightRouter from "../routes/marketInsight";
 import testResumeRouter from "../routes/testResume";
 import resumeRouter from "../routes/resume";
 import cronRouter from "../routes/cron";
+import ecoSimulatorRouter from "../routes/ecoSimulator";
 
 const app = express();
 
@@ -20,5 +21,6 @@ app.use("/api/market-insights", marketInsightRouter);
 app.use("/api/resume", resumeRouter);
 app.use("/api/test-resume", testResumeRouter);
 app.use("/api/cron", cronRouter)
+app.use("/api/eco-simulator", ecoSimulatorRouter);
 
 export { app };
