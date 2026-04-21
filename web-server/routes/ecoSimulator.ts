@@ -22,3 +22,5 @@ ecoSimulatorRouter.get("/", async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Error creating eco-simulator entry", error });
     }
 });
+
+export default ecoSimulatorRouter;

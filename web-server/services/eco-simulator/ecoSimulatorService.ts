@@ -12,11 +12,11 @@ export const generateEcoSimulatorData = async (location: string, current_job_tit
     // Placeholder implementation - replace with actual logic to generate data
     const data = {
         layoff_chances_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.55) + (100 - aiImpact * 0.25) + (100 - aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.1)))",
-        career_demand_formula: "Math.max(10, Math.min(100, (marketDemand * 0.6) + (100 - aiImpact * 0.25) + (100 - aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.1)))",
-        career_growth_opportunities_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.55) + (100 - aiImpact * 0.25) + (100 - aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.1)))",
-        salary_increment_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.55) + (100 - aiImpact * 0.25) + (100 - aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.1)))",
-        simulation_insights: "",
-        tips: ""
+        career_demand_formula: "Math.max(10, Math.min(100, (aiImpact * 0.3) + (aiTechAdvancement * 0.25) + (upskillSpeed * 0.3) - (globalInstabilityLevels * 0.2)))",
+        career_growth_opportunities_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.4) + (aiImpact * 0.2) + (aiTechAdvancement * 0.2) + (marketDemand * 0.25) - (globalInstabilityLevels * 0.2)))",
+        salary_increment_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.45) + (aiTechAdvancement * 0.2) + (marketDemand * 0.3) - (globalInstabilityLevels * 0.15)))",
+        simulation_insights: "simulation_insights",
+        tips: "tips"
     };
 
     await EcoSimulator.create({

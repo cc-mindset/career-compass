@@ -19,14 +19,19 @@ import { SignedIn, useUser } from "@clerk/clerk-react";
 import SyncUser from "./views/landing-page/sync-user";
 import AuthPage from "./views/auth";
 import { useUserContext } from "./state/contexts/user";
+import { EcoSimulatorProvider } from "./state/contexts/eco-simulator/EcoSimulatorContext";
 
 const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>("market-insights");
   const { setLoadingStage } = useMarketInsightsState();
-  const { updateUserProfile, user: userContext, setHasJourneyStarted: setHasStarted } = useUserContext();
+  const {
+    updateUserProfile,
+    user: userContext,
+    setHasJourneyStarted: setHasStarted,
+  } = useUserContext();
   const user = userContext?.profile || INITIAL_USER;
   const hasStarted = userContext?.hasJourneyStarted || false;
-  
+
   const { user: authUser } = useUser();
 
   const handleStartJourney = (profileData: UserProfile) => {
@@ -105,9 +110,11 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AppProvider>
-      <MarketInsightsProvider>
-        <AppContent />
-      </MarketInsightsProvider>
+      <EcoSimulatorProvider>
+        <MarketInsightsProvider>
+          <AppContent />
+        </MarketInsightsProvider>
+      </EcoSimulatorProvider>
     </AppProvider>
   );
 };
