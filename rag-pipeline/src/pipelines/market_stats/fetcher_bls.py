@@ -42,32 +42,35 @@ BLS_API_KEY = os.getenv("BLS_API_KEY", "")  # Optional — works without key
 
 JOLTS_SERIES = [
     # Total nonfarm
-    ("JTS000000000000000LDS", "Total nonfarm - layoffs rate",          "contraction_indicator", "Total Nonfarm", "00", "monthly"),
-    ("JTS000000000000000JOS", "Total nonfarm - job openings rate",     "vacancy_rate",          "Total Nonfarm", "00", "monthly"),
-    ("JTS000000000000000QUS", "Total nonfarm - quits rate",            "worker_confidence",     "Total Nonfarm", "00", "monthly"),
-    ("JTS000000000000000HIS", "Total nonfarm - hires rate",            "hiring_rate",           "Total Nonfarm", "00", "monthly"),
+    # Confirmed format: JTS + industry(6) + state(2) + sizeclass(2) + element(2) + ratelevel(1)
+    # Total nonfarm = 000000, All areas = 00, All sizes = 00
+    ("JTS000000000000000LDR", "Total nonfarm - layoffs rate",          "contraction_indicator", "Total Nonfarm", "00", "monthly"),
+    ("JTS000000000000000JOR", "Total nonfarm - job openings rate",     "vacancy_rate",          "Total Nonfarm", "00", "monthly"),
+    ("JTS000000000000000QUR", "Total nonfarm - quits rate",            "worker_confidence",     "Total Nonfarm", "00", "monthly"),
+    ("JTS000000000000000HIR", "Total nonfarm - hires rate",            "hiring_rate",           "Total Nonfarm", "00", "monthly"),
     # Information (NAICS 51) — tech proxy
-    ("JTS510000000000000LDS", "Information - layoffs rate",            "contraction_indicator", "Information",   "51", "monthly"),
-    ("JTS510000000000000JOS", "Information - job openings rate",       "vacancy_rate",          "Information",   "51", "monthly"),
-    ("JTS510000000000000QUS", "Information - quits rate",              "worker_confidence",     "Information",   "51", "monthly"),
+    ("JTS510000000000000LDR", "Information - layoffs rate",            "contraction_indicator", "Information",   "51", "monthly"),
+    ("JTS510000000000000JOR", "Information - job openings rate",       "vacancy_rate",          "Information",   "51", "monthly"),
+    ("JTS510000000000000QUR", "Information - quits rate",              "worker_confidence",     "Information",   "51", "monthly"),
     # Professional and Business Services (NAICS 54-56)
-    ("JTS540099000000000LDS", "Prof & Business Svcs - layoffs rate",   "contraction_indicator", "Professional and Business Services", "54", "monthly"),
-    ("JTS540099000000000JOS", "Prof & Business Svcs - openings rate",  "vacancy_rate",          "Professional and Business Services", "54", "monthly"),
-    ("JTS540099000000000QUS", "Prof & Business Svcs - quits rate",     "worker_confidence",     "Professional and Business Services", "54", "monthly"),
+    # JOLTS uses supersector code 540099 for Professional and Business Services
+    ("JTS540099000000000LDR", "Prof & Business Svcs - layoffs rate",   "contraction_indicator", "Professional and Business Services", "54", "monthly"),
+    ("JTS540099000000000JOR", "Prof & Business Svcs - openings rate",  "vacancy_rate",          "Professional and Business Services", "54", "monthly"),
+    ("JTS540099000000000QUR", "Prof & Business Svcs - quits rate",     "worker_confidence",     "Professional and Business Services", "54", "monthly"),
     # Finance and Insurance (NAICS 52)
-    ("JTS520000000000000LDS", "Finance - layoffs rate",                "contraction_indicator", "Finance and Insurance",             "52", "monthly"),
-    ("JTS520000000000000JOS", "Finance - job openings rate",           "vacancy_rate",          "Finance and Insurance",             "52", "monthly"),
+    ("JTS520000000000000LDR", "Finance - layoffs rate",                "contraction_indicator", "Finance and Insurance",             "52", "monthly"),
+    ("JTS520000000000000JOR", "Finance - job openings rate",           "vacancy_rate",          "Finance and Insurance",             "52", "monthly"),
     # Health Care and Social Assistance (NAICS 62)
-    ("JTS620000000000000LDS", "Health Care - layoffs rate",            "contraction_indicator", "Health Care and Social Assistance", "62", "monthly"),
-    ("JTS620000000000000JOS", "Health Care - job openings rate",       "vacancy_rate",          "Health Care and Social Assistance", "62", "monthly"),
-    # Manufacturing (NAICS 31-33)
-    ("JTS300000000000000LDS", "Manufacturing - layoffs rate",          "contraction_indicator", "Manufacturing", "31", "monthly"),
-    ("JTS300000000000000JOS", "Manufacturing - job openings rate",     "vacancy_rate",          "Manufacturing", "31", "monthly"),
+    ("JTS620000000000000LDR", "Health Care - layoffs rate",            "contraction_indicator", "Health Care and Social Assistance", "62", "monthly"),
+    ("JTS620000000000000JOR", "Health Care - job openings rate",       "vacancy_rate",          "Health Care and Social Assistance", "62", "monthly"),
+    # Manufacturing (NAICS 31-33) — JOLTS uses 300000 for manufacturing supersector
+    ("JTS300000000000000LDR", "Manufacturing - layoffs rate",          "contraction_indicator", "Manufacturing", "31", "monthly"),
+    ("JTS300000000000000JOR", "Manufacturing - job openings rate",     "vacancy_rate",          "Manufacturing", "31", "monthly"),
     # Construction (NAICS 23)
-    ("JTS230000000000000LDS", "Construction - layoffs rate",           "contraction_indicator", "Construction",  "23", "monthly"),
+    ("JTS230000000000000LDR", "Construction - layoffs rate",           "contraction_indicator", "Construction",  "23", "monthly"),
     # Accommodation and Food Services (NAICS 72)
-    ("JTS720000000000000LDS", "Accommodation & Food - layoffs rate",   "contraction_indicator", "Accommodation and Food Services", "72", "monthly"),
-    ("JTS720000000000000JOS", "Accommodation & Food - openings rate",  "vacancy_rate",          "Accommodation and Food Services", "72", "monthly"),
+    ("JTS720000000000000LDR", "Accommodation & Food - layoffs rate",   "contraction_indicator", "Accommodation and Food Services", "72", "monthly"),
+    ("JTS720000000000000JOR", "Accommodation & Food - openings rate",  "vacancy_rate",          "Accommodation and Food Services", "72", "monthly"),
 ]
 
 # CES series — seasonally adjusted payroll employment
@@ -110,7 +113,7 @@ CPS_SERIES = [
     ("LNS14027689",  "Unemployment - some college or assoc degree",   "unemployment_rate", "Some College",          "edu", "monthly"),
     ("LNS14027662",  "Unemployment - bachelor degree and higher",     "unemployment_rate", "Bachelor's+",           "edu", "monthly"),
     # Unemployment by occupation major group
-    # Verified 2026-04 via BLS API v2 responses (series return current data).
+    # VERIFY: These SOC-based series — confirm at data.bls.gov/cgi-bin/surveymost?ln
     ("LNU04032215",  "Unemployment - management and professional",    "unemployment_rate", "Management Professional","occ", "monthly"),
     ("LNU04032218",  "Unemployment - service occupations",            "unemployment_rate", "Service Occupations",   "occ", "monthly"),
     ("LNU04032219",  "Unemployment - sales and office",               "unemployment_rate", "Sales and Office",      "occ", "monthly"),
@@ -319,6 +322,7 @@ def _trend(latest: float, avg_12mo: Optional[float]) -> str:
     else:
         return "near_average"
 
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     # Quick test — fetch just 3 series to verify connectivity
@@ -328,4 +332,3 @@ if __name__ == "__main__":
         print(json.dumps({k: v for k, v in r.items() if k != "values"}, indent=2))
         print(f"  latest: {r['values']['latest']}, avg_12mo: {r['values']['avg_12mo']}, trend: {r['values']['trend_direction']}")
         print()
-        
