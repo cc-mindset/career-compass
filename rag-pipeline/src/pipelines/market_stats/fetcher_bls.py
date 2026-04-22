@@ -121,8 +121,114 @@ CPS_SERIES = [
     ("LNU04032226",  "Unemployment - production transport",           "unemployment_rate", "Production Transport",  "occ", "monthly"),
 ]
 
+# ---------------------------------------------------------------------------
+# LAUS series — state unemployment rates + employment levels, seasonally adj
+# Format: LASST + {state_fips_2} + 0000000000000 + {measure}
+# Measure: 03 = unemployment rate, 06 = employed, 07 = labor force
+# Prefix LASST = seasonally adjusted state total
+# All 50 states + DC
+# ---------------------------------------------------------------------------
+LAUS_SERIES = [
+    ("LASST010000000000003", "Alabama unemployment rate",        "unemployment_rate", "All Industries", "all", "Alabama",              "state", "monthly"),
+    ("LASST020000000000003", "Alaska unemployment rate",         "unemployment_rate", "All Industries", "all", "Alaska",               "state", "monthly"),
+    ("LASST040000000000003", "Arizona unemployment rate",        "unemployment_rate", "All Industries", "all", "Arizona",              "state", "monthly"),
+    ("LASST050000000000003", "Arkansas unemployment rate",       "unemployment_rate", "All Industries", "all", "Arkansas",             "state", "monthly"),
+    ("LASST060000000000003", "California unemployment rate",     "unemployment_rate", "All Industries", "all", "California",           "state", "monthly"),
+    ("LASST080000000000003", "Colorado unemployment rate",       "unemployment_rate", "All Industries", "all", "Colorado",             "state", "monthly"),
+    ("LASST090000000000003", "Connecticut unemployment rate",    "unemployment_rate", "All Industries", "all", "Connecticut",          "state", "monthly"),
+    ("LASST100000000000003", "Delaware unemployment rate",       "unemployment_rate", "All Industries", "all", "Delaware",             "state", "monthly"),
+    ("LASST110000000000003", "Washington DC unemployment rate",  "unemployment_rate", "All Industries", "all", "Washington DC",        "state", "monthly"),
+    ("LASST120000000000003", "Florida unemployment rate",        "unemployment_rate", "All Industries", "all", "Florida",              "state", "monthly"),
+    ("LASST130000000000003", "Georgia unemployment rate",        "unemployment_rate", "All Industries", "all", "Georgia",              "state", "monthly"),
+    ("LASST150000000000003", "Hawaii unemployment rate",         "unemployment_rate", "All Industries", "all", "Hawaii",               "state", "monthly"),
+    ("LASST160000000000003", "Idaho unemployment rate",          "unemployment_rate", "All Industries", "all", "Idaho",                "state", "monthly"),
+    ("LASST170000000000003", "Illinois unemployment rate",       "unemployment_rate", "All Industries", "all", "Illinois",             "state", "monthly"),
+    ("LASST180000000000003", "Indiana unemployment rate",        "unemployment_rate", "All Industries", "all", "Indiana",              "state", "monthly"),
+    ("LASST190000000000003", "Iowa unemployment rate",           "unemployment_rate", "All Industries", "all", "Iowa",                 "state", "monthly"),
+    ("LASST200000000000003", "Kansas unemployment rate",         "unemployment_rate", "All Industries", "all", "Kansas",               "state", "monthly"),
+    ("LASST210000000000003", "Kentucky unemployment rate",       "unemployment_rate", "All Industries", "all", "Kentucky",             "state", "monthly"),
+    ("LASST220000000000003", "Louisiana unemployment rate",      "unemployment_rate", "All Industries", "all", "Louisiana",            "state", "monthly"),
+    ("LASST230000000000003", "Maine unemployment rate",          "unemployment_rate", "All Industries", "all", "Maine",                "state", "monthly"),
+    ("LASST240000000000003", "Maryland unemployment rate",       "unemployment_rate", "All Industries", "all", "Maryland",             "state", "monthly"),
+    ("LASST250000000000003", "Massachusetts unemployment rate",  "unemployment_rate", "All Industries", "all", "Massachusetts",        "state", "monthly"),
+    ("LASST260000000000003", "Michigan unemployment rate",       "unemployment_rate", "All Industries", "all", "Michigan",             "state", "monthly"),
+    ("LASST270000000000003", "Minnesota unemployment rate",      "unemployment_rate", "All Industries", "all", "Minnesota",            "state", "monthly"),
+    ("LASST280000000000003", "Mississippi unemployment rate",    "unemployment_rate", "All Industries", "all", "Mississippi",          "state", "monthly"),
+    ("LASST290000000000003", "Missouri unemployment rate",       "unemployment_rate", "All Industries", "all", "Missouri",             "state", "monthly"),
+    ("LASST300000000000003", "Montana unemployment rate",        "unemployment_rate", "All Industries", "all", "Montana",              "state", "monthly"),
+    ("LASST310000000000003", "Nebraska unemployment rate",       "unemployment_rate", "All Industries", "all", "Nebraska",             "state", "monthly"),
+    ("LASST320000000000003", "Nevada unemployment rate",         "unemployment_rate", "All Industries", "all", "Nevada",               "state", "monthly"),
+    ("LASST330000000000003", "New Hampshire unemployment rate",  "unemployment_rate", "All Industries", "all", "New Hampshire",        "state", "monthly"),
+    ("LASST340000000000003", "New Jersey unemployment rate",     "unemployment_rate", "All Industries", "all", "New Jersey",           "state", "monthly"),
+    ("LASST350000000000003", "New Mexico unemployment rate",     "unemployment_rate", "All Industries", "all", "New Mexico",           "state", "monthly"),
+    ("LASST360000000000003", "New York unemployment rate",       "unemployment_rate", "All Industries", "all", "New York",             "state", "monthly"),
+    ("LASST370000000000003", "North Carolina unemployment rate", "unemployment_rate", "All Industries", "all", "North Carolina",       "state", "monthly"),
+    ("LASST380000000000003", "North Dakota unemployment rate",   "unemployment_rate", "All Industries", "all", "North Dakota",         "state", "monthly"),
+    ("LASST390000000000003", "Ohio unemployment rate",           "unemployment_rate", "All Industries", "all", "Ohio",                 "state", "monthly"),
+    ("LASST400000000000003", "Oklahoma unemployment rate",       "unemployment_rate", "All Industries", "all", "Oklahoma",             "state", "monthly"),
+    ("LASST410000000000003", "Oregon unemployment rate",         "unemployment_rate", "All Industries", "all", "Oregon",               "state", "monthly"),
+    ("LASST420000000000003", "Pennsylvania unemployment rate",   "unemployment_rate", "All Industries", "all", "Pennsylvania",         "state", "monthly"),
+    ("LASST440000000000003", "Rhode Island unemployment rate",   "unemployment_rate", "All Industries", "all", "Rhode Island",         "state", "monthly"),
+    ("LASST450000000000003", "South Carolina unemployment rate", "unemployment_rate", "All Industries", "all", "South Carolina",       "state", "monthly"),
+    ("LASST460000000000003", "South Dakota unemployment rate",   "unemployment_rate", "All Industries", "all", "South Dakota",         "state", "monthly"),
+    ("LASST470000000000003", "Tennessee unemployment rate",      "unemployment_rate", "All Industries", "all", "Tennessee",            "state", "monthly"),
+    ("LASST480000000000003", "Texas unemployment rate",          "unemployment_rate", "All Industries", "all", "Texas",                "state", "monthly"),
+    ("LASST490000000000003", "Utah unemployment rate",           "unemployment_rate", "All Industries", "all", "Utah",                 "state", "monthly"),
+    ("LASST500000000000003", "Vermont unemployment rate",        "unemployment_rate", "All Industries", "all", "Vermont",              "state", "monthly"),
+    ("LASST510000000000003", "Virginia unemployment rate",       "unemployment_rate", "All Industries", "all", "Virginia",             "state", "monthly"),
+    ("LASST530000000000003", "Washington unemployment rate",     "unemployment_rate", "All Industries", "all", "Washington",           "state", "monthly"),
+    ("LASST540000000000003", "West Virginia unemployment rate",  "unemployment_rate", "All Industries", "all", "West Virginia",        "state", "monthly"),
+    ("LASST550000000000003", "Wisconsin unemployment rate",      "unemployment_rate", "All Industries", "all", "Wisconsin",            "state", "monthly"),
+    ("LASST560000000000003", "Wyoming unemployment rate",        "unemployment_rate", "All Industries", "all", "Wyoming",              "state", "monthly"),
+]
+
+# ---------------------------------------------------------------------------
+# SAE series — state-level payroll employment + avg weekly earnings
+# Format: SMS + S(SA) + {state_fips_2} + {area_5} + {industry_8} + {data_type_2}
+# Statewide total nonfarm: area=00000, industry=00000000
+# Data type 01 = all employees (thousands), 13 = avg weekly earnings
+# Key states only for payroll — 50 states × 2 metrics = 100 series which
+# exceeds batch limits fast, so we cover the 20 largest labor markets
+# plus every state for unemployment (LAUS above covers all 51 already)
+# ---------------------------------------------------------------------------
+SAE_SERIES = [
+    # Total nonfarm payroll employment by state (seasonally adjusted)
+    # Format: SMS + S + fips(2) + 00000 + 00000000 + 01
+    ("SMS06000000000000001", "California total nonfarm employment",     "employment_level", "Total Nonfarm", "all", "California",    "state", "monthly"),
+    ("SMS48000000000000001", "Texas total nonfarm employment",          "employment_level", "Total Nonfarm", "all", "Texas",         "state", "monthly"),
+    ("SMS53000000000000001", "Washington total nonfarm employment",     "employment_level", "Total Nonfarm", "all", "Washington",    "state", "monthly"),
+    ("SMS36000000000000001", "New York total nonfarm employment",       "employment_level", "Total Nonfarm", "all", "New York",      "state", "monthly"),
+    ("SMS25000000000000001", "Massachusetts total nonfarm employment",  "employment_level", "Total Nonfarm", "all", "Massachusetts", "state", "monthly"),
+    ("SMS17000000000000001", "Illinois total nonfarm employment",       "employment_level", "Total Nonfarm", "all", "Illinois",      "state", "monthly"),
+    ("SMS12000000000000001", "Florida total nonfarm employment",        "employment_level", "Total Nonfarm", "all", "Florida",       "state", "monthly"),
+    ("SMS51000000000000001", "Virginia total nonfarm employment",       "employment_level", "Total Nonfarm", "all", "Virginia",      "state", "monthly"),
+    ("SMS08000000000000001", "Colorado total nonfarm employment",       "employment_level", "Total Nonfarm", "all", "Colorado",      "state", "monthly"),
+    ("SMS41000000000000001", "Oregon total nonfarm employment",         "employment_level", "Total Nonfarm", "all", "Oregon",        "state", "monthly"),
+    ("SMS47000000000000001", "Tennessee total nonfarm employment",      "employment_level", "Total Nonfarm", "all", "Tennessee",     "state", "monthly"),
+    ("SMS37000000000000001", "North Carolina total nonfarm employment", "employment_level", "Total Nonfarm", "all", "North Carolina","state", "monthly"),
+    ("SMS13000000000000001", "Georgia total nonfarm employment",        "employment_level", "Total Nonfarm", "all", "Georgia",       "state", "monthly"),
+    ("SMS34000000000000001", "New Jersey total nonfarm employment",     "employment_level", "Total Nonfarm", "all", "New Jersey",    "state", "monthly"),
+    ("SMS42000000000000001", "Pennsylvania total nonfarm employment",   "employment_level", "Total Nonfarm", "all", "Pennsylvania",  "state", "monthly"),
+    ("SMS39000000000000001", "Ohio total nonfarm employment",           "employment_level", "Total Nonfarm", "all", "Ohio",          "state", "monthly"),
+    ("SMS26000000000000001", "Michigan total nonfarm employment",       "employment_level", "Total Nonfarm", "all", "Michigan",      "state", "monthly"),
+    ("SMS24000000000000001", "Maryland total nonfarm employment",       "employment_level", "Total Nonfarm", "all", "Maryland",      "state", "monthly"),
+    ("SMS49000000000000001", "Utah total nonfarm employment",           "employment_level", "Total Nonfarm", "all", "Utah",          "state", "monthly"),
+    ("SMS32000000000000001", "Nevada total nonfarm employment",         "employment_level", "Total Nonfarm", "all", "Nevada",        "state", "monthly"),
+    # Avg weekly earnings for top tech/finance states (data type 13)
+    ("SMS06000000000000013", "California avg weekly earnings",          "wage_level",       "Total Nonfarm", "all", "California",    "state", "monthly"),
+    ("SMS48000000000000013", "Texas avg weekly earnings",               "wage_level",       "Total Nonfarm", "all", "Texas",         "state", "monthly"),
+    ("SMS53000000000000013", "Washington avg weekly earnings",          "wage_level",       "Total Nonfarm", "all", "Washington",    "state", "monthly"),
+    ("SMS36000000000000013", "New York avg weekly earnings",            "wage_level",       "Total Nonfarm", "all", "New York",      "state", "monthly"),
+    ("SMS25000000000000013", "Massachusetts avg weekly earnings",       "wage_level",       "Total Nonfarm", "all", "Massachusetts", "state", "monthly"),
+    ("SMS08000000000000013", "Colorado avg weekly earnings",            "wage_level",       "Total Nonfarm", "all", "Colorado",      "state", "monthly"),
+    ("SMS47000000000000013", "Tennessee avg weekly earnings",           "wage_level",       "Total Nonfarm", "all", "Tennessee",     "state", "monthly"),
+    ("SMS37000000000000013", "North Carolina avg weekly earnings",      "wage_level",       "Total Nonfarm", "all", "North Carolina","state", "monthly"),
+    ("SMS49000000000000013", "Utah avg weekly earnings",                "wage_level",       "Total Nonfarm", "all", "Utah",          "state", "monthly"),
+    ("SMS32000000000000013", "Nevada avg weekly earnings",              "wage_level",       "Total Nonfarm", "all", "Nevada",        "state", "monthly"),
+]
+
 # Group all series for batched API requests (max 25 per request)
-ALL_SERIES = JOLTS_SERIES + CES_SERIES + CPS_SERIES
+ALL_SERIES = JOLTS_SERIES + CES_SERIES + CPS_SERIES + LAUS_SERIES + SAE_SERIES
 
 
 def _chunk_series(series_list: list, chunk_size: int = 25) -> list[list]:
@@ -163,17 +269,35 @@ def _fetch_batch(series_ids: list[str], start_year: str, end_year: str) -> dict:
 
 
 def _build_series_lookup(series_registry: list[tuple]) -> dict:
-    """Build id → (label, signal_type, industry, naics, cadence) lookup."""
-    return {
-        s[0]: {
-            "label":       s[1],
-            "signal_type": s[2],
-            "industry":    s[3],
-            "naics_or_noc": s[4],
-            "cadence":     s[5],
-        }
-        for s in series_registry
-    }
+    """
+    Build id → metadata lookup. Handles two tuple formats:
+      6-field (JOLTS/CES/CPS): (id, label, signal_type, industry, naics, cadence)
+      8-field (LAUS/SAE):      (id, label, signal_type, industry, naics, geo, geo_type, cadence)
+    """
+    lookup = {}
+    for s in series_registry:
+        if len(s) == 8:
+            lookup[s[0]] = {
+                "label":        s[1],
+                "signal_type":  s[2],
+                "industry":     s[3],
+                "naics_or_noc": s[4],
+                "geo":          s[5],
+                "geo_type":     s[6],
+                "cadence":      s[7],
+            }
+        else:
+            # 6-field — national series, default geo
+            lookup[s[0]] = {
+                "label":        s[1],
+                "signal_type":  s[2],
+                "industry":     s[3],
+                "naics_or_noc": s[4],
+                "geo":          "national",
+                "geo_type":     "national",
+                "cadence":      s[5],
+            }
+    return lookup
 
 
 def _extract_latest_periods(series_data: dict, n_periods: int = 13) -> list[dict]:
@@ -269,8 +393,8 @@ def fetch_bls(
             "signal_type":  meta["signal_type"],
             "industry":     meta["industry"],
             "naics_or_noc": meta["naics_or_noc"],
-            "geo":          "national",
-            "geo_type":     "national",
+            "geo":          meta["geo"],
+            "geo_type":     meta["geo_type"],
             "cadence":      meta["cadence"],
             # Time
             "period":       latest["period"],
@@ -299,6 +423,9 @@ def _resolve_source(series_id: str) -> str:
         "CES": "BLS_CES",
         "LNS": "BLS_CPS",
         "LNU": "BLS_CPS",
+        "LAS": "BLS_LAUS",
+        "SMS": "BLS_SAE",
+        "SMU": "BLS_SAE",
     }
     for prefix, source in prefix_map.items():
         if series_id.startswith(prefix):

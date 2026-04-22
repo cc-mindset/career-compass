@@ -75,6 +75,7 @@ LFS_EMPLOYMENT = [
     (   2057617,  "Canada - health care social assistance employment",  "employment_level",  "Health Care and Social Assistance",  "62",  "national",  "national",  "monthly",  "14-10-0355-01"),
     (   2057618,  "Canada - information culture recreation employment",  "employment_level",  "Information Culture Recreation",  "51",  "national",  "national",  "monthly",  "14-10-0355-01"),
     (   2057619,  "Canada - accommodation food services employment",  "employment_level",  "Accommodation and Food Services",  "72",  "national",  "national",  "monthly",  "14-10-0355-01"),
+    
 ]
 
 # LFS Labour force by province, monthly SA (14-10-0287-01)
@@ -86,6 +87,12 @@ LFS_PROVINCE = [
     (   2064516,  "Alberta unemployment rate",  "unemployment_rate",  "All Industries",  "all",  "Alberta",  "provincial",  "monthly",  "14-10-0287-01"),
     (   2062817,  "Canada - national employment rate",  "employment_level",  "All Industries",  "all",  "national",  "national",  "monthly",  "14-10-0287-01"),
     (   2062816,  "Canada - participation rate",  "worker_confidence",  "All Industries",  "all",  "national",  "national",  "monthly",  "14-10-0287-01"),
+    (   2063004,  "Manitoba unemployment rate",                    "unemployment_rate", "All Industries", "all", "Manitoba",                   "provincial", "monthly", "14-10-0287-01"),
+    (   2063382,  "Saskatchewan unemployment rate",               "unemployment_rate", "All Industries", "all", "Saskatchewan",               "provincial", "monthly", "14-10-0287-01"),
+    (   2063571,  "Nova Scotia unemployment rate",                 "unemployment_rate", "All Industries", "all", "Nova Scotia",                "provincial", "monthly", "14-10-0287-01"),
+    (   2064138,  "New Brunswick unemployment rate",               "unemployment_rate", "All Industries", "all", "New Brunswick",              "provincial", "monthly", "14-10-0287-01"),
+    (   2064327,  "Newfoundland and Labrador unemployment rate",   "unemployment_rate", "All Industries", "all", "Newfoundland and Labrador",  "provincial", "monthly", "14-10-0287-01"),
+    (   2063193,  "Prince Edward Island unemployment rate",   "unemployment_rate", "All Industries", "all", "Prince Edward Island",  "provincial", "monthly", "14-10-0287-01"),
 ]
 
 # LFS Labour force by occupation NOC, monthly (14-10-0421-01)
