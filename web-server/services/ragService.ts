@@ -247,7 +247,7 @@ export function formatMarketInsightsContext(context: Context): string {
  * Helper: Generate single response with retry logic
  * DOES NOT retry on rate limit or quota errors - these should be handled at queue level
  */
-async function generateSingleResponse(
+export async function generateSingleResponse(
   systemPrompt: string,
   formattedContext: string,
   query: string,
