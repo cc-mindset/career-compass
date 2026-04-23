@@ -4,7 +4,9 @@ import { EcoSimulatorData } from "../../types/ecoSimulator";
 import { logger } from '../../utils/logger.js';
 import { emitToJob } from '../../lib/websocket.js';
 import { SYSTEM_PROMPT } from "../market-insights/marketInsightsService_multipart";
-import { generateSingleResponse } from "../ragService";
+import { enqueueJob } from "../../lib/redisQueue";
+import { generateSingleResponse } from "../llmService";
+import { getFormattedContext } from "../ragService";
 
 export const ECO_SIMULATOR_CACHE_DURATION_DAYS = 1;
 
@@ -27,7 +29,7 @@ export const getVarsIdForEcoSimulator = (location: string, current_job_title: st
     return `${location.toLowerCase()}_${current_job_title.toLowerCase()}_${seniority_level.toLowerCase()}`;
 }
 
-export const cacheEcoSimulatorResponse = async (location: string, current_job_title: string, seniority_level: string, response: EcoSimulatorData, status: LlmCacheStatus): Promise<void> => {
+export const cacheEcoSimulatorResponse = async (location: string, current_job_title: string, seniority_level: string, response: EcoSimulatorData): Promise<void> => {
     const cacheKey = getVarsIdForEcoSimulator(location, current_job_title, seniority_level);
     await EcoSimulator.updateOne(
         { vars_id: cacheKey },
@@ -37,15 +39,15 @@ export const cacheEcoSimulatorResponse = async (location: string, current_job_ti
             seniority_level,
             data: response,
             vars_id: cacheKey,
-            status,
-        }
+            status: LlmCacheStatus.ACTIVE,
+        },
+        { upsert: true }
     );
 }
 
-export const generateEcoSimulatorData = async (location: string, current_job_title: string, seniority_level: string, jobId?: string): Promise<EcoSimulatorData> => {
+export const generateAndCacheEcoSimulatorData = async (location: string, current_job_title: string, seniority_level: string, jobId?: string): Promise<EcoSimulatorData> => {
     try {
         logger.info(`📊 Starting eco simulator generation for: ${location}, ${current_job_title}, ${seniority_level}`);
-
         if (jobId) {
             emitToJob(jobId, 'progress', {
                 type: 'job_start',
@@ -54,7 +56,6 @@ export const generateEcoSimulatorData = async (location: string, current_job_tit
             });
         }
 
-        const prompt = getEcoSimulatorDataPrompt(location, current_job_title, seniority_level);
         const cacheKey = getVarsIdForEcoSimulator(location, current_job_title, seniority_level);
         const cachedResponse = await EcoSimulator.findOne({ vars_id: cacheKey, status: LlmCacheStatus.ACTIVE, updatedAt: { $gte: new Date(Date.now() - ECO_SIMULATOR_CACHE_DURATION_DAYS * 24 * 60 * 60 * 1000) } });
 
@@ -62,16 +63,8 @@ export const generateEcoSimulatorData = async (location: string, current_job_tit
             const data = cachedResponse.data;
             if (jobId) {
                 emitToJob(jobId, 'progress', {
-                    type: 'section_success',
+                    type: 'section_in_progress',
                     section: 'ecoSimulator',
-                    data,
-                    jobId,
-                });
-            }
-            
-            if (jobId) {
-                emitToJob(jobId, 'progress', {
-                    type: 'job_complete',
                     data,
                     jobId,
                 });
@@ -84,7 +77,7 @@ export const generateEcoSimulatorData = async (location: string, current_job_tit
                 emitToJob(jobId, 'progress', {
                     type: 'section_in_progress',
                     section: 'ecoSimulator',
-                    data: cachedResponse,
+                    data: cachedResponse.data,
                     jobId,
                 });
             }
@@ -100,31 +93,27 @@ export const generateEcoSimulatorData = async (location: string, current_job_tit
             }
         );
 
-        if (jobId) {
-            emitToJob(jobId, 'progress', {
-                type: 'section_in_progress',
-                section: 'ecoSimulator',
-                data: { status: LlmCacheStatus.UPDATING },
-                jobId,
-            });
+        const prompt = getEcoSimulatorDataPrompt(location, current_job_title, seniority_level);
+
+        //RAG
+        let formattedContext = "";
+        if (process.env.GLOBAL_USE_RAG === 'true') {
+            formattedContext = await getFormattedContext({
+                useCache: true,
+                cacheKey: `eco_simulator_context_${location}_${current_job_title}_${seniority_level}`,
+                retrievalQuery: `Context for eco simulator generation for ${location}, ${current_job_title}, ${seniority_level}`,
+                namespaces: ['eco-data'],
+                topKPerNamespace: { 'eco-data': 10 },
+            }, prompt);
         }
 
-        const userPrompt = `Location: ${location}
-                            Current Job Title: ${current_job_title}
-                            Seniority Level: ${seniority_level}`;
-        const response = await generateSingleResponse(SYSTEM_PROMPT, userPrompt, prompt, 'json', 3);
+        //LLM
+        const response = await generateSingleResponse(SYSTEM_PROMPT, formattedContext, prompt, 'json', 3);
 
         const data = response as unknown as EcoSimulatorData;
-        await cacheEcoSimulatorResponse(location, current_job_title, seniority_level, data, LlmCacheStatus.ACTIVE);
 
-        await EcoSimulator.create({
-            location,
-            current_job_title,
-            seniority_level,
-            data,
-            vars_id: getVarsIdForEcoSimulator(location, current_job_title, seniority_level),
-            status: LlmCacheStatus.ACTIVE,
-        });
+        //Cache latest response in DB
+        await cacheEcoSimulatorResponse(location, current_job_title, seniority_level, data);
 
         if (jobId) {
             emitToJob(jobId, 'progress', {
@@ -147,15 +136,6 @@ export const generateEcoSimulatorData = async (location: string, current_job_tit
             tips: "Fallback tips due to LLM error"
         };
 
-        await EcoSimulator.create({
-            location,
-            current_job_title,
-            seniority_level,
-            data: fallbackData,
-            vars_id: getVarsIdForEcoSimulator(location, current_job_title, seniority_level),
-            status: LlmCacheStatus.ACTIVE,
-        });
-
         if (jobId) {
             emitToJob(jobId, 'progress', {
                 type: 'job_error',
@@ -168,11 +148,41 @@ export const generateEcoSimulatorData = async (location: string, current_job_tit
     }
 }
 
-export const getEcoSimulatorData = async (location: string, current_job_title: string, seniority_level: string): Promise<EcoSimulatorData | null> => {
+export const getEcoSimulatorData = async (location: string, current_job_title: string, seniority_level: string, userId = ""): Promise<EcoSimulatorData | null> => {
+
+    // Check cache first
     const vars_id = getVarsIdForEcoSimulator(location, current_job_title, seniority_level);
-    let ecoSimulatorEntry = await EcoSimulator.findOne({ vars_id, status: LlmCacheStatus.ACTIVE, updatedAt: { $gte: new Date(Date.now() - ECO_SIMULATOR_CACHE_DURATION_DAYS * 24 * 60 * 60 * 1000) } }); // Cache valid for specified duration
+    let ecoSimulatorEntry = await EcoSimulator.findOne({ vars_id, status: LlmCacheStatus.ACTIVE, updatedAt: { $gte: new Date(Date.now() - ECO_SIMULATOR_CACHE_DURATION_DAYS * 24 * 60 * 60 * 1000) } });
     if (ecoSimulatorEntry) {
         return ecoSimulatorEntry.data;
     }
-    return await generateEcoSimulatorData(location, current_job_title, seniority_level) || null;
+
+    //Generate new data and cache it, with job progress updates if jobId is provided
+    let results: EcoSimulatorData | null = null;
+    const jobId = await enqueueJob(location, userId || "") || undefined;
+
+    try {
+        results = await generateAndCacheEcoSimulatorData(location, current_job_title, seniority_level, jobId);
+
+        logger.info(`✓ Job complete: ${jobId} - Eco simulator data generated successfully`);
+        if (jobId) {
+            emitToJob(jobId, 'progress', {
+                type: 'job_complete',
+                data: { location, current_job_title, seniority_level },
+                jobId,
+            });
+        }
+    } catch (error: any) {
+        logger.error('Error during eco simulator generation:', error);
+        if (jobId) {
+            emitToJob(jobId, 'progress', {
+                type: 'job_error',
+                error: error.message,
+                jobId,
+            });
+        }
+        throw error;
+    }
+
+    return await results
 }

@@ -1,11 +1,12 @@
 import pLimit from 'p-limit';
 import { pineconeClient } from '../lib/pinecone.js';
-import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
+import { openaiClient } from '../lib/openai.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from './db-cache/dbCacheService.js';
 import { LLM_SECTION_LABELS } from '../constants/index.js';
 import { LlmCacheStatus } from '../constants/db.js';
+import { generateSingleResponse } from './llmService.js';
 
 interface RetrieveOptions {
   namespaces?: string[];
@@ -54,6 +55,7 @@ interface RAGOptions {
   contextFormatter?: ContextFormatter;
   cacheTTL?: number;
   retrievalQuery?: string;
+  cacheKey?: string // optional custom cache key suffix for shared context caching
 }
 
 /**
@@ -241,66 +243,6 @@ export function formatMarketInsightsContext(context: Context): string {
   sections.push('DO NOT add: Career centers, chambers of commerce, job boards (Indeed/Upwork), or meetup groups unless they appear in the content above.');
 
   return sections.join('\n\n');
-}
-
-/**
- * Helper: Generate single response with retry logic
- * DOES NOT retry on rate limit or quota errors - these should be handled at queue level
- */
-export async function generateSingleResponse(
-  systemPrompt: string,
-  formattedContext: string,
-  query: string,
-  responseFormat: 'json' | 'text',
-  maxRetries: number = 3
-): Promise<Record<string, unknown> | string> {
-  let response: Record<string, unknown> | string;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      if (responseFormat === 'json') {
-        const userPrompt = `${formattedContext}\n\n${query}`;
-        response = await openaiClient.generateJSONCompletion(systemPrompt, userPrompt, {
-          max_tokens: 16000,
-          temperature: 0.7,
-        });
-
-        if (!response || typeof response !== 'object') {
-          throw new Error('Invalid JSON response: not an object');
-        }
-
-        logger.info('📊 Generated JSON response with keys:', Object.keys(response).join(', '));
-        return response;
-      } else {
-        const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `${formattedContext}\n\n${query}` },
-        ];
-        response = await openaiClient.generateCompletion(messages as any);
-        return response;
-      }
-    } catch (error) {
-      // Don't retry on rate limit, quota, or timeout errors — propagate immediately
-      if (error instanceof RateLimitError || error instanceof QuotaExceededError || error instanceof ConnectionTimeoutError) {
-        logger.error(`🚫 ${error.name}: ${error.message} - Not retrying`);
-        throw error;
-      }
-
-      const err = error as Error;
-      logger.warn(`⚠️  Generation attempt ${attempt}/${maxRetries} failed:`, err.message);
-
-      if (attempt === maxRetries) {
-        logger.error('❌ All retry attempts exhausted');
-        throw error;
-      }
-
-      const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-      logger.info(`⏳ Retrying in ${waitTime}ms...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-  }
-
-  throw new Error('Failed to generate response');
 }
 
 interface MultiPromptRequest {
@@ -493,4 +435,36 @@ export async function generateWithRAG(query: string, systemPrompt: string, optio
     logger.error('Error in RAG generation:', error);
     throw error;
   }
+}
+
+export const getFormattedContext = async (options: RAGOptions, prompt = "") => {
+  const {
+    useCache = true,
+    useRetrievalCache,        // falls back to useCache if not explicitly set
+    contextFormatter = formatGenericContext,
+    retrievalQuery,
+    cacheKey = '',
+    namespaces = [],
+    topKPerNamespace = {},
+  } = options;
+  let context: Context;
+
+  // Pinecone/embedding cache can be controlled independently of LLM generation cache
+  const pineconeCache = useRetrievalCache ?? useCache;
+  if (pineconeCache && cacheKey) {
+    const cachedContext = cache.get<Context>(cacheKey);
+    if (cachedContext) {
+      context = cachedContext;
+    } else {
+      const queryText = retrievalQuery || prompt || 'general query';
+      context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache: pineconeCache });
+      cache.set(cacheKey, context, 60 * 60 * 1000); // 1 hour
+    }
+  } else {
+    const queryText = retrievalQuery || prompt || 'general query';
+    context = await retrieveContext(queryText, { namespaces, topKPerNamespace, useCache: pineconeCache });
+  }
+
+  // Step 2: Format context ONCE using provided formatter
+  return contextFormatter(context);
 }
