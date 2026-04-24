@@ -72,6 +72,7 @@ export const generateAndCacheEcoSimulatorData = async (location: string, current
             return data;
         }
 
+        //returning stale data while updating in background
         if (cachedResponse && cachedResponse.status === LlmCacheStatus.UPDATING) {
             if (jobId) {
                 emitToJob(jobId, 'progress', {
@@ -81,6 +82,7 @@ export const generateAndCacheEcoSimulatorData = async (location: string, current
                     jobId,
                 });
             }
+            return cachedResponse.data;
         }
 
         // Generate new
@@ -168,7 +170,7 @@ export const getEcoSimulatorData = async (location: string, current_job_title: s
         if (jobId) {
             emitToJob(jobId, 'progress', {
                 type: 'job_complete',
-                data: { location, current_job_title, seniority_level },
+                data: { location, current_job_title, seniority_level, results },
                 jobId,
             });
         }
