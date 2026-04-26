@@ -100,22 +100,17 @@ def key_exists(s3_key: str) -> bool:
 def inbox_key(file_name: str) -> str:
     return S3_PATHS["inbox"] + file_name
 
-
 def parsed_key(stem: str) -> str:
     return S3_PATHS["parsed"] + stem + ".json"
-
 
 def chunks_key(stem: str) -> str:
     return S3_PATHS["chunks"] + stem + ".json"
 
-
 def enriched_key(stem: str) -> str:
     return S3_PATHS["enriched"] + stem + ".json"
 
-
 def processed_key(file_name: str) -> str:
     return S3_PATHS["processed"] + file_name
-
 
 def failed_key(file_name: str) -> str:
     return S3_PATHS["failed"] + file_name

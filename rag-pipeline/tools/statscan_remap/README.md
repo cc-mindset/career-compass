@@ -1,7 +1,6 @@
 # StatsCan Registry Remap
 
-The original `fetcher_statscan.py` used placeholder vectorIds — 35/41 were
-invalid. This folder contains a 3-step remap workflow to rebuild the registry
+ This folder contains a 3-step remap workflow to rebuild the registry
 from live StatsCan WDS data.
 
 ## The problem
@@ -65,12 +64,3 @@ step1 → fix failed coordinates → step1 again → step2 → step3
 ```
 
 Repeat until step3 exits 0.
-
-## Notes
-
-- Rate limit: ~100 req/min on StatsCan WDS. Scripts use 0.25-0.3s delays.
-- Coordinates: trailing zeros pad to 10 dimensions. "1.5.0.0.0.0.0.0.0.0"
-  means dim1=1, dim2=5, dims 3-10 = all (total).
-- NOC occupation coordinates (table 14-10-0066): member IDs may differ
-  between NOC 2016 and NOC 2021 versions of the table. Check getCubeMetadata.
-- JVWS (14-10-0325): quarterly cadence — latestN=5 gives ~1yr of history.

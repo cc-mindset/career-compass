@@ -11,14 +11,14 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 import requests
+from config.settings import MARKET_NEWS_S3_PATHS
 
-from src.shared.s3_client import S3Client
+from src.shared import s3_client as s3
 
 logger = logging.getLogger(__name__)
 
 # ── S3 ────────────────────────────────────────────────────────────────────────
-S3_BUCKET = "cc-rag-pipeline"
-S3_INBOX_PREFIX = "market-news/inbox"
+S3_INBOX_PREFIX = MARKET_NEWS_S3_PATHS["inbox"].rstrip("/")
 
 # ── SERP API ──────────────────────────────────────────────────────────────────
 SERP_API_KEY = os.environ["SERP_API_KEY"]
@@ -252,8 +252,6 @@ def fetch_all(dry_run: bool = False) -> dict:
     Uploads a single batch JSON to S3 market-news/inbox/.
     Returns summary stats.
     """
-    s3 = S3Client(bucket=S3_BUCKET)
-
     seen_hashes: set[str] = set()
     articles: list[dict] = []
     stats = {
@@ -312,12 +310,8 @@ def fetch_all(dry_run: bool = False) -> dict:
         "articles": articles,
     }
 
-    s3.put_object(
-        key=s3_key,
-        body=json.dumps(payload, indent=2),
-        content_type="application/json",
-    )
-    logger.info(f"Uploaded batch to s3://{S3_BUCKET}/{s3_key}")
+    s3.upload_json(payload, s3_key)
+    logger.info(f"Uploaded batch to s3://{s3_key}")
 
     return stats
 

@@ -16,6 +16,14 @@ S3_PATHS = {
     "processed": "market-reports/processed/",
     "failed":    "market-reports/failed/",
 }
+#S3 folder structure for market news — single source of truth
+MARKET_NEWS_S3_PATHS = {
+    "inbox":       "market-news/inbox/",
+    "transformed": "market-news/transformed/",
+    "enriched":    "market-news/enriched/",
+    "processed":   "market-news/processed/",
+    "failed":      "market-news/failed/",
+}
 
 # MongoDB
 MONGODB_URI         = os.environ.get("MONGODB_URI", "")
