@@ -325,7 +325,7 @@ def run_enrich() -> dict:
                 "articles": result["articles"],
             }, out_key)
 
-            # Move transformed → processed
+            # Move transformed →e processed
             file_name = key.split("/")[-1]
             s3.move_file(key, f"{S3_PROCESSED_PREFIX}/{file_name}")
 

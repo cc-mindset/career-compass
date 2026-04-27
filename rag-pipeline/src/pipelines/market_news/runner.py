@@ -1,10 +1,7 @@
 """
 runner.py
 Orchestrates the full market_news pipeline:
-  fetch → transform → embed
-
-Can run end-to-end or individual stages via CLI flags.
-Matches runner pattern from market_stats pipeline.
+  fetch → transform → enrich → embed → cleanup (opt-in)
 """
 
 import argparse
