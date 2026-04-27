@@ -33,10 +33,9 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
   // Derived metrics
   const baseVariables = { aiImpact, aiTechAdvancement, globalInstabilityLevels, upskillSpeed };
   const marketDemand = data ? Math.max(10, Math.min(100, calculateScore(data.career_demand_formula, baseVariables))) : 50;
-  const extendedVariables = { ...baseVariables, marketDemand };
   const resiliencyScore = data ? Math.max(10, Math.min(100, calculateScore(data.layoff_chances_formula, baseVariables))) : 50;
-  const salaryIncreaseChances = data ? Math.max(10, Math.min(100, calculateScore(data.salary_increment_formula, extendedVariables))) : 50;
-  const careerAdvancementOpportunities = data ? Math.max(10, Math.min(100, calculateScore(data.career_growth_opportunities_formula, extendedVariables))) : 50;
+  const salaryIncreaseChances = data ? Math.max(10, Math.min(100, calculateScore(data.salary_increment_formula, baseVariables))) : 50;
+  const careerAdvancementOpportunities = data ? Math.max(10, Math.min(100, calculateScore(data.career_growth_opportunities_formula, baseVariables))) : 50;
 
   const getStatus = (score: number) => {
     if (score > 75) return { label: 'Robust', color: 'text-emerald-500', bg: 'bg-emerald-500/10' };

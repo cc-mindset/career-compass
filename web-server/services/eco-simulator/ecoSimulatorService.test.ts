@@ -6,7 +6,7 @@ import { emitToJob } from '../../lib/websocket.js';
 import { generateSingleResponse } from '../llmService';
 import { getFormattedContext } from '../ragService';
 import { SYSTEM_PROMPT } from '../market-insights/marketInsightsService_multipart';
-import { generateAndCacheEcoSimulatorData } from './ecoSimulatorService';
+import { generateAndCacheEcoSimulatorData, getEcoSimulatorDataPrompt } from './ecoSimulatorService';
 
 vi.mock('../../db/models/ecoSimulator', () => ({
     default: {
@@ -154,6 +154,18 @@ describe('generateAndCacheEcoSimulatorData', () => {
         );
         expect(result).toEqual(llmResponse);
         expect(mockEmitToJob).toHaveBeenCalledWith(jobId, 'progress', expect.objectContaining({ type: 'job_complete', data: llmResponse }));
+    });
+
+    it('builds the eco simulator prompt with exact formula variable requirements', () => {
+        const prompt = getEcoSimulatorDataPrompt(location, currentJobTitle, seniorityLevel);
+
+        expect(prompt).toContain('aiImpact');
+        expect(prompt).toContain('aiTechAdvancement');
+        expect(prompt).toContain('upskillSpeed');
+        expect(prompt).toContain('marketDemand');
+        expect(prompt).toContain('globalInstabilityLevels');
+        expect(prompt).toContain('JavaScript formula string');
+        expect(prompt).toContain('Return ONLY valid JSON with NO markdown formatting.');
     });
 
     it('uses RAG when GLOBAL_USE_RAG is true', async () => {

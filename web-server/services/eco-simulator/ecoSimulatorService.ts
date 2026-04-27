@@ -11,15 +11,23 @@ import { getFormattedContext } from "../ragService";
 export const ECO_SIMULATOR_CACHE_DURATION_DAYS = 1;
 
 export function getEcoSimulatorDataPrompt(location: string, current_job_title: string, seniority_level: string): string {
-    return `You are an economic simulator that provides insights on the impact of AI on various careers. Based on the location (${location}), current job title (${current_job_title}), and seniority level (${seniority_level}), provide the following information in JSON format:
+    return `You are an economic simulator that provides insights on the impact of AI on various careers. Based on the location (${location}), current job title (${current_job_title}), and seniority level (${seniority_level}), provide the following information in JSON format.
+
+Use these exact variable names inside formula strings only:
+- aiImpact
+- aiTechAdvancement
+- upskillSpeed
+- globalInstabilityLevels
+
+Do not include any explanatory text inside the formula values. Each formula field must be a JavaScript expression string using the variables above and should only contain the expression.
 
 {
-  "layoff_chances_formula": "A formula that calculates the chances of being laid off due to AI, considering factors such as upskill speed, AI impact on the industry, AI technological advancement, and global instability levels.",
-  "career_demand_formula": "A formula that calculates the demand for the career in the future, considering factors such as AI impact on the industry, AI technological advancement, upskill speed, and global instability levels.",
-  "career_growth_opportunities_formula": "A formula that calculates the growth opportunities in the career, considering factors such as upskill speed, AI impact on the industry, AI technological advancement, market demand, and global instability levels.",
-  "salary_increment_formula": "A formula that calculates the potential salary increment in the career, considering factors such as upskill speed, AI technological advancement, market demand, and global instability levels.",
-  "simulation_insights": "Provide insights based on the above formulas and factors.",
-  "tips": "Provide tips for individuals in this career to navigate the impact of AI effectively."
+  "layoff_chances_formula": "A JavaScript formula string using aiImpact, aiTechAdvancement, upskillSpeed, globalInstabilityLevels.",
+  "career_demand_formula": "A JavaScript formula string using aiImpact, aiTechAdvancement, upskillSpeed, globalInstabilityLevels.",
+  "career_growth_opportunities_formula": "A JavaScript formula string using aiImpact, aiTechAdvancement, upskillSpeed, globalInstabilityLevels.",
+  "salary_increment_formula": "A JavaScript formula string using aiImpact, aiTechAdvancement, upskillSpeed, globalInstabilityLevels.",
+  "simulation_insights": "Provide insights based on the formulas above.",
+  "tips": "Provide actionable tips for this career."
 }
 
 Return ONLY valid JSON with NO markdown formatting.`;
@@ -132,8 +140,8 @@ export const generateAndCacheEcoSimulatorData = async (location: string, current
         const fallbackData = {
             layoff_chances_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.55) + (100 - aiImpact * 0.25) + (100 - aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.1)))",
             career_demand_formula: "Math.max(10, Math.min(100, (aiImpact * 0.3) + (aiTechAdvancement * 0.25) + (upskillSpeed * 0.3) - (globalInstabilityLevels * 0.2)))",
-            career_growth_opportunities_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.4) + (aiImpact * 0.2) + (aiTechAdvancement * 0.2) + (marketDemand * 0.25) - (globalInstabilityLevels * 0.2)))",
-            salary_increment_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.45) + (aiTechAdvancement * 0.2) + (marketDemand * 0.3) - (globalInstabilityLevels * 0.15)))",
+            career_growth_opportunities_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.4) + (aiImpact * 0.2) + (aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.2)))",
+            salary_increment_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.45) + (aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.15)))",
             simulation_insights: "Fallback simulation insights due to LLM error",
             tips: "Fallback tips due to LLM error"
         };
