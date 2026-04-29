@@ -87,7 +87,7 @@ const CareerIntelView: React.FC<CareerIntelViewProps> = ({ user }) => {
             <div className="space-y-0.5">
               <div className="flex items-center gap-2 sm:gap-3">
                 <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500 fill-amber-500 flex-shrink-0" />
-                <h2 className="text-xl md:text-2xl font-bold text-slate-900">Guidiance</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-slate-900">Guidance</h2>
               </div>
               <p className="text-slate-500 text-sm md:text-base">Tailored guidance based on your career stage</p>
             </div>

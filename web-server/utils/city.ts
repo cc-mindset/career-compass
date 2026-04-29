@@ -12,7 +12,9 @@ interface City {
 
 const cities: City[] = citiesJson as City[];
 
-const topCities = ["New York City", "Los Angeles", "Chicago", "Houston", "Phoenix",
+const cityNameSet = new Set(cities.map((c) => c.name.toLocaleLowerCase()));
+
+const topCityCandidates = ["New York City", "Los Angeles", "Chicago", "Texas City", "Houston", "Phoenix",
     "San Antonio", "Philadelphia", "San Diego", "Dallas", "Fort Worth",
     "Jacksonville", "Austin", "San Jose", "Charlotte", "Columbus",
     "Indianapolis", "San Francisco", "Seattle", "Denver", "Oklahoma City",
@@ -30,7 +32,13 @@ const topCities = ["New York City", "Los Angeles", "Chicago", "Houston", "Phoeni
     "Greater Sudbury", "Abbotsford", "Lévis", "Coquitlam", "Barrie",
     "Saguenay", "Kelowna", "Guelph", "Trois-Rivières", "Whitby",
     "Cambridge", "St. Catharines", "Milton", "Langley", "Kingston",
-    "Ajax", "Waterloo", "Terrebonne", "Saanich", "St. John's"]
+    "Ajax", "Waterloo", "Terrebonne", "Saanich", "St. John's", "Ontario"];
+
+const topCities = topCityCandidates.filter((city) => cityNameSet.has(city.toLocaleLowerCase()));
+const topCitiesSet = new Set(topCities.map((city) => city.toLocaleLowerCase()));
+
+const findCityData = (city: string, state: string) =>
+    cities.find((c) => c.name.toLocaleLowerCase() === city.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
 
 export const getDistrictOfACity = (cityState: string) => {
     const [city, state] = cityState.split(", ");
@@ -43,16 +51,16 @@ export const getDistrictOfACity = (cityState: string) => {
 
 export const getTopCityOfDistrictOfACity = (cityState: string) => {
     const [city, state] = cityState.split(", ");
-    if (topCities.includes(city)) {
-        let cityData = cities.find((c) => c.name.toLocaleLowerCase() === city.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
-        if (cityData)
-            return `${cityData.name}, ${cityData.admin1}`;
+    const cityData = findCityData(city, state);
+    if (cityData && topCitiesSet.has(cityData.name.toLocaleLowerCase())) {
+        return `${cityData.name}, ${cityData.admin1}`;
     }
+
     const district = getDistrictOfACity(cityState);
     if (district) {
-        let cityData = cities.find((c) => c.admin2.toLocaleLowerCase() === district.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
-        if (cityData)
-            return `${cityData.name}, ${cityData.admin1}`;
+        const districtCity = cities.find((c) => c.admin2.toLocaleLowerCase() === district.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
+        if (districtCity)
+            return `${districtCity.name}, ${districtCity.admin1}`;
     }
     return cityState; // fallback to original cityState if no match found
 
@@ -69,14 +77,14 @@ export const getTopCitiesOfState = (state: string) => {
         }
     });
 
-    //getting districts of hardcoded top cities of given state
+    //getting districts of top cities in the given state, limited to names present in the JSON data
     const topCitiesDistricts = topCities.map((city) => {
-        let cityData = cities.find((c) => c.name.toLocaleLowerCase() === city.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
+        const cityData = findCityData(city, state);
         if (cityData) return cityData.admin2;
         return null;
     }).filter((d): d is string => !!d);
 
-    //removing districts of hardcoded top cities from all districts of the state
+    //removing districts of top cities from all districts of the state
     districts = districts.filter((d) => !topCitiesDistricts.includes(d));
 
     // If there are districts, get the top city of each district and add to result
