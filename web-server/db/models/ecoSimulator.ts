@@ -18,7 +18,7 @@ const ecoSimulatorDataSchema = new Schema<EcoSimulatorData>({
     career_demand_formula: { type: String, required: true },
     career_growth_opportunities_formula: { type: String, required: true },
     salary_increment_formula: { type: String, required: true },
-    simulation_insights: { type: String, required: true },
+    simulation_insights: { type: [String], required: true },
     tips: { type: String, required: true },
 });
 

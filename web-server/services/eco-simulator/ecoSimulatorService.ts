@@ -26,12 +26,13 @@ Do not include any explanatory text inside the formula values. Each formula fiel
   "career_demand_formula": "A JavaScript formula string using aiImpact, aiTechAdvancement, upskillSpeed, globalInstabilityLevels.",
   "career_growth_opportunities_formula": "A JavaScript formula string using aiImpact, aiTechAdvancement, upskillSpeed, globalInstabilityLevels.",
   "salary_increment_formula": "A JavaScript formula string using aiImpact, aiTechAdvancement, upskillSpeed, globalInstabilityLevels.",
-  "simulation_insights": "Provide insights based on the formulas above.",
+  "simulation_insights": "Provide an array of two strings based on the formulas above. At index 0, give an AI-Augmented Evolution insight using current_job_title as the role and location as the location. For example: \"As AI adoption reaches aiImpact%, routine tasks in your role as a ${current_job_title} will shift towards high-level strategic oversight. You should expect to spend 40% less time on production and 60% more time on AI system orchestration.\". At index 1, give a Personalized Insights statement using upskillSpeed and location. For example: \"With your current upskilling velocity of upskillSpeed%, you are positioned in the top 15% of candidates for roles in \"Platform Design\" and \"AI-Integrator\" clusters in ${location}.\".",
   "tips": "Provide actionable tips for this career."
 }
 
 Return ONLY valid JSON with NO markdown formatting.`;
 }
+
 
 export const getVarsIdForEcoSimulator = (location: string, current_job_title: string, seniority_level: string): string => {
     return `${location.toLowerCase()}_${current_job_title.toLowerCase()}_${seniority_level.toLowerCase()}`;
@@ -119,7 +120,6 @@ export const generateAndCacheEcoSimulatorData = async (location: string, current
 
         //LLM
         const response = await generateSingleResponse(SYSTEM_PROMPT, formattedContext, prompt, 'json', 3);
-
         const data = response as unknown as EcoSimulatorData;
 
         //Cache latest response in DB
@@ -142,7 +142,10 @@ export const generateAndCacheEcoSimulatorData = async (location: string, current
             career_demand_formula: "Math.max(10, Math.min(100, (aiImpact * 0.3) + (aiTechAdvancement * 0.25) + (upskillSpeed * 0.3) - (globalInstabilityLevels * 0.2)))",
             career_growth_opportunities_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.4) + (aiImpact * 0.2) + (aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.2)))",
             salary_increment_formula: "Math.max(10, Math.min(100, (upskillSpeed * 0.45) + (aiTechAdvancement * 0.2) - (globalInstabilityLevels * 0.15)))",
-            simulation_insights: "Fallback simulation insights due to LLM error",
+            simulation_insights: [
+                "Fallback AI-Augmented Evolution insight due to LLM error.",
+                "Fallback Personalized Insights due to LLM error."
+            ],
             tips: "Fallback tips due to LLM error"
         };
 

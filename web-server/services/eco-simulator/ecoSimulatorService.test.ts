@@ -52,7 +52,7 @@ const activeCachedData = {
     career_demand_formula: 'formula-b',
     career_growth_opportunities_formula: 'formula-c',
     salary_increment_formula: 'formula-d',
-    simulation_insights: 'cached insights',
+    simulation_insights: ['cached insights', 'cached insights'],
     tips: 'cached tips',
 };
 
@@ -120,7 +120,7 @@ describe('generateAndCacheEcoSimulatorData', () => {
             career_demand_formula: 'generated-b',
             career_growth_opportunities_formula: 'generated-c',
             salary_increment_formula: 'generated-d',
-            simulation_insights: 'generated insights',
+            simulation_insights: ['generated insights', 'cached insights'],
             tips: 'generated tips',
         } as any;
         mockGenerateSingleResponse.mockResolvedValue(llmResponse);
@@ -185,7 +185,7 @@ describe('generateAndCacheEcoSimulatorData', () => {
             career_demand_formula: 'generated-b',
             career_growth_opportunities_formula: 'generated-c',
             salary_increment_formula: 'generated-d',
-            simulation_insights: 'generated insights',
+            simulation_insights: ['generated insights', 'cached insights'],
             tips: 'generated tips',
         } as any;
         mockGenerateSingleResponse.mockResolvedValue(llmResponse);
