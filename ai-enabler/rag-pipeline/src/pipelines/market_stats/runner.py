@@ -50,9 +50,14 @@ for path in (str(project_root), str(src_root)):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from pipelines.market_stats.fetcher_bls      import fetch_bls
-from pipelines.market_stats.fetcher_statscan import fetch_statscan
-from pipelines.market_stats.transformer      import transform
+from src.pipelines.market_stats.fetcher_bls      import fetch_bls
+from src.pipelines.market_stats.fetcher_statscan import fetch_statscan
+from src.pipelines.market_stats.transformer      import transform
+from src.pipelines.market_stats.registry         import get_registry, register_run, update_run, Status
+from src.pipelines.market_stats.cleanup          import run_cleanup, run_ttl_summary
+from src.shared.s3_client import upload_json
+from src.shared.embedder import embed_chunks
+from src.shared.pinecone_client import upload_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +85,9 @@ def run_country(
 
     logger.info(f"[{country}] Starting run {run_id}")
 
+    # Initialize registry
+    registry = get_registry()
+
     # ── Step 1: Fetch ────────────────────────────────────────────────────────
     logger.info(f"[{country}] Fetching...")
     try:
@@ -106,6 +114,9 @@ def run_country(
         summary["status"] = "empty_fetch"
         return summary
 
+    # Register the run
+    register_run(registry, run_id, country, len(raw_records))
+
     # ── Step 2: Transform ────────────────────────────────────────────────────
     logger.info(f"[{country}] Transforming...")
     try:
@@ -114,6 +125,7 @@ def run_country(
         logger.error(f"[{country}] Transform failed: {e}")
         summary["status"] = "failed_transform"
         summary["error"]  = str(e)
+        update_run(registry, run_id, Status.FAILED, error=str(e)[:500])
         return summary
 
     logger.info(f"[{country}] Produced {len(chunks)} chunks")
@@ -122,17 +134,17 @@ def run_country(
     if not chunks:
         logger.warning(f"[{country}] No chunks produced — aborting")
         summary["status"] = "empty_transform"
+        update_run(registry, run_id, Status.FAILED, error="No chunks produced")
         return summary
+
+    # Update registry with chunk count
+    update_run(registry, run_id, Status.TRANSFORMED, chunk_count=len(chunks))
 
     if dry_run:
         logger.info(f"[{country}] DRY RUN — skipping S3 and Pinecone writes")
         _print_sample_chunks(chunks, n=2)
         summary["status"] = "dry_run_complete"
         return summary
-
-    from shared.s3_client import upload_json
-    from shared.embedder import embed_chunks
-    from shared.pinecone_client import upload_chunks
 
     # ── Step 3: Save to S3 ──────────────────────────────────────────────────
     logger.info(f"[{country}] Saving to S3...")
@@ -161,10 +173,12 @@ def run_country(
         logger.error(f"[{country}] S3 save failed: {e}")
         summary["status"] = "failed_s3"
         summary["error"]  = str(e)
+        update_run(registry, run_id, Status.FAILED, error=str(e)[:500])
         return summary
 
     # ── Step 4 + 5: Embed and upsert to Pinecone ────────────────────────────
     logger.info(f"[{country}] Embedding and upserting to Pinecone...")
+    update_run(registry, run_id, Status.EMBEDDING)
     upserted   = 0
     failed_ids = []
 
@@ -172,6 +186,8 @@ def run_country(
     by_namespace: dict[str, list] = {}
     for chunk in chunks:
         by_namespace.setdefault(chunk["namespace"], []).append(chunk)
+
+    all_uploaded_ids = []
 
     for namespace, ns_chunks in by_namespace.items():
         logger.info(f"[{country}] Namespace '{namespace}': {len(ns_chunks)} chunks")
@@ -189,6 +205,7 @@ def run_country(
         try:
             embedded = embed_chunks(pinecone_chunks)
             uploaded_ids = upload_chunks(embedded, namespace=namespace)
+            all_uploaded_ids.extend(uploaded_ids)
             upserted += len(uploaded_ids)
             logger.info(f"[{country}] Upserted {len(uploaded_ids)} vectors to '{namespace}'")
         except Exception as e:
@@ -197,6 +214,12 @@ def run_country(
 
     summary["upserted"]   = upserted
     summary["failed_ids"] = failed_ids
+
+    # Update registry with pinecone IDs
+    if failed_ids:
+        update_run(registry, run_id, Status.EMBEDDED, pinecone_ids=all_uploaded_ids, error=f"{len(failed_ids)} chunks failed")
+    else:
+        update_run(registry, run_id, Status.EMBEDDED, pinecone_ids=all_uploaded_ids)
 
     # ── Step 6: Write processed manifest to S3 ──────────────────────────────
     try:
@@ -219,6 +242,13 @@ def run_country(
         f"[{country}] Run complete — "
         f"{upserted} upserted, {len(failed_ids)} failed"
     )
+    
+    # Mark run as completed in registry
+    if failed_ids:
+        update_run(registry, run_id, Status.FAILED, error=f"Embedding/upsert: {len(failed_ids)} chunks failed")
+    else:
+        update_run(registry, run_id, Status.COMPLETED)
+    
     return summary
 
 
@@ -258,7 +288,29 @@ def main():
         "--lookback-years", type=int, default=2,
         help="Years of BLS history to fetch (default: 2)"
     )
+    parser.add_argument(
+        "--cleanup", action="store_true",
+        help="Run cleanup stage (delete data older than TTL) — run quarterly, not on every fetch"
+    )
+    parser.add_argument(
+        "--ttl-summary", action="store_true",
+        help="Print TTL health — active vs expired runs per country"
+    )
     args = parser.parse_args()
+
+    # ── TTL Summary (optional, runs before fetch) ──────────────────────────────
+    if args.ttl_summary:
+        logger.info("=== TTL Summary ===")
+        summary = run_ttl_summary()
+        print(f"\n{'='*60}")
+        print("TTL Health Report (active vs expired runs):")
+        for country, stats in summary.items():
+            print(
+                f"  {country}: {stats['active']} active, "
+                f"{stats['expired']} expired (TTL: {stats['ttl_months']} months)"
+            )
+        print(f"{'='*60}\n")
+        sys.exit(0)
 
     countries = ["US", "CA"] if args.country == "both" else [args.country]
     summaries = []
@@ -282,6 +334,22 @@ def main():
             print(f"Upserted: {summary.get('upserted', 'n/a')}")
             if summary.get("failed_ids"):
                 print(f"Failed:   {len(summary['failed_ids'])} chunk(s)")
+
+    # ── Cleanup stage (opt-in, run quarterly) ──────────────────────────────────
+    if args.cleanup:
+        logger.info("=== Cleanup ===")
+        cleanup_stats = run_cleanup(dry_run=args.dry_run)
+        print(f"\n{'─'*50}")
+        print(f"Cleanup Results:")
+        print(f"  Total Runs:        {cleanup_stats['total_runs']}")
+        print(f"  Expired Runs:      {cleanup_stats['expired_runs']}")
+        print(f"  Deleted Vectors:   {cleanup_stats['deleted_vectors']}")
+        print(f"  Deleted Registry:  {cleanup_stats['deleted_registry']}")
+        if args.dry_run:
+            print(f"  (DRY RUN — no actual deletions)")
+        print(f"{'─'*50}\n")
+    else:
+        logger.info("Skipping cleanup stage (run with --cleanup to enable)")
 
     # Overall exit code — non-zero if any country failed
     all_ok = all(

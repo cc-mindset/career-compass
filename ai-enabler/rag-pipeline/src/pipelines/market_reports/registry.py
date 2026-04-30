@@ -1,6 +1,7 @@
 """
-Registry: tracks every PDF through the pipeline.
-Single collection in your existing MongoDB.
+Market Reports Registry
+Tracks every PDF through the market_reports pipeline.
+Single collection in MongoDB.
 """
 import certifi
 from datetime import datetime, timezone
@@ -10,10 +11,9 @@ from config.settings import MONGODB_URI, MONGODB_DB, REGISTRY_COLLECTION
 
 
 def get_registry() -> Collection:
-    client = MongoClient(MONGODB_URI,tls= True, tlsCAFile=certifi.where())
+    client = MongoClient(MONGODB_URI, tls=True, tlsCAFile=certifi.where())
     db = client[MONGODB_DB]
     col = db[REGISTRY_COLLECTION]
-    
 
     # Ensure indexes on first run — safe to call repeatedly
     col.create_index([("fileHash", ASCENDING)], unique=True)

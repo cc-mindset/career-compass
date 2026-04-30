@@ -11,7 +11,7 @@ import os
 import traceback
 
 from config.settings import S3_PATHS
-from src.shared.registry import (
+from src.pipelines.market_reports.registry import (
     get_registry, register_document, update_status,
     is_already_processed, Status
 )
