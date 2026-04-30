@@ -359,5 +359,56 @@ def main():
     sys.exit(0 if all_ok else 1)
 
 
+def lambda_handler(event: dict, context) -> dict:
+    """
+    AWS Lambda entry point for EventBridge or direct invoke.
+    Accepts an optional event dict to control behavior:
+      - country: "US" | "CA" | "both" (default: both)
+      - dry_run: bool
+      - limit: int
+      - lookback_years: int
+      - cleanup: bool
+      - ttl_summary: bool
+    Returns a summary dict with per-country run results and optional cleanup stats.
+    """
+    logging.basicConfig(level=logging.INFO)
+    logger.info(f"Lambda triggered with event: {event}")
+
+    try:
+        # TTL summary shortcut
+        if event.get("ttl_summary", False):
+            return run_ttl_summary()
+
+        country = event.get("country", "both")
+        dry_run = event.get("dry_run", False)
+        limit = event.get("limit", None)
+        lookback_years = event.get("lookback_years", 2)
+
+        countries = ["US", "CA"] if country in ("both", "both") else ([country] if country in ("US", "CA") else ["US", "CA"])
+
+        summaries = []
+        for c in countries:
+            summaries.append(
+                run_country(
+                    country=c,
+                    dry_run=dry_run,
+                    limit=limit,
+                    lookback_years=lookback_years,
+                )
+            )
+
+        result = {"runs": summaries}
+
+        if event.get("cleanup", False):
+            cleanup_stats = run_cleanup(dry_run=dry_run)
+            result["cleanup"] = cleanup_stats
+
+        return result
+
+    except Exception as e:
+        logger.exception(f"Lambda invocation failed: {e}")
+        return {"error": str(e)}
+
+
 if __name__ == "__main__":
     main()

@@ -45,7 +45,14 @@ def download_to_temp(s3_key: str, suffix: str = "") -> str:
 
 def upload_json(data: dict | list, s3_key: str) -> str:
     """Serialize dict/list to JSON and upload directly (no temp file)."""
-    body = json.dumps(data, ensure_ascii=False, indent=2)
+    def _json_default(obj):
+        # Convert common non-serializable types to safe representations
+        if isinstance(obj, set):
+            return list(obj)
+        # Fallback to string for any other unknown types
+        return str(obj)
+
+    body = json.dumps(data, ensure_ascii=False, indent=2, default=_json_default)
     _s3.put_object(
         Bucket=S3_BUCKET,
         Key=s3_key,
