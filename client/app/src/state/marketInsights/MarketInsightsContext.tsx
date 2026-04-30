@@ -348,7 +348,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           else {
             setProgressText(payload.stage || "Processing...");
             setTimeout(() => {
-              retrySection(payload.section)
+              retrySection(payload.section!);
             }, 3000)
           }
           break;

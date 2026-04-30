@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { TipCard } from "../../ui-kit";
 import { useEcoSimulator } from "../../state/contexts/eco-simulator/EcoSimulatorContext";
+import AnimatedLoader from "../../ui-kit/atom/animated-loader";
 
 interface EcoSimulatorViewProps {
   user: UserProfile;
@@ -113,6 +114,13 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
   const demand = getStatus(marketDemand);
   const salaryIncrease = getStatus(salaryIncreaseChances);
   const careerAdvancement = getStatus(careerAdvancementOpportunities);
+
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <AnimatedLoader />;
+      </div>
+    );
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -338,7 +346,14 @@ const EcoSimulatorView: React.FC<EcoSimulatorViewProps> = ({ user }) => {
                           : " Personalized Insights"}
                       </h4>
                       <p className="text-slate-500 leading-relaxed text-sm md:text-base">
-                        {ele.replace(/upskillSpeed/g, `${upskillSpeed}`).replace(/aiImpact/g, `${aiImpact}`).replace(/aiTechAdvancement/g, `${aiTechAdvancement}`).replace(/globalInstabilityLevels/g, `${globalInstabilityLevels}`)}
+                        {ele
+                          .replace(/upskillSpeed/g, `${upskillSpeed}`)
+                          .replace(/aiImpact/g, `${aiImpact}`)
+                          .replace(/aiTechAdvancement/g, `${aiTechAdvancement}`)
+                          .replace(
+                            /globalInstabilityLevels/g,
+                            `${globalInstabilityLevels}`,
+                          )}
                       </p>
                     </div>
                   </div>

@@ -7,6 +7,7 @@ export interface EcoSimulatorData {
   salary_increment_formula: string;
   simulation_insights: string[];
   tips: string;
+  isRemaining: boolean;
 }
 
 interface EcoSimulatorContextType {
@@ -57,6 +58,11 @@ export const EcoSimulatorProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         const result = await response.json();
         setData(result.data);
+        if(result.data.isRemaining) {
+          setTimeout(() => {
+            fetchEcoSimulatorData(location, currentJobTitle, seniorityLevel);
+          }, 5000); // Clear data after 5 seconds
+        }
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "An unknown error occurred",
