@@ -33,6 +33,10 @@ Parameters:
     NoEcho: true
     Default: ''
     Description: Optional BLS API key
+  StatscanUserAgent:
+    Type: String
+    Default: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+    Description: User-Agent header for StatsCan WDS requests
 
 Globals:
   Function:
@@ -41,7 +45,6 @@ Globals:
       - x86_64
     Environment:
       Variables:
-        AWS_REGION: !Ref AWS::Region
         S3_BUCKET_NAME: !Ref S3BucketName
         MONGODB_URI: !Ref MongoDbUri
         MONGODB_DB_NAME: !Ref MongoDbName
@@ -50,6 +53,7 @@ Globals:
         PINECONE_INDEX_NAME: !Ref PineconeIndexName
         SERP_API_KEY: !Ref SerpApiKey
         BLS_API_KEY: !Ref BlsApiKey
+        STATSCAN_USER_AGENT: !Ref StatscanUserAgent
 
 Resources:
   MarketReportsFunction:
