@@ -1,7 +1,8 @@
-import React from 'react';
-import { Edit2, MapPin } from 'lucide-react';
-import { AppView, UserProfile } from '../../types';
-import { NAVIGATION_ITEMS, BOTTOM_NAV_ITEMS } from '../../consts';
+import React from "react";
+import { Edit2, MapPin } from "lucide-react";
+import { AppView, UserProfile } from "../../types";
+import { NAVIGATION_ITEMS, BOTTOM_NAV_ITEMS } from "../../consts";
+import { useUserContext } from "../../state/contexts/user";
 
 interface SidebarProps {
   currentView: AppView;
@@ -10,6 +11,11 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
+  const { clearUser, setHasJourneyStarted } = useUserContext();
+  const resetUserState = () => {
+    clearUser();
+    setHasJourneyStarted(false);
+  };
   return (
     <aside className="hidden lg:flex flex-col w-72 bg-white border-r border-slate-200 h-full p-6 pt-6">
       {/* Location Card - Deepened Indigo-Slate Gradient */}
@@ -19,15 +25,24 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
             <div className="bg-white/10 backdrop-blur-xl p-2 rounded-lg border border-white/10 shadow-sm text-white">
               <MapPin className="w-4 h-4" />
             </div>
-            <button className="p-1.5 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full transition-colors text-indigo-100 hover:text-white border border-white/5">
+            <button
+              onClick={resetUserState}
+              className="p-1.5 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full transition-colors text-indigo-100 hover:text-white border border-white/5"
+            >
               <span className="sr-only">Edit location</span>
               <Edit2 className="w-3.5 h-3.5" />
             </button>
           </div>
           <div className="space-y-1">
-            <p className="text-indigo-100/80 text-[10px] font-bold uppercase tracking-widest">Current Location</p>
-            <h3 className="font-bold text-lg leading-tight text-white">{user.location}</h3>
-            <p className="text-indigo-50/70 text-[11px] font-medium">{user.country}</p>
+            <p className="text-indigo-100/80 text-[10px] font-bold uppercase tracking-widest">
+              Current Location
+            </p>
+            <h3 className="font-bold text-lg leading-tight text-white">
+              {user.location}
+            </h3>
+            <p className="text-indigo-50/70 text-[11px] font-medium">
+              {user.country}
+            </p>
           </div>
         </div>
         {/* Subtle glow effect */}
@@ -44,14 +59,18 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
               key={item.id}
               onClick={() => onNavigate(item.id as AppView)}
               className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-200 group ${
-                isActive 
-                  ? 'bg-indigo-50 text-indigo-600 font-bold border border-indigo-100' 
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600 border border-transparent'
+                isActive
+                  ? "bg-indigo-50 text-indigo-600 font-bold border border-indigo-100"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600 border border-transparent"
               }`}
             >
-              <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
+              <Icon
+                className={`w-5 h-5 transition-transform duration-200 ${isActive ? "scale-110" : "group-hover:scale-110"}`}
+              />
               <span className="text-base">{item.label}</span>
-              {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-600" />}
+              {isActive && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-600" />
+              )}
             </button>
           );
         })}
