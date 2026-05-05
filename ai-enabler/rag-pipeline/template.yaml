@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: RAG pipeline Lambdas (market reports, stats, news) with EventBridge schedules.
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: S3 bucket for pipeline inputs/outputs
+  MongoDbUri:
+    Type: String
+    NoEcho: true
+    Description: MongoDB connection string
+  MongoDbName:
+    Type: String
+    Description: MongoDB database name
+  OpenAiApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API key
+  PineconeApiKey:
+    Type: String
+    NoEcho: true
+    Description: Pinecone API key
+  PineconeIndexName:
+    Type: String
+    Description: Pinecone index name
+  SerpApiKey:
+    Type: String
+    NoEcho: true
+    Description: SERP API key for market news
+  BlsApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Optional BLS API key
+  StatscanUserAgent:
+    Type: String
+    Default: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+    Description: User-Agent header for StatsCan WDS requests
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        S3_BUCKET_NAME: !Ref S3BucketName
+        MONGODB_URI: !Ref MongoDbUri
+        MONGODB_DB_NAME: !Ref MongoDbName
+        OPENAI_API_KEY: !Ref OpenAiApiKey
+        PINECONE_API_KEY: !Ref PineconeApiKey
+        PINECONE_INDEX_NAME: !Ref PineconeIndexName
+        SERP_API_KEY: !Ref SerpApiKey
+        BLS_API_KEY: !Ref BlsApiKey
+        STATSCAN_USER_AGENT: !Ref StatscanUserAgent
+
+Resources:
+  MarketReportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: rag-market-reports
+      CodeUri: .
+      Handler: src.pipelines.market_reports.runner.lambda_handler
+      MemorySize: 2048
+      Timeout: 900
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref S3BucketName
+      Events:
+        WeeklyReports:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 6 ? * MON *)
+            Enabled: true
+
+  MarketStatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: rag-market-stats
+      CodeUri: .
+      Handler: src.pipelines.market_stats.runner.lambda_handler
+      MemorySize: 1536
+      Timeout: 900
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref S3BucketName
+      Events:
+        MonthlyStats:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 6 25 * ? *)
+            Enabled: true
+            Input: '{"country":"both"}'
+
+  MarketNewsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: rag-market-news
+      CodeUri: .
+      Handler: src.pipelines.market_news.runner.lambda_handler
+      MemorySize: 1024
+      Timeout: 900
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref S3BucketName
+      Events:
+        TwiceDailyNews:
+          Type: Schedule
+          Properties:
+            Schedule: rate(12 hours)
+            Enabled: true
+
+Outputs:
+  MarketReportsFunctionName:
+    Description: Market reports Lambda
+    Value: !Ref MarketReportsFunction
+  MarketStatsFunctionName:
+    Description: Market stats Lambda
+    Value: !Ref MarketStatsFunction
+  MarketNewsFunctionName:
+    Description: Market news Lambda
+    Value: !Ref MarketNewsFunction
