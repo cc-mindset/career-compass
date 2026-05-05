@@ -10,6 +10,7 @@ export interface UserProfile {
   skills: string[];
   completedCourses: number;
   certifications: number;
+  resume: File | null;
 }
 
 export interface NewsArticle {

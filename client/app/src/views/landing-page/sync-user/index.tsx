@@ -1,5 +1,5 @@
 import { useUser } from "@clerk/clerk-react";
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useUserContext } from "../../../state/contexts/user";
 
 const SyncUser = () => {
@@ -36,8 +36,29 @@ const SyncUser = () => {
       })
         .then(() => console.log("User synced successfully"))
         .catch((err) => console.error("Failed to sync user:", err));
+
+      // Upload user resume if present
+      if (userContext.profile.resume) {
+        const formData = new FormData();
+        formData.append('userId', user.id);
+        formData.append('resume', userContext.profile.resume);
+
+        fetch(`${import.meta.env.VITE_API_URL}/api/resume/upload`, {
+          method: "POST",
+          body: formData,
+        })
+          .then(() => console.log("Resume uploaded successfully"))
+          .catch((err) => console.error("Failed to upload resume:", err));
+      }
     }
-  }, [isLoaded, user, setUser, userContext.profile, userContext.hasJourneyStarted]);
+  }, [
+    isLoaded,
+    user,
+    setUser,
+    userContext.profile,
+    userContext.hasJourneyStarted,
+    userContext.profile.resume,
+  ]);
 
   return null;
 };

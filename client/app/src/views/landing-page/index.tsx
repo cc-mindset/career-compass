@@ -250,6 +250,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     const newUser: UserProfile = {
       name: formData.name || "Explorer",
       role: formData.role,
+      resume: formData.resumeFile || null,
       company: "",
       location: formData.location,
       country: formData.location.includes(",")

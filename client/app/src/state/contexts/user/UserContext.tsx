@@ -19,7 +19,8 @@ const INITIAL_USER: AuthUser = {
         experience: "",
         avatar: "",
         completedCourses: 0,
-        certifications: 0
+        certifications: 0,
+        resume: null,
     },
     clerkId: "",
     email: "",
