@@ -25,10 +25,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onEdit }) => {
   const { clearUser, setHasJourneyStarted, setUser, user } = useUserContext();
   const userProfile = user?.profile || ({} as UserProfile);
   const handleLogout = () => {
-    signOut(() => {
-      clearUser();
-      setHasJourneyStarted(false);
-    });
+    signOut();
   };
 
   useEffect(() => {
@@ -48,7 +45,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onEdit }) => {
         })
         .catch((err) => console.error("Failed to fetch user details:", err));
     }
-  }, [clearUser]);
+  }, []);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 lg:pl-16">
@@ -104,7 +101,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onEdit }) => {
                 <div className="bg-slate-100 p-1.5 rounded-lg">
                   <MapPin className="w-4 h-4" />
                 </div>
-                <span className="text-sm font-medium">{userProfile.location}</span>
+                <span className="text-sm font-medium">
+                  {userProfile.location}
+                </span>
               </div>
 
               <div className="flex justify-center gap-5">

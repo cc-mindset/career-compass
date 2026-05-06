@@ -7,30 +7,31 @@ import React, {
   useEffect,
 } from "react";
 import { UserProfile } from "../../../types";
+import { useClerk } from "@clerk/clerk-react";
 
 const INITIAL_USER: AuthUser = {
-    profile: {
-        name: "",
-        skills: [],
-        location: "",
-        role: "",
-        company: "",
-        country: "",
-        experience: "",
-        avatar: "",
-        completedCourses: 0,
-        certifications: 0,
-        resume: null,
-    },
-    clerkId: "",
-    email: "",
-    firstName: null,
-    lastName: null,
-    imageUrl: null,
-    username: null,
-    phone: null,
-    createdAt: new Date(),
-    lastSignInAt: null
+  profile: {
+    name: "",
+    skills: [],
+    location: "",
+    role: "",
+    company: "",
+    country: "",
+    experience: "",
+    avatar: "",
+    completedCourses: 0,
+    certifications: 0,
+    resume: null,
+  },
+  clerkId: "",
+  email: "",
+  firstName: null,
+  lastName: null,
+  imageUrl: null,
+  username: null,
+  phone: null,
+  createdAt: new Date(),
+  lastSignInAt: null,
 };
 
 export interface AuthUser {
@@ -111,6 +112,7 @@ const deserializeUser = (jsonString: string): AuthUser => {
 const STORAGE_KEY = "careercompass_user_state";
 
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
+  const { user: clerkUser } = useClerk();
   const [user, setUserState] = useState<AuthUser>(() => {
     try {
       const stored = sessionStorage.getItem(STORAGE_KEY);
@@ -120,7 +122,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       return INITIAL_USER;
     }
   });
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,6 +134,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       console.warn("Failed to persist user to sessionStorage:", error);
     }
   }, [user]);
+
+  useEffect(() => {
+    const storedUser = sessionStorage.getItem(STORAGE_KEY);
+    if(storedUser) {
+      const parsedUser = deserializeUser(storedUser);
+      console.log("Loaded user from sessionStorage:", parsedUser.clerkId, clerkUser?.id);
+      if(clerkUser && clerkUser.id === parsedUser.clerkId) {
+        console.log('insie')
+        setUserState(parsedUser);
+        return;
+      }
+    }
+  }, [clerkUser]);
 
   const setUser = useCallback((newUser: AuthUser) => {
     setUserState(newUser);
