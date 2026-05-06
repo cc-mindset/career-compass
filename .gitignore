@@ -17,6 +17,10 @@ web-api-server/venv/
 web-api-server/.env
 client/app/.env
 
+# SAM / AWS
+ai-enabler/rag-pipeline/samconfig.toml
+ai-enabler/rag-pipeline/.aws-sam/
+
 # Build outputs
 build/
 dist/
