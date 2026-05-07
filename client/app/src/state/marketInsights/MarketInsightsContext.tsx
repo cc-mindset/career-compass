@@ -1,11 +1,27 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useRef, } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+  useRef,
+} from "react";
 import { ApiState, ApiStatus, createInitialApiState } from "../api/apiTypes";
-import { SectionName, SectionsState, WSProgressEvent, } from "../api/sectionTypes";
+import {
+  SectionName,
+  SectionsState,
+  WSProgressEvent,
+} from "../api/sectionTypes";
 import { getSocket } from "../../providers/socket/socket";
 import { useAppContext } from "../contexts/AppContext";
 import { pollForInsights } from "../../utils/polls/pollForInsights";
 
-export type MarketInsightsLoadingStage = | "idle" | "first" | "second" | "third" | "complete";
+export type MarketInsightsLoadingStage =
+  | "idle"
+  | "first"
+  | "second"
+  | "third"
+  | "complete";
 
 export interface MarketInsightsGenerateResponse {
   success: boolean;
@@ -22,12 +38,21 @@ interface MarketInsightsContextValue {
   generateState: ApiState<MarketInsightsGenerateResponse>;
   generateStatus: ApiStatus;
   generateError?: string;
-  generateMarketInsights: (params: { location: string; userId?: string; }) => Promise<void>;
+  generateMarketInsights: (params: {
+    location: string;
+    userId?: string;
+  }) => Promise<void>;
   loadingStage: MarketInsightsLoadingStage;
-  setLoadingStage: (stage: MarketInsightsLoadingStage) => void; progressText?: string; sections: SectionsState; retrySection: (section: SectionName) => Promise<void>;
+  setLoadingStage: (stage: MarketInsightsLoadingStage) => void;
+  progressText?: string;
+  sections: SectionsState;
+  retrySection: (section: SectionName) => Promise<void>;
+  retrieved: boolean;
 }
 
-const MarketInsightsContext = createContext<MarketInsightsContextValue | undefined>(undefined);
+const MarketInsightsContext = createContext<
+  MarketInsightsContextValue | undefined
+>(undefined);
 
 export const useMarketInsightsState = (): MarketInsightsContextValue => {
   const ctx = useContext(MarketInsightsContext);
@@ -43,12 +68,17 @@ interface MarketInsightsProviderProps {
   children: ReactNode;
 }
 
-export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ children, }) => {
+export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({
+  children,
+}) => {
   const [generateState, setGenerateState] = useState<
     ApiState<MarketInsightsGenerateResponse>
   >(createInitialApiState<MarketInsightsGenerateResponse>());
-  const [loadingStage, setLoadingStage] = useState<MarketInsightsLoadingStage>("idle");
-  const [progressText, setProgressText] = useState<string | undefined>(undefined,);
+  const [loadingStage, setLoadingStage] =
+    useState<MarketInsightsLoadingStage>("idle");
+  const [progressText, setProgressText] = useState<string | undefined>(
+    undefined,
+  );
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<string>("");
   const [sections, setSections] = useState<SectionsState>({
@@ -57,6 +87,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     newsAndCareerIntel: { status: "idle" },
   });
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [retrieved, setRetrieved] = useState<boolean>(false);
 
   // Get global server availability state from AppContext
   let setServerAvailable: ((available: boolean) => void) | null = null;
@@ -76,11 +107,11 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
   const generateMarketInsights = async ({
     location,
     userId,
-    section
+    section,
   }: {
     location: string;
     userId?: string;
-    section?: string
+    section?: string;
   }) => {
     const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -98,8 +129,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
 
     setCurrentLocation(location);
 
-    if(!!section) {
-      setSections(prev => ({...prev, [section]: { status: "loading" } }))
+    if (!!section) {
+      setSections((prev) => ({ ...prev, [section]: { status: "loading" } }));
     } else {
       setSections({
         marketReport: { status: "loading" },
@@ -133,6 +164,8 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         signal: controller.signal,
       });
 
+      setRetrieved(true);
+
       if (!res.ok) {
         throw new Error(
           (await res.text()) || `Request failed with status ${res.status}`,
@@ -147,13 +180,13 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         updateServerAvailable(true);
         // Resolve all sections immediately from the merged insights object
         setSections({
-          marketReport: { status: 'success', data: insightsData },
-          industryTrends: { status: 'success', data: insightsData },
-          newsAndCareerIntel: { status: 'success', data: insightsData },
+          marketReport: { status: "success", data: insightsData },
+          industryTrends: { status: "success", data: insightsData },
+          newsAndCareerIntel: { status: "success", data: insightsData },
         });
-        setGenerateState({ status: 'success', data, error: undefined });
-        setLoadingStage('complete');
-        setProgressText('Insights ready (cached)');
+        setGenerateState({ status: "success", data, error: undefined });
+        setLoadingStage("complete");
+        setProgressText("Insights ready (cached)");
         setActiveJobId(null);
         return;
       }
@@ -221,12 +254,14 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
 
       // Handle fetch abort (timeout) separately to avoid showing an error message for expected timeouts
       if (isError && error.name === "AbortError") {
-      console.error("[MarketInsights] Fetch request aborted due to 15s timeout");
-      console.error("[MarketInsights] Details:", {
-        location,
-        apiBase,
-        timestamp: new Date().toISOString(),
-      });
+        console.error(
+          "[MarketInsights] Fetch request aborted due to 15s timeout",
+        );
+        console.error("[MarketInsights] Details:", {
+          location,
+          apiBase,
+          timestamp: new Date().toISOString(),
+        });
         updateServerAvailable(false);
         setGenerateState((prev) => ({
           ...prev,
@@ -250,14 +285,14 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         );
 
       if (looksLikeNetworkFailure) {
-      console.error("[MarketInsights] Network failure detected");
-      console.error("[MarketInsights] Error message:", message);
-      console.error("[MarketInsights] Details:", {
-        location,
-        apiBase,
-        userOnline: navigator.onLine,
-        timestamp: new Date().toISOString(),
-      });
+        console.error("[MarketInsights] Network failure detected");
+        console.error("[MarketInsights] Error message:", message);
+        console.error("[MarketInsights] Details:", {
+          location,
+          apiBase,
+          userOnline: navigator.onLine,
+          timestamp: new Date().toISOString(),
+        });
         updateServerAvailable(false);
         setGenerateState((prev) => ({
           ...prev,
@@ -280,13 +315,13 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         );
 
       if (looksLikeServerFailure) {
-      console.error("[MarketInsights] Server error (5xx) detected");
-      console.error("[MarketInsights] Error message:", message);
-      console.error("[MarketInsights] Details:", {
-        location,
-        apiBase,
-        timestamp: new Date().toISOString(),
-      });
+        console.error("[MarketInsights] Server error (5xx) detected");
+        console.error("[MarketInsights] Error message:", message);
+        console.error("[MarketInsights] Details:", {
+          location,
+          apiBase,
+          timestamp: new Date().toISOString(),
+        });
         updateServerAvailable(false);
         setGenerateState((prev) => ({
           ...prev,
@@ -344,15 +379,14 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
               ...prev,
               [payload.section!]: { status: "success", data: payload.data },
             }));
-          }
-          else {
+          } else {
             setProgressText(payload.stage || "Processing...");
             setTimeout(() => {
               retrySection(payload.section!);
-            }, 3000)
+            }, 3000);
           }
           break;
-        
+
         case "section_success":
           if (payload.section && payload.data) {
             console.log(
@@ -382,12 +416,15 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           updateServerAvailable(true);
           // Resolve any sections still in loading — succeeded ones get data, failed ones get error
           if (payload.failedSections?.length) {
-            setSections(prev => {
+            setSections((prev) => {
               const next = { ...prev };
-              (payload.failedSections as string[]).forEach(name => {
+              (payload.failedSections as string[]).forEach((name) => {
                 const key = name as keyof SectionsState;
-                if (next[key]?.status === 'loading') {
-                  next[key] = { status: 'error', error: 'Section could not be generated' };
+                if (next[key]?.status === "loading") {
+                  next[key] = {
+                    status: "error",
+                    error: "Section could not be generated",
+                  };
                 }
               });
               return next;
@@ -414,23 +451,30 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
           setProgressText(payload.error);
           setActiveJobId(null);
           break;
-        case 'job_fallback':
-          console.warn('[MarketInsights] ⚠ Fallback data received:', payload.reason);
+        case "job_fallback":
+          console.warn(
+            "[MarketInsights] ⚠ Fallback data received:",
+            payload.reason,
+          );
           // Show fallback mock data so the user sees something instead of an indefinite spinner
           setSections({
-            marketReport:     { status: 'success', data: payload.insights },
-            industryTrends:   { status: 'success', data: payload.insights },
-            newsAndCareerIntel: { status: 'success', data: payload.insights },
+            marketReport: { status: "success", data: payload.insights },
+            industryTrends: { status: "success", data: payload.insights },
+            newsAndCareerIntel: { status: "success", data: payload.insights },
           });
           setGenerateState({
-            status: 'success',
+            status: "success",
             data: { success: true, insights: payload.insights },
             error: undefined,
           });
-          setLoadingStage('complete');
-          setProgressText(payload.reason || 'Service temporarily unavailable — showing fallback data');
+          setLoadingStage("complete");
+          setProgressText(
+            payload.reason ||
+              "Service temporarily unavailable — showing fallback data",
+          );
           setActiveJobId(null);
-          break;      }
+          break;
+      }
     };
 
     socket.on("progress", handleProgress);
@@ -438,15 +482,17 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
     // On reconnect, re-subscribe to the active job — socket gets new ID and loses room membership
     const handleReconnect = () => {
       if (activeJobId) {
-        console.log(`[MarketInsights] Socket reconnected — re-subscribing to job:${activeJobId}`);
-        socket.emit('subscribe', activeJobId);
+        console.log(
+          `[MarketInsights] Socket reconnected — re-subscribing to job:${activeJobId}`,
+        );
+        socket.emit("subscribe", activeJobId);
       }
     };
-    socket.on('connect', handleReconnect);
+    socket.on("connect", handleReconnect);
 
     return () => {
-      socket.off('progress', handleProgress);
-      socket.off('connect', handleReconnect);
+      socket.off("progress", handleProgress);
+      socket.off("connect", handleReconnect);
     };
   }, [activeJobId]);
 
@@ -470,6 +516,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({ 
         progressText,
         sections,
         retrySection,
+        retrieved
       }}
     >
       {children}
