@@ -33,6 +33,7 @@ import {
 } from "@clerk/clerk-react";
 import AnimatedLoader from "../../ui-kit/atom/animated-loader";
 import { useUserContext } from "../../state/contexts/user";
+import { normalizeText } from "../../utils";
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
@@ -44,7 +45,7 @@ const remainingLocations = allLocations.filter(
 );
 
 // Mock data for searchable dropdowns
-const OPTIONS = {
+export const OPTIONS = {
   locations: [...PRIORITY_CITIES, ...remainingLocations],
   roles: TECH_ROLES,
   seniority: [
@@ -154,13 +155,15 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
                 user.hasJourneyStarted,
               profile: {
                 ...user.profile,
+                name: user.profile.name || data.firstName || "",
                 avatar:
                   user.profile.avatar ||
                   "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex&mouth=smile&backgroundColor=E0E7FF",
-                skills: data.profile.skills || [],
-                role: data.preferences.role || "",
-                location: data.preferences.location || "",
-                experience: data.preferences.experience || "",
+                role: user.profile.role || data.preferences.role || "",
+                location:
+                  user.profile.location || data.preferences.location || "",
+                experience:
+                  user.profile.experience || data.preferences.experience || "",
               },
             });
           }
@@ -195,15 +198,6 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   }, [hasStartedFilling, isConnected]);
 
   const activeStep = STEPS[currentStep];
-
-  // Normalize text for better search matching
-  const normalizeText = (text: string) =>
-    text
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/\s+/g, " ") // collapse multiple spaces
-      .trim(); // removes leading/trailing spaces
 
   // Filter options based on search input
   const filteredOptions = search

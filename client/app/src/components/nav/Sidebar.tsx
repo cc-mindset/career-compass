@@ -1,8 +1,11 @@
-import React from "react";
-import { Edit2, MapPin } from "lucide-react";
+import React, { useState } from "react";
+import { ClosedCaptionIcon, Cross, Edit2, MapPin, X } from "lucide-react";
 import { AppView, UserProfile } from "../../types";
 import { NAVIGATION_ITEMS, BOTTOM_NAV_ITEMS } from "../../consts";
 import { useUserContext } from "../../state/contexts/user";
+import CitySelect from "../city-select";
+import { getSocket } from "../../providers/socket/socket";
+import { useMarketInsightsState } from "../../state/marketInsights/MarketInsightsContext";
 
 interface SidebarProps {
   currentView: AppView;
@@ -11,39 +14,64 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
-  const { clearUser, setHasJourneyStarted } = useUserContext();
-  const resetUserState = () => {
-    clearUser();
-    setHasJourneyStarted(false);
+  const [isEditable, setIsEditable] = useState(false);
+  const { generateMarketInsights } = useMarketInsightsState();
+  const { setUser, user: currentUser } = useUserContext();
+
+  const handleSelect = (city: string) => {
+    setUser({
+      ...currentUser,
+      profile: {
+        ...currentUser.profile,
+        location: city,
+      },
+    });
+    // Ensure the socket instance is created and a connection attempt starts ASAP.
+    const socket = getSocket();
+    if (!socket.connected) socket.connect();
+
+    generateMarketInsights({ location: city });
+    setIsEditable(false);
   };
+
   return (
     <aside className="hidden lg:flex flex-col w-72 bg-white border-r border-slate-200 h-full p-6 pt-6">
       {/* Location Card - Deepened Indigo-Slate Gradient */}
-      <div className="mb-8 bg-gradient-to-br from-indigo-500 via-indigo-700 to-slate-900 border border-indigo-400/30 p-5 rounded-3xl text-white relative overflow-hidden group lg:h-[160px] flex flex-col justify-center shadow-xl shadow-indigo-900/10">
+      <div className="mb-8 bg-gradient-to-br from-indigo-500 via-indigo-700 to-slate-900 border border-indigo-400/30 p-5 rounded-3xl text-white relative overflow-visible group lg:h-[160px] flex flex-col justify-center shadow-xl shadow-indigo-900/10">
         <div className="relative z-10">
           <div className="flex justify-between items-start mb-3">
             <div className="bg-white/10 backdrop-blur-xl p-2 rounded-lg border border-white/10 shadow-sm text-white">
               <MapPin className="w-4 h-4" />
             </div>
             <button
-              onClick={resetUserState}
+              onClick={() => setIsEditable((prev) => !prev)}
               className="p-1.5 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full transition-colors text-indigo-100 hover:text-white border border-white/5"
             >
-              <span className="sr-only">Edit location</span>
-              <Edit2 className="w-3.5 h-3.5" />
+              {isEditable ? (
+                <X />
+              ) : (
+                <>
+                  <span className="sr-only">Edit location</span>
+                  <Edit2 className="w-3.5 h-3.5" />
+                </>
+              )}
             </button>
           </div>
-          <div className="space-y-1">
-            <p className="text-indigo-100/80 text-[10px] font-bold uppercase tracking-widest">
-              Current Location
-            </p>
-            <h3 className="font-bold text-lg leading-tight text-white">
-              {user.location}
-            </h3>
-            <p className="text-indigo-50/70 text-[11px] font-medium">
-              {user.country}
-            </p>
-          </div>
+          {isEditable ? (
+            <CitySelect handleSelect={handleSelect} />
+          ) : (
+            <div className="space-y-1">
+              <p className="text-indigo-100/80 text-[10px] font-bold uppercase tracking-widest">
+                Current Location
+              </p>
+              <h3 className="font-bold text-lg leading-tight text-white">
+                {user.location}
+              </h3>
+              <p className="text-indigo-50/70 text-[11px] font-medium">
+                {user.country}
+              </p>
+            </div>
+          )}
         </div>
         {/* Subtle glow effect */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-12 -mt-12 blur-3xl group-hover:scale-125 transition-all duration-700" />
