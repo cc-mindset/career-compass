@@ -59,7 +59,15 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
     progressText,
     sections,
     retrySection,
+    generateMarketInsights,
+    retrieved,
   } = useMarketInsightsState();
+
+  useEffect(() => {
+    if (!retrieved && user.location && !sections.marketReport.data) {
+      generateMarketInsights({ location: user.location });
+    }
+  }, [retrieved, user.location]);
 
   // Read from per-section data (available immediately on section_success)
   // instead of generateState.data.insights (only set on job_complete)

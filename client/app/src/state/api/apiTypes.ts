@@ -7,7 +7,7 @@ export interface ApiState<T> {
 }
 
 export const createInitialApiState = <T>(): ApiState<T> => ({
-  status: 'idle',
+  status: 'in-progress',
   data: undefined,
   error: undefined,
 });
