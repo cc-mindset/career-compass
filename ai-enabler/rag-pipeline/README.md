@@ -4,9 +4,6 @@ Steps to run:
 3. 
 
 
-
-
-
 Structure:
 rag-pipeline/
 ├── config/

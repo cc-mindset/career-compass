@@ -263,6 +263,15 @@ def _extract_blocks(doc: fitz.Document, fp: dict,
     # Stage D: demote lowercase-start headings (mid-sentence fragments)
     blocks = _demote_lowercase_headings(blocks)
 
+    # Stage E: avoid long runs of top-level headings
+    blocks = _rebalance_heading_levels(blocks)
+
+    # Stage F: de-emphasize Sources headings so they do not look like main sections
+    blocks = _normalize_sources_headings(blocks)
+
+    # Stage G: de-emphasize boilerplate headings that should not read like main sections
+    blocks = _normalize_boilerplate_headings(blocks)
+
     return blocks
 
 
@@ -290,33 +299,34 @@ def _promote_structural_headings(blocks: list[dict]) -> list[dict]:
         if not text:
             continue
 
-        words = text.split()
+        analysis_text = _strip_leading_numbering(text)
+
+        words = analysis_text.split()
         word_count = len(words)
 
         # Reject numeric garbage
-        if re.match(r"^[\d\s\.\:%\-]+$", text):
+        if re.match(r"^[\d\s\.\:%\-]+$", analysis_text):
             continue
 
         # Reject sentence like text
-        if _looks_like_sentence(text):
+        if _looks_like_sentence(analysis_text):
             continue
 
         # Signals
         is_short = word_count <= 10
         is_bold = block["bold"]
-        is_upper = text.isupper()
-        is_title_case = text.istitle()
-        is_numbered = bool(re.match(r"^\d+(\.\d+)*", text))
+        is_upper = analysis_text.isupper()
+        is_title_case = analysis_text.istitle()
 
         no_trailing_period = not text.endswith(".")
         clean_phrase = not re.search(r"[,:]", text)
 
-        strong_shape = is_title_case or is_upper or is_numbered
+        strong_shape = is_title_case or is_upper
 
         next_block = _next_body_block(promoted, i)
         has_context = (
             next_block is not None and
-            len(next_block["text"]) >= len(text) * 2
+            len(next_block["text"]) >= len(analysis_text) * 2
         )
 
         if (
@@ -328,7 +338,7 @@ def _promote_structural_headings(blocks: list[dict]) -> list[dict]:
                 (is_title_case and word_count <= 6)
             )
         ):
-            promoted[i] = {**block, "role": "heading_3"}
+            promoted[i] = {**block, "role": _adjust_heading_role(text, "heading_3")}
 
     return promoted
 
@@ -406,6 +416,77 @@ def _demote_lowercase_headings(blocks: list[dict]) -> list[dict]:
     return demoted
 
 
+def _rebalance_heading_levels(blocks: list[dict]) -> list[dict]:
+    """Downgrade H1s after the first four in a consecutive run."""
+    balanced = []
+    consecutive_h1 = 0
+
+    for block in blocks:
+        role = block["role"]
+
+        if role == "heading_1":
+            consecutive_h1 += 1
+            if consecutive_h1 > 4:
+                balanced.append({**block, "role": "heading_2"})
+                continue
+        else:
+            consecutive_h1 = 0
+
+        balanced.append(block)
+
+    return balanced
+
+
+def _normalize_sources_headings(blocks: list[dict]) -> list[dict]:
+    """Strip extra punctuation from Sources headings and downgrade them one level."""
+    normalized = []
+
+    for block in blocks:
+        role = block["role"]
+        text = block["text"]
+
+        if role in ("heading_1", "heading_2", "heading_3") and text.startswith("Sources"):
+            cleaned_text = re.sub(r"[\s:;,.\-–—]+$", "", text).strip()
+            normalized.append({
+                **block,
+                "role": _downgrade_heading_role(role),
+                "text": cleaned_text,
+            })
+            continue
+
+        normalized.append(block)
+
+    return normalized
+
+
+def _normalize_boilerplate_headings(blocks: list[dict]) -> list[dict]:
+    """Downgrade obvious boilerplate headings like table of contents and references."""
+    boilerplate_prefixes = (
+        "table of contents",
+        "disclaimer",
+        "references",
+    )
+
+    normalized = []
+    for block in blocks:
+        role = block["role"]
+        text = block["text"].strip()
+        lower_text = text.lower()
+
+        if role in ("heading_1", "heading_2", "heading_3") and lower_text.startswith(boilerplate_prefixes):
+            cleaned_text = re.sub(r"[\s:;,\.\-–—]+$", "", text).strip()
+            normalized.append({
+                **block,
+                "role": _downgrade_heading_role(role),
+                "text": cleaned_text,
+            })
+            continue
+
+        normalized.append(block)
+
+    return normalized
+
+
 def _next_body_block(blocks: list[dict], from_idx: int) -> Optional[dict]:
     """Return the next block after from_idx regardless of role."""
     for block in blocks[from_idx + 1:]:
@@ -427,7 +508,7 @@ def _merge_spans(spans: list[dict]) -> tuple[str, float, bool, str]:
     """Merge spans → single text, max size, bold flag, first font name."""
     texts, sizes, bold_flags, fonts = [], [], [], []
     for span in spans:
-        t = span["text"].replace("\n", " ").strip()
+        t = _clean_text(span["text"].replace("\n", " "))
         if t:
             texts.append(t)
             sizes.append(span["size"])
@@ -445,9 +526,40 @@ def _merge_spans(spans: list[dict]) -> tuple[str, float, bool, str]:
 
 
 def _clean_text(text: str) -> str:
+    text = re.sub(r"[\u200B\u200C\u200D\uFEFF]", "", text)
     text = unicodedata.normalize("NFKC", text)
+    text = re.sub(r"(?:\s*;\s*){2,}", "; ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def _strip_leading_numbering(text: str) -> str:
+    """Remove leading numbering like '1.' or '2.3.' for analysis only."""
+    return re.sub(r"^\s*\d+(?:\.\d+)*[\.)]?\s+", "", text).strip()
+
+
+def _adjust_heading_role(text: str, role: str) -> str:
+    """Downgrade headings that read like sentences or long numbered lines."""
+    if role not in ("heading_1", "heading_2", "heading_3"):
+        return role
+
+    analysis_text = _strip_leading_numbering(text)
+    word_count = len(analysis_text.split())
+    sentence_like = _looks_like_sentence(analysis_text)
+    too_long = word_count > 12 or len(analysis_text) > 90
+
+    if too_long or sentence_like:
+        return _downgrade_heading_role(role)
+
+    return role
+
+
+def _downgrade_heading_role(role: str) -> str:
+    if role == "heading_1":
+        return "heading_2"
+    if role == "heading_2":
+        return "heading_3"
+    return "body"
 
 
 def _classify_block(size: float, bold: bool, fp: dict, text: str = "") -> str:
@@ -479,7 +591,6 @@ def _classify_block(size: float, bold: bool, fp: dict, text: str = "") -> str:
     is_title_case = text.istitle()
     is_short = word_count <= 10
 
-    is_numbered = bool(re.match(r"^\d+(\.\d+)*", text))
     has_keyword = bool(re.search(
         r"\b(Chapter|Section|Overview|Summary|Introduction|Conclusion)\b",
         text,
@@ -507,18 +618,15 @@ def _classify_block(size: float, bold: bool, fp: dict, text: str = "") -> str:
     if is_short:
         score += 1
 
-    if is_numbered:
-        score += 2
-
     if has_keyword:
         score += 2
 
     if score >= 5:
-        return "heading_1"
+        return _adjust_heading_role(text, "heading_1")
     elif score >= 4:
-        return "heading_2"
+        return _adjust_heading_role(text, "heading_2")
     elif score >= 3:
-        return "heading_3"
+        return _adjust_heading_role(text, "heading_3")
 
     return "body"
 

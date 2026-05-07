@@ -31,12 +31,25 @@ Outputs: list of normalized dicts — identical schema to fetcher_bls.py output.
 
 import json
 import logging
-import requests
+import os
 from typing import Optional
+
+import requests
 
 logger = logging.getLogger(__name__)
 
 STATSCAN_WDS_URL = "https://www150.statcan.gc.ca/t1/wds/rest/"
+STATSCAN_HEADERS = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": os.environ.get(
+        "STATSCAN_USER_AGENT",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    ),
+    "Origin": "https://www.statcan.gc.ca",
+    "Referer": "https://www.statcan.gc.ca/",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +196,7 @@ def _fetch_vectors_latest_n(vector_ids: list[int], n_periods: int = 13) -> list[
     response = requests.post(
         url,
         json=payload,
-        headers={"Content-Type": "application/json"},
+        headers=STATSCAN_HEADERS,
         timeout=60,
     )
     response.raise_for_status()
