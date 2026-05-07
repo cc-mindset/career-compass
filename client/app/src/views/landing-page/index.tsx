@@ -26,10 +26,13 @@ import { StepConfig } from "../../types/landing";
 import {
   SignedIn,
   SignedOut,
+  useClerk,
   UserButton,
   useSignIn,
   useUser,
 } from "@clerk/clerk-react";
+import AnimatedLoader from "../../ui-kit/atom/animated-loader";
+import { useUserContext } from "../../state/contexts/user";
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
@@ -120,6 +123,9 @@ const STEPS: StepConfig[] = [
 
 const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user: clerkUser } = useClerk();
+  const { user, setUser } = useUserContext();
   const [formData, setFormData] = useState({
     name: "",
     location: "",
@@ -131,6 +137,40 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { signIn } = useSignIn();
+
+  useEffect(() => {
+    if (clerkUser && clerkUser.id) {
+      setIsLoading(true);
+      fetch(`${import.meta.env.VITE_API_URL}/api/users/${clerkUser.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.profile) {
+            setUser({
+              ...user,
+              hasJourneyStarted:
+                (data.preferences.role &&
+                  data.preferences.location &&
+                  data.preferences.experience) ||
+                user.hasJourneyStarted,
+              profile: {
+                ...user.profile,
+                avatar:
+                  user.profile.avatar ||
+                  "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex&mouth=smile&backgroundColor=E0E7FF",
+                skills: data.profile.skills || [],
+                role: data.preferences.role || "",
+                location: data.preferences.location || "",
+                experience: data.preferences.experience || "",
+              },
+            });
+          }
+        })
+        .catch((err) => console.error("Failed to fetch user details:", err))
+        .finally(() => setIsLoading(false));
+    } else {
+      setIsLoading(false);
+    }
+  }, [clerkUser?.id]);
 
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState(""); //Handles search input for dropdowns
@@ -344,6 +384,13 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   };
 
   const [visibleCount, setVisibleCount] = useState(20);
+
+  if (isLoading)
+    return (
+      <div>
+        <AnimatedLoader />
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-indigo-100 overflow-x-hidden flex flex-col">

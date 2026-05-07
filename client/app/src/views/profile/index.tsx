@@ -25,7 +25,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onEdit }) => {
   const { clearUser, setHasJourneyStarted, setUser, user } = useUserContext();
   const userProfile = user?.profile || ({} as UserProfile);
   const handleLogout = () => {
-    signOut();
+    signOut(() => {
+      setUser({
+        ...user,
+        hasJourneyStarted: false,
+      });
+    });
   };
 
   useEffect(() => {

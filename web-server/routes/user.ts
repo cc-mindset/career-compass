@@ -59,7 +59,7 @@ userRouter.get("/:userId", async (req: Request, res: Response) => {
 // Create or update user (from Clerk webhook or frontend)
 userRouter.post("/", async (req: Request, res: Response) => {
   try {
-    const { clerkId, email, firstName, lastName } = req.body;
+    const { clerkId, email, firstName, lastName, location, experience, role, industry } = req.body;
 
     if (!clerkId || !email) {
       return res
@@ -75,6 +75,13 @@ userRouter.post("/", async (req: Request, res: Response) => {
           email,
           firstName,
           lastName,
+          preferences: {
+            role: role || "",
+            experience: experience || "",
+            location: location || "",
+            notifications: false,
+            industry: industry || "",
+          }
         },
       },
       { new: true, upsert: true },

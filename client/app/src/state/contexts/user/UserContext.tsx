@@ -139,9 +139,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     const storedUser = sessionStorage.getItem(STORAGE_KEY);
     if(storedUser) {
       const parsedUser = deserializeUser(storedUser);
-      console.log("Loaded user from sessionStorage:", parsedUser.clerkId, clerkUser?.id);
       if(clerkUser && clerkUser.id === parsedUser.clerkId) {
-        console.log('insie')
         setUserState(parsedUser);
         return;
       }

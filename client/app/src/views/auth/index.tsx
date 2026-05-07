@@ -54,15 +54,17 @@ const AuthPage = () => {
           }}
         />
       </div>
-      <p
-        onClick={() => {
-          clearUser();
-          setHasJourneyStarted(false);
-        }}
-        className="text-center w-full text-md text-slate-500 mt-8 cursor-pointer hover:text-slate-700 transition-colors"
-      >
-        Start a New Journey
-      </p>
+      <SignedOut>
+        <p
+          onClick={() => {
+            clearUser();
+            setHasJourneyStarted(false);
+          }}
+          className="text-center w-full text-md text-slate-500 mt-8 cursor-pointer hover:text-slate-700 transition-colors"
+        >
+          Start a New Journey
+        </p>
+      </SignedOut>
     </div>
   );
 };

@@ -32,6 +32,9 @@ const SyncUser = () => {
           email: user.primaryEmailAddress?.emailAddress,
           firstName: user.firstName,
           lastName: user.lastName,
+          role: userContext.profile.role,
+          experience: userContext.profile.experience,
+          location: userContext.profile.location,
         }),
       })
         .then(() => console.log("User synced successfully"))

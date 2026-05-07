@@ -82,7 +82,9 @@ const userSchema = new Schema<IUser>(
     },
     preferences: {
       industry: String,
-      experienceLevel: String,
+      experience: String,
+      role: String,
+      location: String,
       notifications: {
         type: Boolean,
         default: true,
