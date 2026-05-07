@@ -136,29 +136,29 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onEdit }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 xl:gap-6 mb-10 md:mb-16">
             <StatCard
               icon={<Newspaper />}
-              count={24}
-              label="New Articles"
+              count={6}
+              label="New Market Insights"
               trend="+12%"
               color="bg-blue-50 text-blue-600"
             />
             <StatCard
               icon={<GraduationCap />}
-              count={16}
-              label="Courses"
-              trend="+8%"
+              count={0}
+              label="Recommended Courses"
+              // trend="+8%"
               color="bg-purple-50 text-purple-600"
             />
             <StatCard
               icon={<Lightbulb />}
-              count={8}
-              label="Suggestions"
+              count={3}
+              label="Recommended Actions"
               trend="New"
               color="bg-amber-50 text-amber-600"
             />
             <StatCard
               icon={<MapPin />}
-              count={3}
-              label="Paths"
+              count={8}
+              label="Career Paths"
               status="Active"
               color="bg-emerald-50 text-emerald-600"
             />
