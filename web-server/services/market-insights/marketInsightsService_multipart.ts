@@ -1,11 +1,11 @@
-import { retrieve } from './ragRetrievalService.js';
-import { formatMarketInsightsContext } from '../lib/ragContextFormatters.js';
-import { RagNamespace } from '../types/rag.js';
-import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
-import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from './dbCacheService.js';
+import { retrieve } from '../ragRetrievalService.js';
+import { formatMarketInsightsContext } from '../../lib/ragContextFormatters.js';
+import { RagNamespace } from '../../types/rag.js';
+import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../../lib/openai.js';
+import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from '../db-cache/dbCacheService.js';
 import pLimit from 'p-limit';
-import { logger } from '../utils/logger.js';
-import { emitToJob } from '../lib/websocket.js';
+import { logger } from '../../utils/logger.js';
+import { emitToJob } from '../../lib/websocket.js';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { LlmCacheStatus } from '../../constants/db.js';
@@ -381,7 +381,8 @@ export async function generateMarketInsights(
             }
           } catch (error) {
             if (error instanceof RateLimitError || error instanceof QuotaExceededError || error instanceof ConnectionTimeoutError) {
-              logger.error(`🚫 ${error.name}: ${error.message} - Not retrying`);
+              const knownError = error as Error;
+              logger.error(`🚫 ${knownError.name}: ${knownError.message} - Not retrying`);
               throw error;
             }
 

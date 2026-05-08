@@ -171,7 +171,7 @@ class OpenAIClient {
 
   constructor() {
     this.client = null;
-    this.embeddingModel = 'text-embedding-3-small';
+    this.embeddingModel = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-large';
     this.chatModel = 'gpt-4o';
   }
 
@@ -196,7 +196,7 @@ class OpenAIClient {
       if (!this.client) this.initialize();
 
       const isArray = Array.isArray(input);
-      logger.debug(`🔢 Creating embeddings for ${isArray ? input.length : 1} text(s)`);
+      logger.info(`🔢 Creating embeddings with model=${this.embeddingModel} for ${isArray ? input.length : 1} text(s)`);
 
       const response = await this.client!.embeddings.create({
         model: this.embeddingModel,
