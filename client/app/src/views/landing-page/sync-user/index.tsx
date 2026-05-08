@@ -6,6 +6,29 @@ const SyncUser = () => {
   const { user, isLoaded } = useUser();
   const { setUser, user: userContext } = useUserContext();
 
+  const handleResumeUpload = async (userId: string) => {
+    const formData = new FormData();
+    formData.append("userId", userId);
+    const storedUserResume = sessionStorage.getItem(`user_resume`);
+    const storedUserResumeName = sessionStorage.getItem(`user_resume_name`);
+    if (storedUserResume) {
+      const response = await fetch(storedUserResume);
+      const blob = await response.blob();
+
+      formData.append("resume", blob, storedUserResumeName || "resume");
+    }
+    // Upload user resume if present
+    else if (userContext.profile.resume) {
+      formData.append("resume", userContext.profile.resume);
+    }
+    fetch(`${import.meta.env.VITE_API_URL}/api/resume/upload`, {
+      method: "POST",
+      body: formData,
+    })
+      .then(() => console.log("Resume uploaded successfully"))
+      .catch((err) => console.error("Failed to upload resume:", err));
+  };
+
   useEffect(() => {
     if (isLoaded && user) {
       // Merge Clerk user data with existing app state (preserves profile and journey state)
@@ -40,19 +63,7 @@ const SyncUser = () => {
         .then(() => console.log("User synced successfully"))
         .catch((err) => console.error("Failed to sync user:", err));
 
-      // Upload user resume if present
-      if (userContext.profile.resume) {
-        const formData = new FormData();
-        formData.append('userId', user.id);
-        formData.append('resume', userContext.profile.resume);
-
-        fetch(`${import.meta.env.VITE_API_URL}/api/resume/upload`, {
-          method: "POST",
-          body: formData,
-        })
-          .then(() => console.log("Resume uploaded successfully"))
-          .catch((err) => console.error("Failed to upload resume:", err));
-      }
+      handleResumeUpload(user.id);
     }
   }, [
     isLoaded,

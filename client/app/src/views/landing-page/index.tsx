@@ -381,7 +381,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
 
   if (isLoading)
     return (
-      <div>
+      <div className="min-h-screen flex items-center justify-center">
         <AnimatedLoader />
       </div>
     );

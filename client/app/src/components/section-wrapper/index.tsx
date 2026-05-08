@@ -19,7 +19,7 @@ export const SectionWrapper: React.FC<SectionWrapperProps> = ({
   minHeight = 'min-h-[200px]',
   loadingText = 'Loading section...',
 }) => {
-  if (status === 'loading') {
+  if (status === 'loading' && !children) {
     return (
       <div className={`${minHeight} flex items-center justify-center bg-white rounded-3xl border border-slate-200 p-8`}>
         <div className="flex flex-col items-center gap-4">

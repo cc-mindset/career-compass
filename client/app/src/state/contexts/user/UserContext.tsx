@@ -137,9 +137,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const storedUser = sessionStorage.getItem(STORAGE_KEY);
-    if(storedUser) {
+    if (storedUser) {
       const parsedUser = deserializeUser(storedUser);
-      if(clerkUser && clerkUser.id === parsedUser.clerkId) {
+      if (clerkUser && clerkUser.id === parsedUser.clerkId) {
         setUserState(parsedUser);
         return;
       }
@@ -173,6 +173,22 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           ? { ...prevUser.profile, ...profileUpdates }
           : (profileUpdates as UserProfile),
       }));
+
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        if (reader.result) {
+          sessionStorage.setItem("user_resume", reader.result.toString());
+          sessionStorage.setItem(
+            "user_resume_name",
+            profileUpdates?.resume?.name || "resume",
+          );
+        }
+      };
+
+      if (profileUpdates.resume) {
+        reader.readAsDataURL(profileUpdates.resume);
+      }
     },
     [],
   );
