@@ -1,6 +1,11 @@
-import { generateMultipleWithSharedContext, formatMarketInsightsContext } from '../ragService.js';
-import { logger } from '../../utils/logger.js';
-import { emitToJob } from '../../lib/websocket.js';
+import { retrieve } from './ragRetrievalService.js';
+import { formatMarketInsightsContext } from '../lib/ragContextFormatters.js';
+import { RagNamespace } from '../types/rag.js';
+import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../lib/openai.js';
+import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from './dbCacheService.js';
+import pLimit from 'p-limit';
+import { logger } from '../utils/logger.js';
+import { emitToJob } from '../lib/websocket.js';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { LlmCacheStatus } from '../../constants/db.js';
@@ -308,28 +313,156 @@ export async function generateMarketInsights(
     };
 
     try {
-      const results = await generateMultipleWithSharedContext(
-        SYSTEM_PROMPT,
-        [
-          { label: LLM_SECTION_LABELS.marketReport, query: buildMarketReportPrompt(location), cacheKeySuffix: `${location}` },
-          { label: LLM_SECTION_LABELS.industryTrends, query: buildIndustryTrendsPrompt(location), cacheKeySuffix: `${location}` },
-          { label: LLM_SECTION_LABELS.newsAndCareerIntel, query: buildNewsAndCareerIntelPrompt(location), cacheKeySuffix: `${location}` },
-        ],
-        {
-          namespaces: ['bls-data', 'news-data', 'reports-data'],
-          topKPerNamespace: { 'bls-data': 15, 'news-data': 12, 'reports-data': 10 },
-          responseFormat: 'json',
-          useCache: true,
-          useRetrievalCache: true,     // Pinecone/embedding namespace cache ON — avoids redundant vector DB calls
-          contextFormatter: formatMarketInsightsContext,
-          retrievalQuery: `market insights for ${location}`,
-          onSectionComplete,
-        }
-      );
+      // Step A: Retrieve shared context once using the new retrieval service
+      const namespaces = [
+        RagNamespace.LABOR_MARKET_STATS,
+        RagNamespace.MARKET_NEWS,
+        RagNamespace.MARKET_REPORTS,
+      ];
 
-      const marketReport = results.marketReport as MarketInsightsData || {};
-      const industryTrends = results.industryTrends as MarketInsightsData || {};
-      const newsAndCareerIntel = results.newsAndCareerIntel as MarketInsightsData || {};
+      const retrievalResp = await retrieve({
+        query: `market insights for ${location}`,
+        namespaces,
+        topK: 15,
+        useCache: true,
+      });
+
+      // Step B: Format context for the LLM using the consumer formatter
+      const formattedContext = formatMarketInsightsContext(retrievalResp);
+
+      // Step C: Generate each section using existing LLM + DB cache logic
+      const prompts = [
+        { label: LLM_SECTION_LABELS.marketReport, query: buildMarketReportPrompt(location), cacheKeySuffix: `${location}` },
+        { label: LLM_SECTION_LABELS.industryTrends, query: buildIndustryTrendsPrompt(location), cacheKeySuffix: `${location}` },
+        { label: LLM_SECTION_LABELS.newsAndCareerIntel, query: buildNewsAndCareerIntelPrompt(location), cacheKeySuffix: `${location}` },
+      ];
+
+      const responseFormat = 'json';
+      const useCache = true;
+
+      // Reuse concurrency limiter as in original implementation
+      const concurrency = parseInt(process.env.OPENAI_MAX_CONCURRENT || '3');
+      const limit = pLimit(concurrency);
+
+      const results: Record<string, Record<string, unknown> | string> = {};
+
+      // Re-implemented generateSingleResponse locally (kept behavior from ragService)
+      async function generateSingleResponse(
+        systemPrompt: string,
+        formattedContextText: string,
+        queryText: string,
+        responseFormat: 'json' | 'text',
+        maxRetries = 3
+      ): Promise<Record<string, unknown> | string> {
+        let response: Record<string, unknown> | string;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            if (responseFormat === 'json') {
+              const userPrompt = `${formattedContextText}\n\n${queryText}`;
+              response = await openaiClient.generateJSONCompletion(systemPrompt, userPrompt, {
+                max_tokens: 16000,
+                temperature: 0.7,
+              });
+
+              if (!response || typeof response !== 'object') {
+                throw new Error('Invalid JSON response: not an object');
+              }
+
+              logger.info('📊 Generated JSON response with keys:', Object.keys(response).join(', '));
+              return response;
+            } else {
+              const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'user', content: `${formattedContextText}\n\n${queryText}` },
+              ];
+              response = await openaiClient.generateCompletion(messages as any);
+              return response;
+            }
+          } catch (error) {
+            if (error instanceof RateLimitError || error instanceof QuotaExceededError || error instanceof ConnectionTimeoutError) {
+              logger.error(`🚫 ${error.name}: ${error.message} - Not retrying`);
+              throw error;
+            }
+
+            const err = error as Error;
+            logger.warn(`⚠️  Generation attempt ${attempt}/${maxRetries} failed:`, err.message);
+
+            if (attempt === maxRetries) {
+              logger.error('❌ All retry attempts exhausted');
+              throw error;
+            }
+
+            const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            logger.info(`⏳ Retrying in ${waitTime}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
+        }
+
+        throw new Error('Failed to generate response');
+      }
+
+      const generationPromises = prompts.map(prompt => limit(async () => {
+        try {
+          const dbCacheKey = getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
+          let cached;
+          if (useCache) {
+            cached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
+            if (cached) {
+              if (cached.status === LlmCacheStatus.UPDATING) {
+                logger.info(`Cache Getting Updated: ${prompt.label}`);
+                onSectionComplete?.(prompt.label, { status: LlmCacheStatus.UPDATING });
+                results[prompt.label] = cached?.data;
+                return;
+              }
+              results[prompt.label] = cached?.data;
+              logger.info(`✓ Cache Retrieved: ${prompt.label}`);
+              onSectionComplete?.(prompt.label, cached.data);
+              return;
+            } else {
+              const expiredCached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS], true);
+              if (expiredCached) {
+                logger.info(`✓ Cache Expired: ${prompt.label} - showing stale data while updating`);
+                results[prompt.label] = expiredCached?.data;
+                onSectionComplete?.(prompt.label, { ...expiredCached.data, status: LlmCacheStatus.UPDATING });
+              }
+            }
+          }
+
+          if (useCache) {
+            updateCacheResponseInDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
+          }
+
+          logger.info(`🔄 Generating: ${prompt.label}`);
+          const response = await generateSingleResponse(
+            SYSTEM_PROMPT,
+            formattedContext.text,
+            prompt.query,
+            responseFormat as 'json' | 'text',
+            3
+          );
+
+          if (useCache) {
+            logger.info(`✓ Cached: ${prompt.label}`);
+            cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
+          }
+
+          results[prompt.label] = response;
+          logger.info(`✓ Completed: ${prompt.label}`);
+          if (onSectionComplete) onSectionComplete(prompt.label, response);
+        } catch (error) {
+          const err = error as Error;
+          logger.error(`❌ Failed: ${prompt.label} - ${err.message}`);
+          if (onSectionComplete) onSectionComplete(prompt.label, null, err.message);
+          throw error;
+        }
+      }));
+
+      await Promise.allSettled(generationPromises);
+
+      const marketReport = results[LLM_SECTION_LABELS.marketReport] as MarketInsightsData || {};
+      const industryTrends = results[LLM_SECTION_LABELS.industryTrends] as MarketInsightsData || {};
+      const newsAndCareerIntel = results[LLM_SECTION_LABELS.newsAndCareerIntel] as MarketInsightsData || {};
 
       const combinedInsights: MarketInsightsData = {
         ...marketReport,
