@@ -11,27 +11,33 @@ rag-pipeline/
 ├── src/
 │   ├── shared/
 │   │   ├── s3_client.py     ← shared
-│   │   ├── registry.py      ← shared
 │   │   ├── embedder.py      ← shared 
 │   │   └── pinecone_client.py ← shared
 │   │
 │   ├── pipelines/
 │   │   ├── market_reports/  ← PDF pipeline 
+│   │   │   ├── registry.py
 │   │   │   ├── parser.py
 │   │   │   ├── chunker.py
+│   │   │   ├── test_parser.py
 │   │   │   └── runner.py
 │   │   │
 │   │   ├── market_stats/    ← BLS/StatsCan/OECD pipeline
-│   │   │   ├── fetcher.py
+│   │   │   ├── registry.py
+│   │   │   ├── fetcher_bls.py
+│   │   │   ├── fetcher_statscan.py
+│   │   │   ├── cleanup.py
 │   │   │   ├── transformer.py
 │   │   │   └── runner.py
-|   |   |   (more TBD)
 │   │   │
 │   │   └── market_news/     ← SERP pipeline
-│   │       ├── fetcher.py
-│   │       ├── cleaner.py
+│   │       ├── registry.py
+│   │       ├── fetcher_serp.py
+│   │       ├── cleanup.py
+│   │       ├── enricher.py
+│   │       ├── embedder.py
+│   │       ├── transformer.py
 │   │       └── runner.py
-            (more TBD)
 
 
 pending → parsing → parsed → chunking → chunked → enriching → enriched → embedding → completed

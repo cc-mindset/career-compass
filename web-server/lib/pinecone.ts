@@ -42,7 +42,7 @@ class PineconeClient {
   constructor() {
     this.client = null;
     this.index = null;
-    this.indexName = 'career-insights';
+    this.indexName = process.env.PINECONE_INDEX_NAME || 'market-knowledge';
   }
 
   /**
