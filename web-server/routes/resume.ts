@@ -47,7 +47,6 @@ resumeRouter.post(
       }
 
       console.log("📄 Parsing resume for user:", userId);
-      console.log("File:", req.file.originalname, req.file.mimetype);
 
       // Parse the resume
       const parseResult = await parseResume(req.file.buffer, req.file.mimetype);

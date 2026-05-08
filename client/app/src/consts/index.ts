@@ -35,6 +35,7 @@ export const INITIAL_USER: UserProfile = {
   ],
   completedCourses: 12,
   certifications: 5,
+  resume: null,
 };
 
 export const NAVIGATION_ITEMS = [

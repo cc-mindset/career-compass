@@ -1,10 +1,12 @@
 import React from "react";
 import { SignedIn, SignedOut, SignIn } from "@clerk/clerk-react";
 import AnimatedLoader from "../../ui-kit/atom/animated-loader";
+import { useUserContext } from "../../state/contexts/user";
 
 const AuthPage = () => {
+  const { clearUser, setHasJourneyStarted } = useUserContext();
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-50 flex flex-col items-center justify-center p-4">
       <div className="max-w-md">
         <SignedIn>
           <AnimatedLoader />
@@ -52,6 +54,17 @@ const AuthPage = () => {
           }}
         />
       </div>
+      <SignedOut>
+        <p
+          onClick={() => {
+            clearUser();
+            setHasJourneyStarted(false);
+          }}
+          className="text-center w-full text-md text-slate-500 mt-8 cursor-pointer hover:text-slate-700 transition-colors"
+        >
+          Start a New Journey
+        </p>
+      </SignedOut>
     </div>
   );
 };

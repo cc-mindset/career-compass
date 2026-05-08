@@ -43,6 +43,8 @@ export interface IResume {
 
 export interface IPreferences {
   industry?: string;
-  experienceLevel?: string;
+  experience?: string;
+  role?: string;
+  location?: string;
   notifications?: boolean;
 }

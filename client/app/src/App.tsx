@@ -57,7 +57,6 @@ const AppContent: React.FC = () => {
       case "profile":
         return (
           <ProfileView
-            user={user}
             onEdit={() => alert("Edit Profile clicked")}
           />
         );

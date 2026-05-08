@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { UserProfile } from "../../types";
 import {
   MapPin,
@@ -17,19 +17,41 @@ import { useClerk } from "@clerk/clerk-react";
 import { useUserContext } from "../../state/contexts/user";
 
 interface ProfileViewProps {
-  user: UserProfile;
   onEdit: () => void;
 }
 
-const ProfileView: React.FC<ProfileViewProps> = ({ user, onEdit }) => {
-  const { signOut } = useClerk();
-  const { clearUser, setHasJourneyStarted } = useUserContext();
+const ProfileView: React.FC<ProfileViewProps> = ({ onEdit }) => {
+  const { signOut, user: clerkUser } = useClerk();
+  const { clearUser, setHasJourneyStarted, setUser, user } = useUserContext();
+  const userProfile = user?.profile || ({} as UserProfile);
   const handleLogout = () => {
     signOut(() => {
-      clearUser();
-      setHasJourneyStarted(false);
+      setUser({
+        ...user,
+        hasJourneyStarted: false,
+      });
     });
   };
+
+  useEffect(() => {
+    if (clerkUser) {
+      fetch(`${import.meta.env.VITE_API_URL}/api/users/${clerkUser.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.profile) {
+            setUser({
+              ...user,
+              profile: {
+                ...userProfile,
+                skills: data.profile.skills || [],
+              },
+            });
+          }
+        })
+        .catch((err) => console.error("Failed to fetch user details:", err));
+    }
+  }, []);
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 lg:pl-16">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 md:mb-12 pr-0 sm:pr-4">
@@ -62,8 +84,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onEdit }) => {
               {/* Top-aligned image container */}
               <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-[2.5rem] sm:rounded-[3rem] overflow-hidden border-4 border-indigo-600/10 p-1.5 bg-slate-100 shadow-inner">
                 <img
-                  src={user.avatar}
-                  alt={user.name}
+                  src={userProfile.avatar}
+                  alt={userProfile.name}
                   className="w-full h-full object-cover rounded-[2.5rem]"
                 />
               </div>
@@ -74,17 +96,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onEdit }) => {
 
             <div className="w-full">
               <h2 className="text-2xl sm:text-3xl font-extrabold mb-1 tracking-tight text-slate-900">
-                {user.name}
+                {userProfile.name}
               </h2>
               <p className="text-indigo-600 font-bold text-base sm:text-lg mb-3">
-                {user.role}
+                {userProfile.role}
               </p>
 
               <div className="flex items-center justify-center gap-2 text-slate-500 mb-6">
                 <div className="bg-slate-100 p-1.5 rounded-lg">
                   <MapPin className="w-4 h-4" />
                 </div>
-                <span className="text-sm font-medium">{user.location}</span>
+                <span className="text-sm font-medium">
+                  {userProfile.location}
+                </span>
               </div>
 
               <div className="flex justify-center gap-5">
@@ -112,29 +136,29 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onEdit }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 xl:gap-6 mb-10 md:mb-16">
             <StatCard
               icon={<Newspaper />}
-              count={24}
-              label="New Articles"
+              count={6}
+              label="New Market Insights"
               trend="+12%"
               color="bg-blue-50 text-blue-600"
             />
             <StatCard
               icon={<GraduationCap />}
-              count={16}
-              label="Courses"
-              trend="+8%"
+              count={0}
+              label="Recommended Courses"
+              // trend="+8%"
               color="bg-purple-50 text-purple-600"
             />
             <StatCard
               icon={<Lightbulb />}
-              count={8}
-              label="Suggestions"
+              count={3}
+              label="Recommended Actions"
               trend="New"
               color="bg-amber-50 text-amber-600"
             />
             <StatCard
               icon={<MapPin />}
-              count={3}
-              label="Paths"
+              count={8}
+              label="Career Paths"
               status="Active"
               color="bg-emerald-50 text-emerald-600"
             />
@@ -152,7 +176,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onEdit }) => {
             </div>
 
             <div className="flex flex-wrap gap-2 sm:gap-3">
-              {user.skills.map((skill, index) => (
+              {userProfile.skills?.map((skill, index) => (
                 <div
                   key={index}
                   className="px-4 py-2.5 sm:px-5 sm:py-3 bg-white border border-slate-200 rounded-xl sm:rounded-[2rem] text-xs sm:text-sm font-bold text-slate-700 hover:text-indigo-600 hover:border-indigo-500/50 transition-all cursor-default"
