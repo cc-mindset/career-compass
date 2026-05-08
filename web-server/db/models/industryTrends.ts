@@ -15,6 +15,7 @@ export interface IIndustryTrend extends Document {
   data: IndustryTrendData;
   status: LlmCacheStatus;
   location: string;
+  region: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -73,6 +74,7 @@ const industryTrendDataSchema = new Schema<IndustryTrendData>({
 const industryTrendSchema = new Schema<IIndustryTrend>(
   {
     location: { type: String, required: true },
+    region: { type: String, required: true },
     data: industryTrendDataSchema,
     vars_id: { type: String, required: true, unique: true },
     status: {

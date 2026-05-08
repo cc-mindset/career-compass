@@ -9,6 +9,7 @@ export interface IMarketNews extends Document {
   data: MarketNewsData[];
   status: LlmCacheStatus;
   location: string;
+  region: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -25,6 +26,7 @@ const marketNewsDataSchema = new Schema<MarketNewsData>({
 const marketNewsSchema = new Schema<IMarketNews>(
   {
     location: { type: String, required: true },
+    region: { type: String, required: true },
     data: { type: [marketNewsDataSchema], required: true, default: [] },
     vars_id: { type: String, required: true, unique: true },
     status: {

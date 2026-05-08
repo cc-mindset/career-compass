@@ -251,7 +251,7 @@ Return ONLY valid JSON with NO markdown formatting.`;
  * Generate market insights using multi-part approach
  */
 export async function generateMarketInsights(
-  location: string, _userId: string, jobId?: string
+  location: string, _userId: string, jobId?: string, locationDistrict?: string
 ): Promise<{ insights: MarketInsightsData; failedSections: string[] }> {
   const sectionStates: Record<SectionName, SectionState> = {
     marketReport: { status: 'idle' },
@@ -431,7 +431,7 @@ export async function generateMarketInsights(
           }
 
           if (useCache) {
-            updateCacheResponseInDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
+            updateCacheResponseInDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS], locationDistrict || "");
           }
 
           logger.info(`🔄 Generating: ${prompt.label}`);
@@ -445,7 +445,7 @@ export async function generateMarketInsights(
 
           if (useCache) {
             logger.info(`✓ Cached: ${prompt.label}`);
-            cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);
+            cacheLlmResponseToDb(dbCacheKey, typeof response === 'string' ? { text: response } : response, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS], locationDistrict || "");
           }
 
           results[prompt.label] = response;

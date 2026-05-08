@@ -22,7 +22,7 @@ const CitySelect = ({
 
   return (
     <div className="relative z-10 top-0 mt-0">
-      <div className="absolute left-0 top-0 mb-4 w-full md:w-full bg-white border border-slate-200 rounded-3xl text-black">
+      <div className="absolute left-0 top-0 mb-4 w-full md:w-full bg-white border border-slate-200 rounded-3xl text-black overflow-hidden">
         <div className="p-3 border-b border-slate-50 bg-slate-50/50 rounded-t-3xl overflow-visible">
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -45,12 +45,12 @@ const CitySelect = ({
           </div>
         </div>
         <div
-          className="max-h-64 overflow-visible z-10 relative bg-white shadow-2xl rounded-b-3xl"
+          className="max-h-64 overflow-y-scroll overflow-x-hidden z-10 relative bg-white shadow-2xl rounded-b-3xl"
           onScroll={(e) => {
             const el = e.currentTarget;
           }}
         >
-          {filteredOptions.slice(0, 20).map((opt) => {
+          {filteredOptions.map((opt) => {
             const isSelected = city === opt;
 
             return (

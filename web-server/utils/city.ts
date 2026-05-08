@@ -50,19 +50,29 @@ export const getDistrictOfACity = (cityState: string) => {
 
 
 export const getTopCityOfDistrictOfACity = (cityState: string) => {
+    let locationCity = cityState; // default to input if no better match found
+    let locationDistrict = "";
     const [city, state] = cityState.split(", ");
     const cityData = findCityData(city, state);
     if (cityData && topCitiesSet.has(cityData.name.toLocaleLowerCase())) {
-        return `${cityData.name}, ${cityData.admin1}`;
+        locationCity = `${cityData.name}, ${cityData.admin1}`;
+        locationDistrict = cityData.admin2;
+
+        return { locationCity, locationDistrict };
     }
 
     const district = getDistrictOfACity(cityState);
     if (district) {
         const districtCity = cities.find((c) => c.admin2.toLocaleLowerCase() === district.toLocaleLowerCase() && c.admin1.toLocaleLowerCase() === state.toLocaleLowerCase());
-        if (districtCity)
-            return `${districtCity.name}, ${districtCity.admin1}`;
+        if (districtCity) {
+            locationCity = `${districtCity.name}, ${districtCity.admin1}`;
+            locationDistrict = districtCity.admin2;
+
+            return { locationCity, locationDistrict };
+        }
     }
-    return cityState; // fallback to original cityState if no match found
+
+    return { locationCity, locationDistrict };
 
 }
 

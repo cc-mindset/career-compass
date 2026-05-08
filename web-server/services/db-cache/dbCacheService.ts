@@ -4,6 +4,7 @@ import LlmCareerIntel from "../../db/models/careerIntel";
 import LlmIndustryTrend from "../../db/models/industryTrends";
 import LlmMarketNews from "../../db/models/marketNews";
 import LlmMarketReport from "../../db/models/marketReport";
+import { getDistrictOfACity } from "../../utils/city";
 import { logger } from "../../utils/logger";
 
 export const LLM_RESPONSE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -28,12 +29,19 @@ const getCombinedStatusForCache = (statusOne: LlmCacheStatus, statusTwo: LlmCach
     return LlmCacheStatus.UPDATING
 }
 
-export async function cacheLlmResponseToDb(cacheKey: string, response: Record<string, unknown>, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]): Promise<void> {
+export async function cacheLlmResponseToDb(cacheKey: string, response: Record<string, unknown>, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS], region = ""): Promise<void> {
+    let locationToCache = getVariablesFromDbCacheKey(cacheKey)?.[0] || '';
+    
+    let regionToCache = region;
+    if(!regionToCache) {
+        regionToCache = getDistrictOfACity(locationToCache) || "";
+    }
     let result;
     let commonCacheData = {
         vars_id: cacheKey,
         status: LlmCacheStatus.ACTIVE,
-        location: getVariablesFromDbCacheKey(cacheKey)?.[0] || '',
+        location: locationToCache,
+        region: regionToCache || "",
     };
     switch (section) {
         case LLM_SECTION_LABELS.marketReport:
@@ -76,12 +84,13 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
     }
 }
 
-export async function updateCacheResponseInDb(cacheKey: string, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]): Promise<void> {
+export async function updateCacheResponseInDb(cacheKey: string, section: typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS], region = ""): Promise<void> {
     let result;
     let statusData = {
         vars_id: cacheKey,
         status: LlmCacheStatus.UPDATING,
         location: getVariablesFromDbCacheKey(cacheKey)?.[0] || '',
+        region
     };
     switch (section) {
         case LLM_SECTION_LABELS.marketReport:

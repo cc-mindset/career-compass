@@ -7,6 +7,7 @@ export interface QueueJob {
   userId: string;
   timestamp: number;
   retryCount?: number;
+  locationDistrict?: string; // optional field for more specific location context
 }
 
 const QUEUE_NAME = 'market_insights_queue';
@@ -19,7 +20,7 @@ const MAX_RETRIES = 2; // Maximum retry attempts before marking as failed
 /**
  * Add job to queue (safe - works even if Redis is down)
  */
-export async function enqueueJob(location: string, userId: string): Promise<string | null> {
+export async function enqueueJob(location: string, userId: string, locationDistrict?: string): Promise<string | null> {
   if (!isRedisAvailable()) {
     logger.warn('Redis unavailable - job will be processed immediately');
     return null;
@@ -43,6 +44,7 @@ export async function enqueueJob(location: string, userId: string): Promise<stri
       location,
       userId,
       timestamp: Date.now(),
+      locationDistrict,
     };
 
     await redis.rPush(QUEUE_NAME, JSON.stringify(job));
