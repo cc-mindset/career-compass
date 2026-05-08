@@ -15,6 +15,7 @@ export interface IMarketReport extends Document {
   data: MarketReportData;
   status: LlmCacheStatus;
   location: string;
+  region: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -69,6 +70,7 @@ const marketReportDataSchema = new Schema<MarketReportData>({
 const marketReportSchema = new Schema<IMarketReport>(
   {
     location: { type: String, required: true },
+    region: { type: String, required: true },
     data: marketReportDataSchema,
     vars_id: { type: String, required: true, unique: true },
     status: {

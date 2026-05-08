@@ -7,6 +7,7 @@ export interface ICareerIntel extends Document {
     data: CareerIntelData;
     status: LlmCacheStatus;
     location: string;
+    region: string;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -33,6 +34,7 @@ const careerIntelDataSchema = new Schema<CareerIntelData>({
 const careerIntelSchema = new Schema<ICareerIntel>(
     {
         location: { type: String, required: true },
+        region: { type: String, required: true },
         data: careerIntelDataSchema,
         vars_id: { type: String, required: true, unique: true },
         status: {

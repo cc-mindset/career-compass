@@ -25,8 +25,9 @@ marketInsightRouter.post(
         return res.status(400).json({ error: "Location cannot be empty" });
       }
 
-      sanitizedLocation = getTopCityOfDistrictOfACity(sanitizedLocation);
+      const { locationCity, locationDistrict } = getTopCityOfDistrictOfACity(sanitizedLocation);
 
+      sanitizedLocation = locationCity; // Use the potentially updated location for insights generation
       // ── Step 1: Check mock DB cache (swap with real DB check later) ──
       // const cacheStatus = mockDbCache.check(sanitizedLocation);
       // if (cacheStatus.hit && cacheStatus.isLTS) {
@@ -43,7 +44,7 @@ marketInsightRouter.post(
 
       // Cache miss or stale → enter queue
       // ── Step 2: Try to queue the job ──
-      const jobId = await enqueueJob(sanitizedLocation, userId || "");
+      const jobId = await enqueueJob(sanitizedLocation, userId || "", locationDistrict || "");
 
       if (jobId) {
         const queuePos = await getQueueLength();
@@ -62,6 +63,8 @@ marketInsightRouter.post(
       const insights = await generateMarketInsights(
         sanitizedLocation,
         userId || "",
+        "",
+        locationDistrict || ""
       );
 
       return res.json({
