@@ -41,7 +41,8 @@ cronRouter.get("/cache-state-wise", async (req: Request, res: Response) => {
       continue;
     }
     try {
-      // Step A: Retrieve shared context once
+      // Step A: Retrieve shared context once with location as primary dimension
+      // For cron batch pre-warming, use generic query (no job/seniority filtering)
       const namespaces = [
         RagNamespace.LABOR_MARKET_STATS,
         RagNamespace.MARKET_NEWS,
@@ -70,7 +71,7 @@ cronRouter.get("/cache-state-wise", async (req: Request, res: Response) => {
         systemPrompt: string,
         formattedContextText: string,
         queryText: string,
-        responseFormat: 'json' | 'text',
+        _responseFormat: 'json' | 'text',
         maxRetries = 3
       ): Promise<Record<string, unknown>> {
         let response: Record<string, unknown>;
@@ -89,7 +90,6 @@ cronRouter.get("/cache-state-wise", async (req: Request, res: Response) => {
             if (error instanceof RateLimitError || error instanceof QuotaExceededError || error instanceof ConnectionTimeoutError) {
               throw error;
             }
-            const err = error as Error;
             if (attempt === maxRetries) throw error;
             await new Promise(resolve => setTimeout(resolve, Math.min(1000 * Math.pow(2, attempt - 1), 5000)));
           }
