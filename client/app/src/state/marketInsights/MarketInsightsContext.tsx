@@ -41,6 +41,10 @@ interface MarketInsightsContextValue {
   generateMarketInsights: (params: {
     location: string;
     userId?: string;
+    section?: string;
+    job?: string;
+    seniority?: string;
+    yearsOfExperience?: number;
   }) => Promise<void>;
   loadingStage: MarketInsightsLoadingStage;
   setLoadingStage: (stage: MarketInsightsLoadingStage) => void;
@@ -108,10 +112,16 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({
     location,
     userId,
     section,
+    job,
+    seniority,
+    yearsOfExperience,
   }: {
     location: string;
     userId?: string;
     section?: string;
+    job?: string;
+    seniority?: string;
+    yearsOfExperience?: number;
   }) => {
     const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -160,7 +170,13 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({
       res = await fetch(`${apiBase}/api/market-insights/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ location, userId: userId || "" }),
+        body: JSON.stringify({
+          location,
+          userId: userId || "",
+          job,
+          seniority,
+          yearsOfExperience,
+        }),
         signal: controller.signal,
       });
 
