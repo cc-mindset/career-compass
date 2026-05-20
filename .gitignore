@@ -126,3 +126,4 @@ __tests__/__snapshots__/
 
 .gitignore
 temp_interactive_push.bat
+branch_structure.json

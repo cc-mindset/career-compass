@@ -11,7 +11,7 @@ marketInsightRouter.post(
   "/generate",
   async (req: Request, res: Response) => {
     try {
-      const { location: requestedLocation, userId } = req.body;
+      const { location: requestedLocation, userId, job, seniority, yearsOfExperience } = req.body;
 
       if (!requestedLocation || typeof requestedLocation !== "string") {
         return res
@@ -44,7 +44,14 @@ marketInsightRouter.post(
 
       // Cache miss or stale → enter queue
       // ── Step 2: Try to queue the job ──
-      const jobId = await enqueueJob(sanitizedLocation, userId || "", locationDistrict || "");
+      const jobId = await enqueueJob(
+        sanitizedLocation,
+        userId || "",
+        locationDistrict || "",
+        job,
+        seniority,
+        yearsOfExperience
+      );
 
       if (jobId) {
         const queuePos = await getQueueLength();
@@ -64,7 +71,10 @@ marketInsightRouter.post(
         sanitizedLocation,
         userId || "",
         "",
-        locationDistrict || ""
+        locationDistrict || "",
+        job,
+        seniority,
+        yearsOfExperience
       );
 
       return res.json({

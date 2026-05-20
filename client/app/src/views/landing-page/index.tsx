@@ -184,6 +184,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
   const { generateMarketInsights } = useMarketInsightsState();
   const [hasStartedFilling, setHasStartedFilling] = useState(false);
   const lastMarketInsightsLocationTriggeredRef = useRef<string | null>(null);
+  const lastMarketInsightsContextTriggeredRef = useRef<string | null>(null);
 
   // Lazily bootstrap WebSocket connection once the user starts interacting with the form
   const { isConnected } = useWebSocket(); // Hook uses a global singleton; it's safe to call once here.
@@ -233,19 +234,18 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       setHasStartedFilling(true);
     }
 
-    // Kick off websocket + market-insights generation the moment "Location" is selected.
-    // This lets the user see the socket connection immediately and start receiving progress updates.
+    // Just connect websocket when location is selected
+    // Generation will happen as soon as the three core fields are selected (location, role, seniority)
     if (activeStep.key === "location") {
       // Ensure the socket instance is created and a connection attempt starts ASAP.
       const socket = getSocket();
       if (!socket.connected) socket.connect();
-
-      // Avoid re-triggering for the same location unless the user actually changes it.
-      if (lastMarketInsightsLocationTriggeredRef.current !== val) {
-        lastMarketInsightsLocationTriggeredRef.current = val;
-        generateMarketInsights({ location: val });
-      }
     }
+
+    // Compute tentative values for the field being selected so we can trigger immediately
+    const tentativeLocation = activeStep.key === "location" ? val : formData.location;
+    const tentativeRole = activeStep.key === "role" ? val : formData.role;
+    const tentativeSeniority = activeStep.key === "seniority" ? val : formData.seniority;
 
     if (activeStep.key === "skills") {
       setFormData((prev) => {
@@ -262,6 +262,33 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       setSearch("");
       if (currentStep < STEPS.length - 1) {
         setTimeout(() => setCurrentStep((prev) => prev + 1), 300);
+      }
+
+      // If all three core fields are now present, trigger generation immediately
+      if (
+        tentativeLocation &&
+        tentativeRole &&
+        tentativeSeniority
+      ) {
+        const contextKey = `${tentativeLocation}__${tentativeRole}__${tentativeSeniority}`;
+        if (lastMarketInsightsContextTriggeredRef.current !== contextKey) {
+          lastMarketInsightsContextTriggeredRef.current = contextKey;
+          // Ensure socket is connected for progress events
+          const socket = getSocket();
+          if (!socket.connected) socket.connect();
+
+          // Extract years from seniority (e.g., "Senior (6-9 Yrs)" -> 6)
+          let yearsOfExperience: number | undefined;
+          const seniorityMatch = tentativeSeniority?.match(/(\d+)/);
+          if (seniorityMatch) yearsOfExperience = parseInt(seniorityMatch[1], 10);
+
+          generateMarketInsights({
+            location: tentativeLocation,
+            job: tentativeRole,
+            seniority: tentativeSeniority,
+            yearsOfExperience,
+          });
+        }
       }
     }
   };
@@ -299,12 +326,23 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       certifications: 0,
     };
 
-    // Market insights generation is triggered on Location selection.
-    // Only trigger here if the user changed location after the initial trigger.
-    if (lastMarketInsightsLocationTriggeredRef.current !== newUser.location) {
-      lastMarketInsightsLocationTriggeredRef.current = newUser.location;
+    // Extract years of experience from seniority string (e.g., "Senior (6-9 Yrs)" -> 6)
+    let yearsOfExperience: number | undefined;
+    const seniorityMatch = formData.seniority?.match(/(\d+)/);
+    if (seniorityMatch) {
+      yearsOfExperience = parseInt(seniorityMatch[1], 10);
+    }
+
+    // Market insights generation is triggered as soon as location, role, and seniority are collected.
+    // Avoid triggering again if we've already generated for the same (location,role,seniority) tuple.
+    const contextKey = `${newUser.location}__${newUser.role}__${newUser.experience}`;
+    if (lastMarketInsightsContextTriggeredRef.current !== contextKey) {
+      lastMarketInsightsContextTriggeredRef.current = contextKey;
       generateMarketInsights({
         location: newUser.location,
+        job: formData.role,
+        seniority: newUser.experience,
+        yearsOfExperience,
         // userId can be wired up and passed later
       });
     }

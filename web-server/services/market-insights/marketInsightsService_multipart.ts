@@ -174,7 +174,13 @@ Return ONLY valid JSON with NO markdown formatting.`;
  * Generate market insights using multi-part approach
  */
 export async function generateMarketInsights(
-  location: string, _userId: string, jobId?: string, locationDistrict?: string
+  location: string,
+  _userId: string,
+  jobId?: string,
+  locationDistrict?: string,
+  job?: string,
+  seniority?: string,
+  yearsOfExperience?: number
 ): Promise<{ insights: MarketInsightsData; failedSections: string[] }> {
   const sectionStates: Record<SectionName, SectionState> = {
     marketReport: { status: 'idle' },
@@ -243,8 +249,19 @@ export async function generateMarketInsights(
         RagNamespace.MARKET_REPORTS,
       ];
 
+      // Build combined query string with location, job, seniority
+      const queryParts = [`market insights for ${location}`];
+      if (job) queryParts.push(`job: ${job}`);
+      if (seniority) queryParts.push(`seniority: ${seniority}`);
+      if (yearsOfExperience !== undefined) queryParts.push(`${yearsOfExperience} years experience`);
+      const combinedQuery = queryParts.join(', ');
+
+      console.log(`[RAG Query] About to retrieve for jobId: ${jobId}`);
+      console.log(`[RAG Query] Full query string: "${combinedQuery}"`);
+      console.log(`[RAG Query] Namespaces: ${namespaces.join(', ')}`);
+
       const retrievalResp = await retrieve({
-        query: `market insights for ${location}`,
+        query: combinedQuery,
         namespaces,
         topK: 15,
         useCache: true,

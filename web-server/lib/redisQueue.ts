@@ -8,6 +8,9 @@ export interface QueueJob {
   timestamp: number;
   retryCount?: number;
   locationDistrict?: string; // optional field for more specific location context
+  job?: string;              // job title/role (e.g., "senior software engineer")
+  seniority?: string;        // seniority level (e.g., "junior", "mid", "senior")
+  yearsOfExperience?: number; // years of relevant experience
 }
 
 const QUEUE_NAME = 'market_insights_queue';
@@ -20,7 +23,14 @@ const MAX_RETRIES = 2; // Maximum retry attempts before marking as failed
 /**
  * Add job to queue (safe - works even if Redis is down)
  */
-export async function enqueueJob(location: string, userId: string, locationDistrict?: string): Promise<string | null> {
+export async function enqueueJob(
+  location: string,
+  userId: string,
+  locationDistrict?: string,
+  job?: string,
+  seniority?: string,
+  yearsOfExperience?: number
+): Promise<string | null> {
   if (!isRedisAvailable()) {
     logger.warn('Redis unavailable - job will be processed immediately');
     return null;
@@ -39,15 +49,18 @@ export async function enqueueJob(location: string, userId: string, locationDistr
     }
 
     const jobId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const job: QueueJob = {
+    const queueJob: QueueJob = {
       id: jobId,
       location,
       userId,
       timestamp: Date.now(),
       locationDistrict,
+      job,
+      seniority,
+      yearsOfExperience,
     };
 
-    await redis.rPush(QUEUE_NAME, JSON.stringify(job));
+    await redis.rPush(QUEUE_NAME, JSON.stringify(queueJob));
     // Store inflight dedup key (30 min TTL — cleared earlier by completeJob/failJob)
     await redis.set(dedupKey, jobId, { EX: 1800 });
     // Reverse lookup so completeJob/failJob can clean up without needing location param
