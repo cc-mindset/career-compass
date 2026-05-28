@@ -27,7 +27,7 @@ marketInsightRouter.post(
 
       const { locationCity, locationDistrict } = getTopCityOfDistrictOfACity(sanitizedLocation);
 
-      sanitizedLocation = locationCity; // Use the potentially updated location for insights generation
+      // sanitizedLocation = locationCity; // Use the potentially updated location for insights generation
       // ── Step 1: Check mock DB cache (swap with real DB check later) ──
       // const cacheStatus = mockDbCache.check(sanitizedLocation);
       // if (cacheStatus.hit && cacheStatus.isLTS) {

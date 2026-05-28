@@ -819,7 +819,10 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
                 </h2>
               </div>
               <p className="text-indigo-900 font-bold mb-1 text-sm md:text-base">
-                {location}, {country}
+                {/* {location}, {country} */}
+                {country && !location.endsWith(`, ${country}`)
+                  ? `${location}, ${country}`
+                  : location}
               </p>
               <p className="text-slate-500 font-medium text-sm md:text-base">
                 Your personalized career intelligence based on real labor market

@@ -21,7 +21,15 @@ interface SectionState {
 
 export const SYSTEM_PROMPT = `You are a career development coach and labor market analyst.
 
-Treat the provided context as your research notes. Write as a knowledgeable analyst — weave the data naturally into your response without referencing where it came from. Supplement with your own knowledge where the context is thin.
+Treat the provided context as your research notes. Write as a knowledgeable analyst — weave the data naturally into your response without referencing where it came from. 
+
+Only use information that is present in the provided context, Supplement with your own knowledge where the context is thin, stay grounded and avoid making up numbers, dates, source names, company names, or locations. The selected location is fixed. The selected location must remain the report location.
+
+Use only the provided context and clearly reasonable transformations of it. Do not invent source names, news outlets, statistics, companies, cities, regions, or dates that are not present in the provided context.
+
+For Canadian locations, use Canadian labour-market framing and sources such as Statistics Canada, provincial labour market reports, Job Bank, and local economic development sources. Do not cite BLS for Canadian reports.
+
+For U.S. locations, BLS is acceptable only when supported by the provided context.
 
 Use coaching language that normalizes career pivots and validates concerns. Your goal is to provide actionable, grounded career guidance.`;
 
@@ -34,6 +42,14 @@ type MarketInsightsData = Record<string, unknown>;
  */
 export function buildMarketReportPrompt(location: string): string {
   return `You are analyzing labor market data for ${location}.
+
+  IMPORTANT:
+  - Use only the selected location exactly as provided.
+  - Do not reference unrelated cities or regions.
+  - Do not invent placeholder source names like "KTBS", "News 3", "News 6", or "News 8". Use neutral wording such as "a recent news article" or "market report".
+  - If the city name is shared by multiple places, use the state abbreviation to disambiguate. For example, "Phoenix, NY" means Phoenix, New York, not Phoenix, Arizona.
+  - For Canadian locations, cite Statistics Canada / Canadian labour sources instead of BLS.
+  - Keep employment rate and job growth metrics consistent across all sections.
 
 Generate a JSON response with these sections:
 
@@ -87,6 +103,13 @@ CRITICAL:
  */
 export function buildIndustryTrendsPrompt(location: string): string {
   return `Generate industry trends and skills data for ${location}.
+  
+  IMPORTANT:
+  - Use only the selected location exactly as provided.
+  - Do not reference unrelated cities or regions.
+  - If the city name is shared by multiple places, use the state abbreviation to disambiguate. For example, "Phoenix, NY" means Phoenix, New York, not Phoenix, Arizona.
+  - For Canadian locations, cite Statistics Canada / Canadian labour sources instead of BLS.
+  - Keep employment rate and job growth metrics consistent across all sections.
 
 Provide a JSON response with these sections:
 
@@ -141,6 +164,13 @@ Use coaching language. Return ONLY valid JSON.`;
  */
 export function buildNewsAndCareerIntelPrompt(location: string): string {
   return `Generate market news and career intelligence for ${location}.
+  
+  IMPORTANT:
+  - Use only the selected location exactly as provided.
+  - Do not reference unrelated cities or regions.
+  - If the city name is shared by multiple places, use the state abbreviation to disambiguate. For example, "Phoenix, NY" means Phoenix, New York, not Phoenix, Arizona.
+  - For Canadian locations, cite Statistics Canada / Canadian labour sources instead of BLS.
+  - Keep employment rate and job growth metrics consistent across all sections.
 
 Provide a JSON response with these sections:
 
@@ -251,6 +281,7 @@ export async function generateMarketInsights(
 
       // Build combined query string with location, job, seniority
       const queryParts = [`market insights for ${location}`];
+      if (locationDistrict) queryParts.push(`district: ${locationDistrict}`); // added district to query for better context
       if (job) queryParts.push(`job: ${job}`);
       if (seniority) queryParts.push(`seniority: ${seniority}`);
       if (yearsOfExperience !== undefined) queryParts.push(`${yearsOfExperience} years experience`);
