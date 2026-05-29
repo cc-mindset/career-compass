@@ -3,6 +3,7 @@ import { formatMarketInsightsContext } from '../../lib/ragContextFormatters.js';
 import { RagNamespace } from '../../types/rag.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../../lib/openai.js';
 import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from '../db-cache/dbCacheService.js';
+import { getCachedMarketInsightsFromDb, getMarketInsightsCacheKey } from '../db-cache/dbCacheService.js';
 import pLimit from 'p-limit';
 import { logger } from '../../utils/logger.js';
 import { emitToJob } from '../../lib/websocket.js';
@@ -32,8 +33,13 @@ type MarketInsightsData = Record<string, unknown>;
  * Part 1: Market Report Section (3 articles)
  * Focuses on: market_report_summary_brief, market_report_summary, labour_market_snapshot, city_vs_region_comparison
  */
-export function buildMarketReportPrompt(location: string): string {
+export function buildMarketReportPrompt(location: string, job?: string, seniority?: string): string {
+  const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
+    .filter(Boolean)
+    .join('; ');
+
   return `You are analyzing labor market data for ${location}.
+${roleContext ? `Additional user context: ${roleContext}. Use this only to tailor the analysis and examples; do not change the output structure or add new fields.` : ''}
 
 Generate a JSON response with these sections:
 
@@ -85,8 +91,13 @@ CRITICAL:
  * Part 2: Industry Growth and Decline Trends Section (4 trend cards)
  * Focuses on: growth_sectors, at_risk_sectors, top_skills_demand, market_risks
  */
-export function buildIndustryTrendsPrompt(location: string): string {
+export function buildIndustryTrendsPrompt(location: string, job?: string, seniority?: string): string {
+  const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
+    .filter(Boolean)
+    .join('; ');
+
   return `Generate industry trends and skills data for ${location}.
+${roleContext ? `Additional user context: ${roleContext}. Use this only to tailor the analysis and examples; do not change the output structure or add new fields.` : ''}
 
 Provide a JSON response with these sections:
 
@@ -139,8 +150,13 @@ Use coaching language. Return ONLY valid JSON.`;
  * Part 3: Market News & Career Intelligence
  * Focuses on: market_news, strategies_by_experience, key_findings
  */
-export function buildNewsAndCareerIntelPrompt(location: string): string {
+export function buildNewsAndCareerIntelPrompt(location: string, job?: string, seniority?: string): string {
+  const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
+    .filter(Boolean)
+    .join('; ');
+
   return `Generate market news and career intelligence for ${location}.
+${roleContext ? `Additional user context: ${roleContext}. Use this only to tailor the analysis and examples; do not change the output structure or add new fields.` : ''}
 
 Provide a JSON response with these sections:
 
@@ -179,8 +195,7 @@ export async function generateMarketInsights(
   jobId?: string,
   locationDistrict?: string,
   job?: string,
-  seniority?: string,
-  yearsOfExperience?: number
+  seniority?: string
 ): Promise<{ insights: MarketInsightsData; failedSections: string[] }> {
   const sectionStates: Record<SectionName, SectionState> = {
     marketReport: { status: 'idle' },
@@ -253,8 +268,24 @@ export async function generateMarketInsights(
       const queryParts = [`market insights for ${location}`];
       if (job) queryParts.push(`job: ${job}`);
       if (seniority) queryParts.push(`seniority: ${seniority}`);
-      if (yearsOfExperience !== undefined) queryParts.push(`${yearsOfExperience} years experience`);
+      
       const combinedQuery = queryParts.join(', ');
+      const marketInsightsCacheKey = getMarketInsightsCacheKey(location, job, seniority);
+
+      const cachedInsights = await getCachedMarketInsightsFromDb(location, job, seniority);
+      if (cachedInsights) {
+        logger.info(`📦 Tuple cache HIT for market insights: ${marketInsightsCacheKey}`);
+        if (jobId) {
+          emitToJob(jobId, 'progress', {
+            type: 'job_complete',
+            completedSections: ['marketReport', 'industryTrends', 'newsAndCareerIntel'],
+            failedSections: [],
+            insights: cachedInsights.insights,
+            jobId,
+          });
+        }
+        return { insights: cachedInsights.insights, failedSections: [] };
+      }
 
       console.log(`[RAG Query] About to retrieve for jobId: ${jobId}`);
       console.log(`[RAG Query] Full query string: "${combinedQuery}"`);
@@ -272,9 +303,9 @@ export async function generateMarketInsights(
 
       // Step C: Generate each section using existing LLM + DB cache logic
       const prompts = [
-        { label: LLM_SECTION_LABELS.marketReport, query: buildMarketReportPrompt(location), cacheKeySuffix: `${location}` },
-        { label: LLM_SECTION_LABELS.industryTrends, query: buildIndustryTrendsPrompt(location), cacheKeySuffix: `${location}` },
-        { label: LLM_SECTION_LABELS.newsAndCareerIntel, query: buildNewsAndCareerIntelPrompt(location), cacheKeySuffix: `${location}` },
+        { label: LLM_SECTION_LABELS.marketReport, query: buildMarketReportPrompt(location, job, seniority), cacheKeySuffix: marketInsightsCacheKey },
+        { label: LLM_SECTION_LABELS.industryTrends, query: buildIndustryTrendsPrompt(location, job, seniority), cacheKeySuffix: marketInsightsCacheKey },
+        { label: LLM_SECTION_LABELS.newsAndCareerIntel, query: buildNewsAndCareerIntelPrompt(location, job, seniority), cacheKeySuffix: marketInsightsCacheKey },
       ];
 
       const responseFormat = 'json';

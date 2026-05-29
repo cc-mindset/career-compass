@@ -30,20 +30,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
     const socket = getSocket();
     if (!socket.connected) socket.connect();
 
-    // Extract years from experience string if available
-    let yearsOfExperience: number | undefined;
-    if (currentUser.profile?.experience) {
-      const match = currentUser.profile.experience.match(/(\d+)/);
-      if (match) {
-        yearsOfExperience = parseInt(match[1], 10);
-      }
-    }
-
     generateMarketInsights({
       location: city,
       job: currentUser.profile?.role,
       seniority: currentUser.profile?.experience,
-      yearsOfExperience,
     });
     setIsEditable(false);
   };

@@ -52,7 +52,55 @@ interface MarketInsightViewProps {
   onNavigate: (view: AppView) => void;
 }
 
+type GrowthSectorCard = {
+  title: string;
+  description: string;
+  roles: string[];
+  realityCheck: string;
+};
+
+type AtRiskSectorCard = {
+  title: string;
+  shift: string;
+  pivot: string;
+  realityCheck: string;
+};
+
+type SkillCard = {
+  id: string;
+  category: string;
+  categoryDescription: string;
+  title: string;
+  level: string;
+  description: string;
+  skills: string[];
+  note: string;
+  insights: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  badge: string;
+  iconColor: string;
+};
+
+type MarketRiskCard = {
+  severity: string;
+  risk: string;
+  sectors: string[];
+  strategy: string;
+};
+
+type MarketNewsCard = {
+  id: string;
+  title: string;
+  sentiment: "Positive" | "Neutral" | "Negative";
+  excerpt: string;
+  date: string;
+  source: string;
+  relevance: number;
+};
+
 const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
+  const lastAutoGenerateTupleRef = useRef<string | null>(null);
   const {
     generateStatus,
     generateError,
@@ -64,10 +112,18 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
   } = useMarketInsightsState();
 
   useEffect(() => {
-    if (!retrieved && user.location && !sections.marketReport.data) {
-      generateMarketInsights({ location: user.location });
+    if (!retrieved && user.location && user.role && user.experience && !sections.marketReport.data) {
+      const tupleKey = `${user.location}__${user.role}__${user.experience}`;
+      if (lastAutoGenerateTupleRef.current !== tupleKey) {
+        lastAutoGenerateTupleRef.current = tupleKey;
+        generateMarketInsights({
+          location: user.location,
+          job: user.role,
+          seniority: user.experience,
+        });
+      }
     }
-  }, [retrieved, user.location]);
+  }, [retrieved, user.location, user.role, user.experience, sections.marketReport.data, generateMarketInsights]);
 
   // Read from per-section data (available immediately on section_success)
   // instead of generateState.data.insights (only set on job_complete)
@@ -84,7 +140,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
     marketReportData?.city_vs_region_comparison || null;
 
   // Transform growth_sectors to match expected format
-  const highGrowthSectors =
+  const highGrowthSectors: GrowthSectorCard[] =
     industryTrendsData?.growth_sectors?.map((item: any) => ({
       title: item.sector || item.title,
       description: item.why_it_matters || item.description,
@@ -93,7 +149,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
     })) || HIGH_GROWTH_DATA;
 
   // Transform at_risk_sectors to match expected format
-  const atRiskSectors =
+  const atRiskSectors: AtRiskSectorCard[] =
     industryTrendsData?.at_risk_sectors?.map((item: any) => ({
       title: item.sector || item.title,
       shift: item.automation_reason || item.shift,
@@ -104,7 +160,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
   // Transform top_skills_demand to match expected format
   // Backend sends nested structure with categories/quadrants/skills
   // Frontend expects flat array with icon, color, badge properties
-  const topSkillsDemand = industryTrendsData?.top_skills_demand?.categories
+  const topSkillsDemand: SkillCard[] = industryTrendsData?.top_skills_demand?.categories
     ? industryTrendsData.top_skills_demand.categories.flatMap(
         (quadrant: any) => {
           // Map quadrant names to UI styling
@@ -155,7 +211,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
     : TOP_SKILLS_DATA;
 
   // Transform market_risks to match expected format
-  const marketRisks =
+  const marketRisks: MarketRiskCard[] =
     industryTrendsData?.market_risks?.map((item: any) => ({
       severity: item.severity,
       risk: item.risk,
@@ -163,7 +219,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
       strategy: item.mitigation_strategy || item.strategy,
     })) || MARKET_RISKS_DATA;
 
-  const marketNews =
+  const marketNews: MarketNewsCard[] =
     newsIntelData?.market_news?.map((item: any, idx: number) => ({
       id: item.id || `news-${idx}`,
       title: item.headline || item.title,
@@ -941,9 +997,7 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
                 Major Market Drivers:
               </p>
               <div className="flex flex-wrap gap-2 md:gap-3">
-                {(
-                  labourMarketSnapshot?.major_drivers || FALLBACK_MAJOR_DRIVERS
-                ).map((tag, i) => (
+                {((labourMarketSnapshot?.major_drivers || FALLBACK_MAJOR_DRIVERS) as string[]).map((tag, i) => (
                   <div
                     key={i}
                     className="px-4 py-2 md:px-5 md:py-3 bg-white border border-slate-200 rounded-lg md:rounded-[1rem] text-xs md:text-sm font-bold uppercase text-slate-700 transition-all cursor-default"
@@ -1017,9 +1071,14 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {(
-                      cityVsRegionComparison?.data || FALLBACK_CITY_VS_REGION
-                    ).map((row, i) => (
+                    {((cityVsRegionComparison?.data || FALLBACK_CITY_VS_REGION) as Array<{
+                      factor?: string;
+                      f?: string;
+                      city?: string;
+                      l?: string;
+                      wider_region?: string;
+                      w?: string;
+                    }>).map((row, i) => (
                       <tr
                         key={i}
                         className="hover:bg-slate-50/50 transition-colors"

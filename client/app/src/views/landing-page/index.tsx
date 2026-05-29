@@ -277,16 +277,10 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
           const socket = getSocket();
           if (!socket.connected) socket.connect();
 
-          // Extract years from seniority (e.g., "Senior (6-9 Yrs)" -> 6)
-          let yearsOfExperience: number | undefined;
-          const seniorityMatch = tentativeSeniority?.match(/(\d+)/);
-          if (seniorityMatch) yearsOfExperience = parseInt(seniorityMatch[1], 10);
-
           generateMarketInsights({
             location: tentativeLocation,
             job: tentativeRole,
             seniority: tentativeSeniority,
-            yearsOfExperience,
           });
         }
       }
@@ -326,12 +320,6 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       certifications: 0,
     };
 
-    // Extract years of experience from seniority string (e.g., "Senior (6-9 Yrs)" -> 6)
-    let yearsOfExperience: number | undefined;
-    const seniorityMatch = formData.seniority?.match(/(\d+)/);
-    if (seniorityMatch) {
-      yearsOfExperience = parseInt(seniorityMatch[1], 10);
-    }
 
     // Market insights generation is triggered as soon as location, role, and seniority are collected.
     // Avoid triggering again if we've already generated for the same (location,role,seniority) tuple.
@@ -342,7 +330,6 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
         location: newUser.location,
         job: formData.role,
         seniority: newUser.experience,
-        yearsOfExperience,
         // userId can be wired up and passed later
       });
     }

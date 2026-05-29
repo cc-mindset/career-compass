@@ -9,9 +9,53 @@ import { logger } from "../../utils/logger";
 
 export const LLM_RESPONSE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+const normalizeCachePart = (value?: string): string => (value || "").trim().toLowerCase();
+
 export const getUniqueDbCacheKeyForLlmResponse = (prefix: string, ...vars: string[]): string => {
     return `${prefix}:${vars.join('__')}`;
 }
+
+export const getMarketInsightsCacheKey = (location: string, job?: string, seniority?: string): string => {
+    return getUniqueDbCacheKeyForLlmResponse(
+        'rag',
+        normalizeCachePart(location),
+        normalizeCachePart(job),
+        normalizeCachePart(seniority),
+    );
+};
+
+export const getCachedMarketInsightsFromDb = async (
+    location: string,
+    job?: string,
+    seniority?: string,
+) => {
+    const cacheKey = getMarketInsightsCacheKey(location, job, seniority);
+    const [marketReport, industryTrends, newsAndCareerIntel] = await Promise.all([
+        getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.marketReport),
+        getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.industryTrends),
+        getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.newsAndCareerIntel),
+    ]);
+
+    if (
+        !marketReport ||
+        !industryTrends ||
+        !newsAndCareerIntel ||
+        marketReport.status !== LlmCacheStatus.ACTIVE ||
+        industryTrends.status !== LlmCacheStatus.ACTIVE ||
+        newsAndCareerIntel.status !== LlmCacheStatus.ACTIVE
+    ) {
+        return null;
+    }
+
+    return {
+        cacheKey,
+        insights: {
+            ...(marketReport.data || {}),
+            ...(industryTrends.data || {}),
+            ...(newsAndCareerIntel.data || {}),
+        },
+    };
+};
 
 export const getVariablesFromDbCacheKey = (cacheKey: string): string[] => {
     const parts = cacheKey.split(':');

@@ -14,7 +14,6 @@ import {
 } from "../api/sectionTypes";
 import { getSocket } from "../../providers/socket/socket";
 import { useAppContext } from "../contexts/AppContext";
-import { pollForInsights } from "../../utils/polls/pollForInsights";
 
 export type MarketInsightsLoadingStage =
   | "idle"
@@ -44,7 +43,6 @@ interface MarketInsightsContextValue {
     section?: string;
     job?: string;
     seniority?: string;
-    yearsOfExperience?: number;
   }) => Promise<void>;
   loadingStage: MarketInsightsLoadingStage;
   setLoadingStage: (stage: MarketInsightsLoadingStage) => void;
@@ -90,7 +88,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({
     industryTrends: { status: "idle" },
     newsAndCareerIntel: { status: "idle" },
   });
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   const [retrieved, setRetrieved] = useState<boolean>(false);
 
   // Get global server availability state from AppContext
@@ -114,14 +112,12 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({
     section,
     job,
     seniority,
-    yearsOfExperience,
   }: {
     location: string;
     userId?: string;
     section?: string;
     job?: string;
     seniority?: string;
-    yearsOfExperience?: number;
   }) => {
     const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -175,7 +171,6 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({
           userId: userId || "",
           job,
           seniority,
-          yearsOfExperience,
         }),
         signal: controller.signal,
       });
@@ -223,40 +218,17 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({
             error: undefined,
           }));
         } else {
-          pollForInsights(jobId)
-            .then((insights) => {
-              if (insights) {
-                updateServerAvailable(true);
-                setGenerateState({
-                  status: "success",
-                  data: { success: true, insights },
-                  error: undefined,
-                });
-                setLoadingStage("complete");
-                setProgressText("Insights ready");
-                setActiveJobId(null);
-              } else {
-                setGenerateState({
-                  status: "error",
-                  error: "Insights generation timed out",
-                  data: undefined,
-                });
-                setLoadingStage("complete");
-                setProgressText("Request timed out");
-                setActiveJobId(null);
-              }
-            })
-            .catch((error) => {
-              setGenerateState({
-                status: "error",
-                error:
-                  error instanceof Error ? error.message : "Polling failed",
-                data: undefined,
-              });
-              setLoadingStage("complete");
-              setProgressText("Failed to retrieve insights");
-              setActiveJobId(null);
-            });
+          // Socket not connected yet — mark as in-progress and set active job id so reconnect will subscribe
+          setActiveJobId(jobId);
+          setGenerateState((prev) => ({
+            ...prev,
+            status: "in-progress",
+            data,
+            error: undefined,
+          }));
+          // Ensure socket connection is attempted
+          const s = getSocket();
+          if (s && !s.connected) s.connect();
         }
       } else {
         updateServerAvailable(true);
@@ -512,13 +484,7 @@ export const MarketInsightsProvider: React.FC<MarketInsightsProviderProps> = ({
     };
   }, [activeJobId]);
 
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
-  }, []);
+  
 
   return (
     <MarketInsightsContext.Provider
