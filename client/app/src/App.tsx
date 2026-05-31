@@ -32,7 +32,8 @@ const AppContent: React.FC = () => {
   const user = userContext?.profile || INITIAL_USER;
   const hasStarted = userContext?.hasJourneyStarted || false;
 
-  const { user: authUser } = useUser();
+  // Keep Clerk auth logic available for later reuse, but do not gate the app on it for now.
+  // const { user: authUser } = useUser();
 
   const handleStartJourney = (profileData: UserProfile) => {
     updateUserProfile(profileData);
@@ -76,15 +77,17 @@ const AppContent: React.FC = () => {
     }
   };
 
-  if (!authUser) {
-    return <AuthPage />;
-  }
+  // if (!authUser) {
+  //   return <AuthPage />;
+  // }
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 overflow-hidden">
+      {/*
       <SignedIn>
         <SyncUser />
       </SignedIn>
+      */}
       <Navbar user={user} onProfileClick={() => setCurrentView("profile")} />
 
       <div className="flex flex-1 min-w-0 overflow-hidden">

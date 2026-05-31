@@ -22,6 +22,8 @@ const AuthPage = () => {
           </div>
         </SignedOut>
 
+        {/*
+        Keep the Clerk sign-in component here for later reuse.
         <SignIn
           fallback={<AnimatedLoader />}
           appearance={{
@@ -53,7 +55,9 @@ const AuthPage = () => {
             },
           }}
         />
+        */}
       </div>
+      {/*
       <SignedOut>
         <p
           onClick={() => {
@@ -65,6 +69,7 @@ const AuthPage = () => {
           Start a New Journey
         </p>
       </SignedOut>
+      */}
     </div>
   );
 };

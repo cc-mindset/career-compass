@@ -438,6 +438,8 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
             CareerCompass
           </h1>
         </div>
+        {/*
+        Keep the sign-in entry point here for later reuse.
         <SignedOut>
           <button
             className="text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors flex-shrink-0 touch-manipulation"
@@ -446,6 +448,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
             Sign In
           </button>
         </SignedOut>
+        */}
         <SignedIn>
           <UserButton />
         </SignedIn>
