@@ -6,7 +6,9 @@ import Navbar from "./components/nav/Navbar";
 import BottomNav from "./components/nav/BottomNav";
 import MarketInsightView from "./views/market-insight";
 import ProfileView from "./views/profile";
-import CareerIntelView from "./views/career-intel";
+// Career Intel view temporarily hidden from navigation for redesign.
+// Keep import here for easy restore later.
+// import CareerIntelView from "./views/career-intel";
 import EcoSimulatorView from "./views/eco-simulator";
 import { UnderConstruction } from "./ui-kit";
 import LandingPageView from "./views/landing-page";
@@ -61,8 +63,8 @@ const AppContent: React.FC = () => {
             onEdit={() => alert("Edit Profile clicked")}
           />
         );
-      case "career-intel":
-        return <CareerIntelView user={user} />;
+      // case "career-intel":
+      //   return <CareerIntelView user={user} />;
       case "eco-simulator":
         return <EcoSimulatorView user={user} />;
       case "settings":

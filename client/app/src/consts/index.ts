@@ -40,7 +40,8 @@ export const INITIAL_USER: UserProfile = {
 
 export const NAVIGATION_ITEMS = [
   { id: "market-insights", label: "Market Insights", icon: LayoutGrid },
-  { id: "career-intel", label: "Career Intel", icon: Sparkles },
+  // Career Intel temporarily hidden for redesign — keep entry here for easy restore
+  // { id: "career-intel", label: "Career Intel", icon: Sparkles },
   { id: "eco-simulator", label: "Eco Simulator", icon: BarChart3 },
 ];
 

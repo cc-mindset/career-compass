@@ -112,10 +112,9 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
                 LlmCareerIntel.updateOne(
                     { vars_id: cacheKey },
                     {
-                        ...commonCacheData, data: {
-                            strategies_by_experience: response.strategies_by_experience,
-                            key_findings: response.key_findings,
-                            report_sources: response.report_sources
+                        ...commonCacheData,
+                        data: {
+                            report_sources: response.report_sources || [],
                         }
                     },
                     { upsert: true }
@@ -188,7 +187,7 @@ export const getCachedLlmResponseFromDb = async (cacheKey: string, section: type
             ])
             let [marketNewsData, careerIntelData] = (marketNewsCareerIntelCache)?.map(d => d?.data) || null;
             if (marketNewsData || careerIntelData) {
-                doc = { data: { market_news: marketNewsData || [], ...careerIntelData }, status: getCombinedStatusForCache(marketNewsCareerIntelCache?.[0]?.status as LlmCacheStatus, marketNewsCareerIntelCache?.[1]?.status as LlmCacheStatus) };
+                doc = { data: { market_news: marketNewsData || [], report_sources: careerIntelData?.report_sources || [] }, status: getCombinedStatusForCache(marketNewsCareerIntelCache?.[0]?.status as LlmCacheStatus, marketNewsCareerIntelCache?.[1]?.status as LlmCacheStatus) };
             }
             break;
         default:

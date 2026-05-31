@@ -147,8 +147,8 @@ Use coaching language. Return ONLY valid JSON.`;
 }
 
 /**
- * Part 3: Market News & Career Intelligence
- * Focuses on: market_news, strategies_by_experience, key_findings
+ * Part 3: Market News & Sources
+ * Focuses on: market_news, report_sources
  */
 export function buildNewsAndCareerIntelPrompt(location: string, job?: string, seniority?: string): string {
   const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
@@ -167,19 +167,10 @@ Provide a JSON response with these sections:
    - relevance_score: Number 1-10
    - date: Date if available
 
-2. strategies_by_experience:
-   - new_graduates: Array of 10+ specific, actionable strategies
-   - mid_career_pivoting: Array of 10+ specific, actionable strategies  
-   - newcomers_international: Array of 10+ specific, actionable strategies
-
-3. key_findings: Array of 8-10 findings with VARIED data:
-   - impact_level: "High", "Medium", or "Low" (VARY THESE - not all High!)
-   - insight: Specific finding with data (e.g., "Cloud computing jobs grew 34% in Phoenix metro area")
-   - action_item: Actionable recommendation
-   - driving_force: The underlying market force driving this finding (e.g., "AI adoption", "Remote work normalization", "Post-pandemic hiring rebound")
+2. report_sources: Array of 3-8 source names, article titles, or URLs used to build the news items.
 
 CRITICAL REQUIREMENTS:
-- VARY impact levels in key_findings (mix High, Medium, Low)
+- Keep the response focused on market_news and sources only.
 - Reference ACTUAL companies, programs, and resources in ${location}
 - Cite specific percentages and statistics where available
 
