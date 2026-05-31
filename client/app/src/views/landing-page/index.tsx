@@ -105,13 +105,15 @@ const STEPS: StepConfig[] = [
     icon: <User className="w-5 h-5" />,
     options: OPTIONS.seniority,
   },
-  {
-    key: "resume",
-    label: "Upload your resume (optional)",
-    placeholder: "Choose file or skip",
-    icon: <Upload className="w-5 h-5" />,
-    options: [],
-  },
+  // disabling resume upload during onboarding.
+  // .
+  // {
+  //   key: "resume",
+  //   label: "Upload your resume (optional)",
+  //   placeholder: "Choose file or skip",
+  //   icon: <Upload className="w-5 h-5" />,
+  //   options: [],
+  // },
   {
     key: "name",
     label: "What name do you like to go by?",
