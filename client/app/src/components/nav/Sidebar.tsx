@@ -6,6 +6,7 @@ import { useUserContext } from "../../state/contexts/user";
 import CitySelect from "../city-select";
 import { getSocket } from "../../providers/socket/socket";
 import { useMarketInsightsState } from "../../state/marketInsights/MarketInsightsContext";
+import { normalizeSenioritiyLabel } from "../../utils";
 
 interface SidebarProps {
   currentView: AppView;
@@ -33,7 +34,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
     generateMarketInsights({
       location: city,
       job: currentUser.profile?.role,
-      seniority: currentUser.profile?.experience,
+      seniority: currentUser.profile?.experience
+        ? normalizeSenioritiyLabel(currentUser.profile.experience)
+        : undefined,
     });
     setIsEditable(false);
   };

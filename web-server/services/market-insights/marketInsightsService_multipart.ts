@@ -365,7 +365,9 @@ export async function generateMarketInsights(
 
       const generationPromises = prompts.map(prompt => limit(async () => {
         try {
-          const dbCacheKey = getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
+          const dbCacheKey = (prompt.cacheKeySuffix && (prompt.cacheKeySuffix as string).startsWith('rag:'))
+            ? (prompt.cacheKeySuffix as string)
+            : getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix as string);
           let cached;
           if (useCache) {
             cached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);

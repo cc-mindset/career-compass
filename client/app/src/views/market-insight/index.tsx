@@ -113,13 +113,14 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
 
   useEffect(() => {
     if (!retrieved && user.location && user.role && user.experience && !sections.marketReport.data) {
-      const tupleKey = `${user.location}__${user.role}__${user.experience}`;
+      const normalizedExperience = normalizeSenioritiyLabel(user.experience);
+      const tupleKey = `${user.location}__${user.role}__${normalizedExperience}`;
       if (lastAutoGenerateTupleRef.current !== tupleKey) {
         lastAutoGenerateTupleRef.current = tupleKey;
         generateMarketInsights({
           location: user.location,
           job: user.role,
-          seniority: user.experience,
+          seniority: normalizedExperience,
         });
       }
     }

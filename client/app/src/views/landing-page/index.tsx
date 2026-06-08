@@ -33,7 +33,7 @@ import {
 } from "@clerk/clerk-react";
 import AnimatedLoader from "../../ui-kit/atom/animated-loader";
 import { useUserContext } from "../../state/contexts/user";
-import { normalizeText } from "../../utils";
+import { normalizeSenioritiyLabel, normalizeText } from "../../utils";
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
@@ -248,6 +248,9 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     const tentativeLocation = activeStep.key === "location" ? val : formData.location;
     const tentativeRole = activeStep.key === "role" ? val : formData.role;
     const tentativeSeniority = activeStep.key === "seniority" ? val : formData.seniority;
+    const normalizedTentativeSeniority = tentativeSeniority
+      ? normalizeSenioritiyLabel(tentativeSeniority)
+      : "";
 
     if (activeStep.key === "skills") {
       setFormData((prev) => {
@@ -270,9 +273,9 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       if (
         tentativeLocation &&
         tentativeRole &&
-        tentativeSeniority
+        normalizedTentativeSeniority
       ) {
-        const contextKey = `${tentativeLocation}__${tentativeRole}__${tentativeSeniority}`;
+        const contextKey = `${tentativeLocation}__${tentativeRole}__${normalizedTentativeSeniority}`;
         if (lastMarketInsightsContextTriggeredRef.current !== contextKey) {
           lastMarketInsightsContextTriggeredRef.current = contextKey;
           // Ensure socket is connected for progress events
@@ -282,7 +285,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
           generateMarketInsights({
             location: tentativeLocation,
             job: tentativeRole,
-            seniority: tentativeSeniority,
+            seniority: normalizedTentativeSeniority,
           });
         }
       }
@@ -314,7 +317,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
         ? formData.location.split(",")[1].trim()
         : "United States",
       experience: formData.seniority
-        ? formData.seniority.replace(/\s*\([^)]*\)\s*/g, "").trim()
+        ? normalizeSenioritiyLabel(formData.seniority)
         : "",
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name || "User")}&mouth=smile&backgroundColor=E0E7FF`,
       skills: [],
@@ -325,13 +328,14 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
 
     // Market insights generation is triggered as soon as location, role, and seniority are collected.
     // Avoid triggering again if we've already generated for the same (location,role,seniority) tuple.
-    const contextKey = `${newUser.location}__${newUser.role}__${newUser.experience}`;
+    const normalizedExperience = normalizeSenioritiyLabel(newUser.experience);
+    const contextKey = `${newUser.location}__${newUser.role}__${normalizedExperience}`;
     if (lastMarketInsightsContextTriggeredRef.current !== contextKey) {
       lastMarketInsightsContextTriggeredRef.current = contextKey;
       generateMarketInsights({
         location: newUser.location,
         job: formData.role,
-        seniority: newUser.experience,
+        seniority: normalizedExperience,
         // userId can be wired up and passed later
       });
     }
