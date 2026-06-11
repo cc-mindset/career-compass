@@ -28,7 +28,6 @@ marketInsightRouter.post(
 
       const { locationCity, locationDistrict } = getTopCityOfDistrictOfACity(sanitizedLocation);
 
-      sanitizedLocation = locationCity; // Use the potentially updated location for insights generation
       const cachedInsights = await getCachedMarketInsightsFromDb(sanitizedLocation, job, seniority);
       if (cachedInsights) {
         console.log(`📦 DB Cache HIT before queue for: ${sanitizedLocation}`);
