@@ -33,7 +33,7 @@ import {
 } from "@clerk/clerk-react";
 import AnimatedLoader from "../../ui-kit/atom/animated-loader";
 import { useUserContext } from "../../state/contexts/user";
-import { normalizeText } from "../../utils";
+import { normalizeSenioritiyLabel, normalizeText } from "../../utils";
 
 interface LandingPageViewProps {
   onStart: (userData: UserProfile) => void;
@@ -105,13 +105,15 @@ const STEPS: StepConfig[] = [
     icon: <User className="w-5 h-5" />,
     options: OPTIONS.seniority,
   },
-  {
-    key: "resume",
-    label: "Upload your resume (optional)",
-    placeholder: "Choose file or skip",
-    icon: <Upload className="w-5 h-5" />,
-    options: [],
-  },
+  // disabling resume upload during onboarding.
+  // .
+  // {
+  //   key: "resume",
+  //   label: "Upload your resume (optional)",
+  //   placeholder: "Choose file or skip",
+  //   icon: <Upload className="w-5 h-5" />,
+  //   options: [],
+  // },
   {
     key: "name",
     label: "What name do you like to go by?",
@@ -246,6 +248,9 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
     const tentativeLocation = activeStep.key === "location" ? val : formData.location;
     const tentativeRole = activeStep.key === "role" ? val : formData.role;
     const tentativeSeniority = activeStep.key === "seniority" ? val : formData.seniority;
+    const normalizedTentativeSeniority = tentativeSeniority
+      ? normalizeSenioritiyLabel(tentativeSeniority)
+      : "";
 
     if (activeStep.key === "skills") {
       setFormData((prev) => {
@@ -268,25 +273,19 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       if (
         tentativeLocation &&
         tentativeRole &&
-        tentativeSeniority
+        normalizedTentativeSeniority
       ) {
-        const contextKey = `${tentativeLocation}__${tentativeRole}__${tentativeSeniority}`;
+        const contextKey = `${tentativeLocation}__${tentativeRole}__${normalizedTentativeSeniority}`;
         if (lastMarketInsightsContextTriggeredRef.current !== contextKey) {
           lastMarketInsightsContextTriggeredRef.current = contextKey;
           // Ensure socket is connected for progress events
           const socket = getSocket();
           if (!socket.connected) socket.connect();
 
-          // Extract years from seniority (e.g., "Senior (6-9 Yrs)" -> 6)
-          let yearsOfExperience: number | undefined;
-          const seniorityMatch = tentativeSeniority?.match(/(\d+)/);
-          if (seniorityMatch) yearsOfExperience = parseInt(seniorityMatch[1], 10);
-
           generateMarketInsights({
             location: tentativeLocation,
             job: tentativeRole,
-            seniority: tentativeSeniority,
-            yearsOfExperience,
+            seniority: normalizedTentativeSeniority,
           });
         }
       }
@@ -318,7 +317,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
         ? formData.location.split(",")[1].trim()
         : "United States",
       experience: formData.seniority
-        ? formData.seniority.replace(/\s*\([^)]*\)\s*/g, "").trim()
+        ? normalizeSenioritiyLabel(formData.seniority)
         : "",
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name || "User")}&mouth=smile&backgroundColor=E0E7FF`,
       skills: [],
@@ -326,23 +325,17 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
       certifications: 0,
     };
 
-    // Extract years of experience from seniority string (e.g., "Senior (6-9 Yrs)" -> 6)
-    let yearsOfExperience: number | undefined;
-    const seniorityMatch = formData.seniority?.match(/(\d+)/);
-    if (seniorityMatch) {
-      yearsOfExperience = parseInt(seniorityMatch[1], 10);
-    }
 
     // Market insights generation is triggered as soon as location, role, and seniority are collected.
     // Avoid triggering again if we've already generated for the same (location,role,seniority) tuple.
-    const contextKey = `${newUser.location}__${newUser.role}__${newUser.experience}`;
+    const normalizedExperience = normalizeSenioritiyLabel(newUser.experience);
+    const contextKey = `${newUser.location}__${newUser.role}__${normalizedExperience}`;
     if (lastMarketInsightsContextTriggeredRef.current !== contextKey) {
       lastMarketInsightsContextTriggeredRef.current = contextKey;
       generateMarketInsights({
         location: newUser.location,
         job: formData.role,
-        seniority: newUser.experience,
-        yearsOfExperience,
+        seniority: normalizedExperience,
         // userId can be wired up and passed later
       });
     }
@@ -449,6 +442,8 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
             CareerCompass
           </h1>
         </div>
+        {/*
+        Keep the sign-in entry point here for later reuse.
         <SignedOut>
           <button
             className="text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors flex-shrink-0 touch-manipulation"
@@ -457,6 +452,7 @@ const LandingPageView: React.FC<LandingPageViewProps> = ({ onStart }) => {
             Sign In
           </button>
         </SignedOut>
+        */}
         <SignedIn>
           <UserButton />
         </SignedIn>

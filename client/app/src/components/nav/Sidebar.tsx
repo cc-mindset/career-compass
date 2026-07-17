@@ -6,6 +6,7 @@ import { useUserContext } from "../../state/contexts/user";
 import CitySelect from "../city-select";
 import { getSocket } from "../../providers/socket/socket";
 import { useMarketInsightsState } from "../../state/marketInsights/MarketInsightsContext";
+import { normalizeSenioritiyLabel } from "../../utils";
 
 interface SidebarProps {
   currentView: AppView;
@@ -30,20 +31,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, user }) => {
     const socket = getSocket();
     if (!socket.connected) socket.connect();
 
-    // Extract years from experience string if available
-    let yearsOfExperience: number | undefined;
-    if (currentUser.profile?.experience) {
-      const match = currentUser.profile.experience.match(/(\d+)/);
-      if (match) {
-        yearsOfExperience = parseInt(match[1], 10);
-      }
-    }
-
     generateMarketInsights({
       location: city,
       job: currentUser.profile?.role,
-      seniority: currentUser.profile?.experience,
-      yearsOfExperience,
+      seniority: currentUser.profile?.experience
+        ? normalizeSenioritiyLabel(currentUser.profile.experience)
+        : undefined,
     });
     setIsEditable(false);
   };

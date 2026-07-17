@@ -47,8 +47,7 @@ export async function processQueue() {
             job.id,
             job.locationDistrict,
             job.job,
-            job.seniority,
-            job.yearsOfExperience
+            job.seniority
           );
           await storeJobResult(job.id, insights);
           await completeJob(job.id);

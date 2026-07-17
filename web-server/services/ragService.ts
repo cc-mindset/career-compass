@@ -312,7 +312,9 @@ export async function generateMultipleWithSharedContext(
     const results: Record<string, Record<string, unknown> | string> = {};
     const generationPromises = prompts.map(async (prompt) => limit(async () => {
       try {
-        const dbCacheKey = getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
+        const dbCacheKey = (prompt.cacheKeySuffix && prompt.cacheKeySuffix.startsWith && prompt.cacheKeySuffix.startsWith('rag:'))
+          ? prompt.cacheKeySuffix
+          : getUniqueDbCacheKeyForLlmResponse('rag', prompt.cacheKeySuffix);
         let cached;
         if (useCache) {
           cached = await getCachedLlmResponseFromDb(dbCacheKey, prompt.label as typeof LLM_SECTION_LABELS[keyof typeof LLM_SECTION_LABELS]);

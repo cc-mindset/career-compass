@@ -3,6 +3,7 @@ import express, { Request, Response } from "express";
 import { enqueueJob, getJobResult, getQueueLength } from "../lib/redisQueue";
 import { generateMarketInsights } from "../services/market-insights/marketInsightsService_multipart";
 import { getTopCityOfDistrictOfACity } from "../utils/city";
+import { getCachedMarketInsightsFromDb } from "../services/db-cache/dbCacheService";
 
 const marketInsightRouter = express.Router();
 
@@ -11,7 +12,7 @@ marketInsightRouter.post(
   "/generate",
   async (req: Request, res: Response) => {
     try {
-      const { location: requestedLocation, userId, job, seniority, yearsOfExperience } = req.body;
+      const { location: requestedLocation, userId, job, seniority } = req.body;
 
       if (!requestedLocation || typeof requestedLocation !== "string") {
         return res
@@ -27,7 +28,17 @@ marketInsightRouter.post(
 
       const { locationCity, locationDistrict } = getTopCityOfDistrictOfACity(sanitizedLocation);
 
-      sanitizedLocation = locationCity; // Use the potentially updated location for insights generation
+      const cachedInsights = await getCachedMarketInsightsFromDb(sanitizedLocation, job, seniority);
+      if (cachedInsights) {
+        console.log(`📦 DB Cache HIT before queue for: ${sanitizedLocation}`);
+        return res.json({
+          success: true,
+          insights: cachedInsights.insights,
+          fromCache: true,
+          generated_at: new Date().toISOString(),
+        });
+      }
+
       // ── Step 1: Check mock DB cache (swap with real DB check later) ──
       // const cacheStatus = mockDbCache.check(sanitizedLocation);
       // if (cacheStatus.hit && cacheStatus.isLTS) {
@@ -49,8 +60,7 @@ marketInsightRouter.post(
         userId || "",
         locationDistrict || "",
         job,
-        seniority,
-        yearsOfExperience
+        seniority
       );
 
       if (jobId) {
@@ -73,8 +83,7 @@ marketInsightRouter.post(
         "",
         locationDistrict || "",
         job,
-        seniority,
-        yearsOfExperience
+        seniority
       );
 
       return res.json({

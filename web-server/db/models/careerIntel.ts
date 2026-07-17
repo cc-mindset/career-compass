@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CareerIntelData, KeyFinding, StrategiesByExperience } from "../../types/careerIntel";
+import { CareerIntelData } from "../../types/careerIntel";
 import { LlmCacheStatus } from "../../constants/db";
 
 export interface ICareerIntel extends Document {
@@ -12,22 +12,7 @@ export interface ICareerIntel extends Document {
     updatedAt?: Date;
 }
 
-const strategiesByExperienceSchema = new Schema<StrategiesByExperience>({
-    new_graduates: { type: [String], required: true, default: [] },
-    mid_career_pivoting: { type: [String], required: true, default: [] },
-    newcomers_international: { type: [String], required: true, default: [] },
-});
-
-const keyFindingSchema = new Schema<KeyFinding>({
-    impact_level: { type: String, required: true },
-    insight: { type: String, required: true },
-    action_item: { type: String, required: true },
-    driving_force: { type: String, required: true },
-});
-
 const careerIntelDataSchema = new Schema<CareerIntelData>({
-    strategies_by_experience: { type: strategiesByExperienceSchema, required: true },
-    key_findings: { type: [keyFindingSchema], required: true, default: [] },
     report_sources: [{ type: String, required: true }],
 });
 

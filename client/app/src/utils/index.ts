@@ -7,3 +7,9 @@ export const normalizeText = (text: string) =>
         .toLowerCase()
         .replace(/\s+/g, " ") // collapse multiple spaces
         .trim(); // removes leading/trailing spaces
+
+export const normalizeSenioritiyLabel = (value: string) =>
+    value
+        .replace(/\s*\([^)]*\)\s*/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();

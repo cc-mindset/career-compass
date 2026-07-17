@@ -4,7 +4,8 @@ import { AppView } from '../../types';
 
 const MOBILE_NAV_ITEMS: { id: AppView; label: string; icon: React.ElementType }[] = [
   { id: 'market-insights', label: 'Insights', icon: LayoutGrid },
-  { id: 'career-intel', label: 'Intel', icon: Sparkles },
+  // Career Intel temporarily hidden for redesign
+  // { id: 'career-intel', label: 'Intel', icon: Sparkles },
   { id: 'eco-simulator', label: 'Eco', icon: BarChart3 },
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'settings', label: 'Settings', icon: Settings },
