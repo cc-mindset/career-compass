@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { UserProfile, AppView, RecentNewsArticle } from "../../types";
+import { normalizeSenioritiyLabel } from "../../utils";
 import {
   MOCK_NEWS,
   TREND_REPORTS,
@@ -41,6 +42,7 @@ import {
 } from "lucide-react";
 import { useMarketInsightsState } from "../../state/marketInsights/MarketInsightsContext";
 import { SectionWrapper } from "../../components/section-wrapper";
+import AnimatedLoader from "../../ui-kit/atom/animated-loader";
 import NewsCard from "./news-card";
 import PivotBox from "./pivot-box";
 import InsightBox from "./insight-box";
@@ -131,6 +133,10 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
   const marketReportData = sections.marketReport.data as any;
   const industryTrendsData = sections.industryTrends.data as any;
   const newsIntelData = sections.newsAndCareerIntel.data as any;
+
+  // Per-section loading flags — show the wave in the opened detail view until data arrives
+  const marketReportLoading = sections.marketReport.status === "loading";
+  const industryTrendsLoading = sections.industryTrends.status === "loading";
 
   // Market report fields
   const executiveSummaryBrief =
@@ -580,7 +586,84 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
   const closeNewsDetail = () => setSelectedNewsId(null);
   const closeTrendDetail = () => setSelectedTrendId(null);
 
+  // Hero/header for each trend detail — kept visible while the body loads
+  const renderTrendHero = (id: string, location: string) => {
+    switch (id) {
+      case "high-growth":
+        return (
+          <div className="bg-emerald-50/50 p-8 rounded-3xl border border-emerald-100">
+            <div className="flex items-center gap-3 mb-2">
+              <Rocket className="w-8 h-8 text-emerald-600" />
+              <h2 className="text-2xl font-extrabold text-slate-900">
+                10 High-Growth Sectors & Roles
+              </h2>
+            </div>
+            <p className="text-slate-500 font-medium">
+              Industries with strong hiring momentum in {location}
+            </p>
+          </div>
+        );
+      case "at-risk":
+        return (
+          <div className="bg-rose-50/50 p-8 rounded-3xl border border-rose-100">
+            <div className="flex items-center gap-3 mb-2">
+              <AlertTriangle className="w-8 h-8 text-rose-600" />
+              <h2 className="text-2xl font-extrabold text-slate-900">
+                10 At-Risk Role Clusters & Pivot Paths
+              </h2>
+            </div>
+            <p className="text-slate-500 font-medium">
+              Understanding automation, structural shifts, and strategic pivot
+              paths
+            </p>
+          </div>
+        );
+      case "top-skills":
+        return (
+          <div className="bg-indigo-50/50 p-8 rounded-[2rem] border border-indigo-100">
+            <div className="flex items-center gap-4 mb-2">
+              <Zap className="w-8 h-8 text-indigo-600" />
+              <div>
+                <h2 className="text-2xl font-extrabold text-slate-900">
+                  Top Skills Demand in 2025
+                </h2>
+                <p className="text-slate-500 font-medium">
+                  Skills positioned by market maturity and growth velocity
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      case "market-risks":
+        return (
+          <div className="bg-amber-50/50 p-8 rounded-3xl border border-amber-100">
+            <div className="flex items-center gap-3 mb-2">
+              <Shield className="w-8 h-8 text-amber-600" />
+              <h2 className="text-2xl font-extrabold text-slate-900">
+                Market Risks & Challenges
+              </h2>
+            </div>
+            <p className="text-slate-500 font-medium">
+              Potential challenges and mitigation strategies for your career path
+            </p>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   const renderTrendDetail = (id: string, location: string) => {
+    if (industryTrendsLoading) {
+      return (
+        <div className="space-y-10">
+          {renderTrendHero(id, location)}
+          <div className="min-h-[300px] flex items-center justify-center">
+            <AnimatedLoader />
+          </div>
+        </div>
+      );
+    }
     switch (id) {
       case "high-growth":
         return (
@@ -859,11 +942,75 @@ const MarketInsightView: React.FC<MarketInsightViewProps> = ({ user }) => {
     }
   };
 
+  // Hero/header for each market-report article — kept visible while the body loads
+  const renderArticleHero = (id: string, location: string, country: string) => {
+    switch (id) {
+      case "1":
+        return (
+          <div className="bg-indigo-50/50 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-indigo-100">
+            <div className="flex items-center gap-2 md:gap-3 mb-2">
+              <MapPin className="w-6 h-6 md:w-8 md:h-8 text-indigo-600" />
+              <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">
+                Market Intelligence Report
+              </h2>
+            </div>
+            <p className="text-indigo-900 font-bold mb-1 text-sm md:text-base">
+              {location}, {country}
+            </p>
+            <p className="text-slate-500 font-medium text-sm md:text-base">
+              Your personalized career intelligence based on real labor market
+              data
+            </p>
+          </div>
+        );
+      case "2":
+        return (
+          <div className="bg-sky-50 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-sky-100">
+            <div className="flex items-center gap-2 md:gap-3 mb-2">
+              <BarChart2 className="w-6 h-6 md:w-8 md:h-8 text-sky-600" />
+              <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">
+                Labour Market Snapshot
+              </h2>
+            </div>
+            <p className="text-slate-500 font-medium text-sm md:text-base">
+              Current state of the job market in {location}
+            </p>
+          </div>
+        );
+      case "3":
+        return (
+          <div className="bg-amber-50 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-amber-100">
+            <div className="flex items-center gap-2 md:gap-3 mb-2">
+              <MapPin className="w-6 h-6 md:w-8 md:h-8 text-indigo-600" />
+              <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">
+                {location} vs Broader Region
+              </h2>
+            </div>
+            <p className="text-slate-500 font-medium text-sm md:text-base">
+              How your city compares to the wider region
+            </p>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   const renderArticleContent = (
     id: string,
     location: string,
     country: string,
   ) => {
+    if (marketReportLoading) {
+      return (
+        <div className="space-y-12">
+          {renderArticleHero(id, location, country)}
+          <div className="min-h-[300px] flex items-center justify-center">
+            <AnimatedLoader />
+          </div>
+        </div>
+      );
+    }
     switch (id) {
       case "1":
         return (
