@@ -1,5 +1,5 @@
 {
-  "name": "career-compass-cron",
+  "name": "clarity-coach-cron",
   "version": "1.0.0",
   "description": "A serverless function to run scheduled tasks for Career Compass.",
   "author": "",

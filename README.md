@@ -7,7 +7,7 @@
 - The FE should be running on port 5173
 
 # Spin Up The Back End (web-server)
--Download Docker run: docker run -d --name career-compass-redis -p 6379:6379 redis
+-Download Docker run: docker run -d --name clarity-coach-redis -p 6379:6379 redis
 - Add BE Env Variables
 - Run npm i
 - Run npm run dev

@@ -1,4 +1,4 @@
-service: career-compass-cron
+service: clarity-coach-cron
 frameworkVersion: "3"
 plugins:
   - serverless-dotenv-plugin
