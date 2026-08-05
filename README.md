@@ -12,5 +12,3 @@
 - Run npm i
 - Run npm run dev
 - The BE should be running on port 5001
-
-#
