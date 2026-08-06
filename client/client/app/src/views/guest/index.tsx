@@ -50,15 +50,25 @@ const PROCESSING_LABELS: Record<Tool, string> = {
   market: 'market snapshot',
 };
 
-/** Interstitial that forwards to the matching preview route, mirroring the prototype delay. */
+/**
+ * Interstitial that forwards to the result route, mirroring the prototype delay. Market
+ * Report opens its guest workspace overview instead of a preview page.
+ */
 export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
-  const { navigate } = useClarity();
+  const { navigate, patch } = useClarity();
   const { step, names } = progressSteps(tool);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => navigate(`${tool}-preview`), 850);
+    const timer = window.setTimeout(() => {
+      if (tool === 'market') {
+        patch({ marketHasReports: true, marketGuestReady: true });
+        navigate('market-workspace-result');
+        return;
+      }
+      navigate(`${tool}-preview`);
+    }, 850);
     return () => window.clearTimeout(timer);
-  }, [navigate, tool]);
+  }, [navigate, patch, tool]);
 
   return (
     <>
@@ -666,67 +676,3 @@ export const PivotPreviewView: React.FC = () => {
   );
 };
 
-const MARKET_SIGNALS: Array<[string, string, string]> = [
-  ['AI-enabled product delivery', 'High signal', '84%'],
-  ['Commercial ownership', 'High signal', '76%'],
-  ['Risk and compliance fluency', 'Growing', '64%'],
-];
-
-export const MarketPreviewView: React.FC = () => {
-  const { state } = useClarity();
-  return (
-    <PreviewBase
-      title="Market Report preview"
-      subtitle={`${state.market.role} · ${state.market.location}`}
-      tool="market"
-    >
-      <section className="resultsection">
-        <span className="label">Market direction</span>
-        <div className="marketstats" style={{ marginTop: 12 }}>
-          <div className="stat">
-            <strong>Stable</strong>
-            <small>Current demand signal</small>
-          </div>
-          <div className="stat">
-            <strong>Hybrid</strong>
-            <small>Most common work mode</small>
-          </div>
-          <div className="stat">
-            <strong>3</strong>
-            <small>Skills rising fastest</small>
-          </div>
-        </div>
-      </section>
-      <section className="resultsection">
-        <span className="label">What employers are emphasizing</span>
-        <div className="bars" style={{ marginTop: 15 }}>
-          {MARKET_SIGNALS.map(([label, strength, width]) => (
-            <div key={label} className="bar">
-              <label>
-                <span>{label}</span>
-                <b>{strength}</b>
-              </label>
-              <div className="track">
-                <div className="fill" style={{ width }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="resultsection">
-        <span className="label">Practical implication</span>
-        <h3>Position beyond roadmap ownership.</h3>
-        <p>
-          Current postings increasingly connect senior product roles with commercial
-          outcomes, AI-enabled workflows and regulated execution.
-        </p>
-        <div className="evidence">
-          <b>Prototype evidence label</b>
-          <br />
-          Production results must display source, geography, retrieval date and
-          confidence.
-        </div>
-      </section>
-    </PreviewBase>
-  );
-};

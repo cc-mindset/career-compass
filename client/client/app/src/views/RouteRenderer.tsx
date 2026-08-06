@@ -1,15 +1,23 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useClarity } from '../state/contexts/ClarityContext';
 import type { HomeMode, Tool, WorkState } from '../types';
 import { SignInView, SignUpView } from './auth';
 import { AccountProfileView, CareerProfileView } from './career-profile';
 import { DashboardToolView, HomeView, SkillsMatchView } from './dashboard';
 import {
+  MarketWorkspaceEmptyView,
+  MarketWorkspaceFullReportView,
+  MarketWorkspaceGeneratingView,
+  MarketWorkspaceHistoryView,
+  MarketWorkspaceInsightsView,
+  MarketWorkspaceNewView,
+  MarketWorkspaceResultView,
+} from './market-workspace';
+import {
   JobInputView,
   JobPreviewView,
   JobReviewView,
   MarketInputView,
-  MarketPreviewView,
   PivotInputView,
   PivotPreviewView,
 } from './guest';
@@ -24,9 +32,14 @@ import { LandingView } from './landing';
 import { NewAccountStepView } from './new-account';
 
 const LANDING_ANCHORS = ['how', 'tools', 'why', 'pricing'];
-const TOOLS: Tool[] = ['pivot', 'job', 'market'];
 
-const isTool = (value: string): value is Tool => TOOLS.includes(value as Tool);
+/** `dashboard-market` is handled by the Market Report workspace routes instead. */
+type DashboardTool = Exclude<Tool, 'market'>;
+
+const DASHBOARD_TOOLS: DashboardTool[] = ['pivot', 'job'];
+
+const isDashboardTool = (value: string): value is DashboardTool =>
+  DASHBOARD_TOOLS.includes(value as DashboardTool);
 
 const homeModeFor = (workState: WorkState): HomeMode =>
   workState === 'completed'
@@ -54,6 +67,64 @@ const clampStep = (raw: string): number => {
   return Math.min(8, Math.floor(parsed));
 };
 
+/** The guest overview is the only Market Report screen reachable without an account. */
+const GUEST_MARKET_ROUTES = ['market-workspace-result'];
+
+const isMarketRoute = (route: string): boolean =>
+  route === 'dashboard-market' || route.startsWith('market-workspace-');
+
+/**
+ * Sends visitors to sign-in when they reach a gated Market Report screen, remembering the
+ * guest overview so it reopens once they have an account.
+ */
+const MarketAuthGate: React.FC = () => {
+  const { state, patch, toast } = useClarity();
+  const announced = useRef(false);
+  const { marketGuestReady } = state;
+
+  useEffect(() => {
+    if (announced.current) return;
+    announced.current = true;
+    patch({
+      entryPoint: 'market-auth-required',
+      pendingGuest: marketGuestReady ? 'market' : null,
+      postAuthRoute: marketGuestReady ? 'market-workspace-result' : null,
+    });
+    toast('Sign in or create an account to access Market Report.');
+  }, [marketGuestReady, patch, toast]);
+
+  return <SignInView />;
+};
+
+const MarketRoute: React.FC<{ route: string }> = ({ route }) => {
+  const { state } = useClarity();
+
+  if (route === 'dashboard-market') {
+    return state.marketHasReports ? (
+      <MarketWorkspaceHistoryView />
+    ) : (
+      <MarketWorkspaceEmptyView />
+    );
+  }
+
+  switch (route) {
+    case 'market-workspace-empty':
+      return <MarketWorkspaceEmptyView />;
+    case 'market-workspace-new':
+      return <MarketWorkspaceNewView />;
+    case 'market-workspace-generating':
+      return <MarketWorkspaceGeneratingView />;
+    case 'market-workspace-insights':
+      return <MarketWorkspaceInsightsView />;
+    case 'market-workspace-full':
+      return <MarketWorkspaceFullReportView />;
+    case 'market-workspace-history':
+      return <MarketWorkspaceHistoryView />;
+    default:
+      return <MarketWorkspaceResultView />;
+  }
+};
+
 export const RouteRenderer: React.FC = () => {
   const { route, state } = useClarity();
 
@@ -69,9 +140,16 @@ export const RouteRenderer: React.FC = () => {
     );
   }
 
+  if (isMarketRoute(route)) {
+    if (!state.registered && !GUEST_MARKET_ROUTES.includes(route)) {
+      return <MarketAuthGate />;
+    }
+    return <MarketRoute route={route} />;
+  }
+
   if (route.startsWith('dashboard-')) {
     const tool = route.replace('dashboard-', '');
-    if (isTool(tool)) return <DashboardToolView tool={tool} />;
+    if (isDashboardTool(tool)) return <DashboardToolView tool={tool} />;
   }
 
   switch (route) {
@@ -87,8 +165,6 @@ export const RouteRenderer: React.FC = () => {
       return <PivotPreviewView />;
     case 'market-input':
       return <MarketInputView />;
-    case 'market-preview':
-      return <MarketPreviewView />;
     case 'signin':
       return <SignInView />;
     case 'signup':

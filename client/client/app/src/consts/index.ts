@@ -229,8 +229,10 @@ export const INITIAL_STATE: ClarityState = {
   },
   market: {
     role: 'Product Manager',
+    industry: 'Financial Services',
     location: 'Toronto, Canada',
     level: 'Senior',
+    workPreference: 'Any',
   },
   registered: false,
   profileModal: false,
@@ -248,6 +250,15 @@ export const INITIAL_STATE: ClarityState = {
   theme: 'system',
   demoPanelOpen: false,
   toastMessage: null,
+  postAuthRoute: null,
+  marketHasReports: false,
+  marketGuestReady: false,
+  marketGuestSaved: false,
+  marketCreateMode: false,
+  marketSnapshotDate: null,
+  marketReportTab: 'overview',
+  marketOpportunityView: 'roles',
+  marketOpportunityDetail: null,
 };
 
 export const DEMO_STATES: Array<[DemoStateKey, string]> = [
@@ -272,7 +283,17 @@ export const DEMO_STATES: Array<[DemoStateKey, string]> = [
   ['job-new', 'Job Analyzer · new'],
   ['job-review', 'Job Analyzer · review'],
   ['job-result', 'Job Analyzer · result'],
+  ['market-empty', 'Market Report · no profile'],
+  ['market-profile', 'Market Report · profile prefilled'],
+  ['market-generating', 'Market Report · generating'],
+  ['market-result', 'Market Report · overview'],
+  ['market-insights', 'Market Report · all insights'],
+  ['market-full', 'Market Report · full report'],
+  ['market-history', 'Market Report · previous reports'],
 ];
+
+/** Index of the first Market Report entry in {@link DEMO_STATES}. */
+export const DEMO_MARKET_START = DEMO_STATES.findIndex(([key]) => key === 'market-empty');
 
 export const icon = (name: string): string =>
   (

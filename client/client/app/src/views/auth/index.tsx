@@ -12,19 +12,27 @@ const guestEntryPoint = (tool: Tool): EntryPoint => `guest-${tool}`;
 const GUEST_LABELS: Record<Tool, string> = {
   job: 'job analysis',
   pivot: 'career pivot preview',
-  market: 'market report',
-};
-
-const SAVED_SUMMARY: Record<Tool, string> = {
-  job: 'Senior Product Manager · Hidden expectation preview',
-  pivot: '3 pivot paths · Transferable skills preview',
-  market: 'Product Manager · Toronto market preview',
+  market: 'Market Report overview',
 };
 
 export const SignInView: React.FC = () => {
   const { state, patch, navigate, toast } = useClarity();
 
   const signInUser = () => {
+    if (state.pendingGuest === 'market') {
+      const destination = state.postAuthRoute || 'market-workspace-result';
+      patch({
+        registered: true,
+        entryPoint: 'guest-market',
+        workState: 'unfinished',
+        marketHasReports: true,
+        marketGuestReady: true,
+        marketGuestSaved: true,
+        postAuthRoute: null,
+      });
+      navigate(destination);
+      return;
+    }
     if (state.pendingGuest) {
       patch({
         registered: true,
@@ -123,8 +131,16 @@ export const SignInView: React.FC = () => {
 };
 
 export const SignUpView: React.FC<{ mode: string }> = ({ mode }) => {
-  const { patch, navigate, toast } = useClarity();
+  const { state, patch, navigate, toast } = useClarity();
   const guestTool = isTool(mode) ? mode : null;
+  const marketGuest = guestTool === 'market';
+
+  const savedSummary = (): string => {
+    if (!guestTool) return 'Career Pivot · Job Analyzer · Market Report';
+    if (guestTool === 'job') return 'Senior Product Manager · Hidden expectation preview';
+    if (guestTool === 'pivot') return '3 pivot paths · Transferable skills preview';
+    return `${state.market.role} · ${state.market.level} · ${state.market.location}`;
+  };
 
   useEffect(() => {
     if (guestTool) {
@@ -132,6 +148,7 @@ export const SignUpView: React.FC<{ mode: string }> = ({ mode }) => {
         tool: guestTool,
         pendingGuest: guestTool,
         entryPoint: guestEntryPoint(guestTool),
+        ...(guestTool === 'market' ? { postAuthRoute: 'market-workspace-result' } : {}),
       });
       return;
     }
@@ -139,15 +156,27 @@ export const SignUpView: React.FC<{ mode: string }> = ({ mode }) => {
   }, [guestTool, patch]);
 
   const completeSignup = () => {
-    patch({ registered: true, workState: guestTool ? 'unfinished' : 'none' });
+    patch({
+      registered: true,
+      workState: guestTool ? 'unfinished' : 'none',
+      ...(marketGuest
+        ? {
+            marketHasReports: true,
+            marketGuestReady: true,
+            marketGuestSaved: true,
+            postAuthRoute: null,
+          }
+        : {}),
+    });
     toast('Account created. Confirmation email sent.');
-    window.setTimeout(() => {
-      if (!guestTool) {
-        navigate('dashboard-new');
-        return;
-      }
-      navigate(guestTool === 'job' ? 'job-workspace-result' : `dashboard-${guestTool}`);
-    }, 500);
+    const destination = !guestTool
+      ? 'dashboard-new'
+      : guestTool === 'job'
+        ? 'job-workspace-result'
+        : marketGuest
+          ? state.postAuthRoute || 'market-workspace-result'
+          : `dashboard-${guestTool}`;
+    window.setTimeout(() => navigate(destination), 500);
   };
 
   return (
@@ -170,11 +199,7 @@ export const SignUpView: React.FC<{ mode: string }> = ({ mode }) => {
           </p>
           <div className="savedbox">
             <b>{guestTool ? 'Saved from your guest session' : 'Included with your account'}</b>
-            <p>
-              {guestTool
-                ? SAVED_SUMMARY[guestTool]
-                : 'Career Pivot · Job Analyzer · Market Report'}
-            </p>
+            <p>{savedSummary()}</p>
           </div>
         </div>
         <p>

@@ -13,7 +13,9 @@ export type EntryPoint =
   | 'dashboard'
   | 'direct-signup'
   | 'signin'
-  | 'result';
+  | 'result'
+  | 'market-auth-required'
+  | 'market-report';
 
 export type HomeMode =
   | 'new'
@@ -38,9 +40,15 @@ export interface PivotInfo {
 
 export interface MarketInfo {
   role: string;
+  industry: string;
   location: string;
   level: string;
+  workPreference: string;
 }
+
+export type MarketReportTab = 'overview' | 'opportunities' | 'skills' | 'evidence';
+
+export type MarketOpportunityView = 'roles' | 'sectors' | 'locations' | 'risks';
 
 export interface ClarityState {
   tool: Tool;
@@ -65,6 +73,20 @@ export interface ClarityState {
   theme: ThemePreference;
   demoPanelOpen: boolean;
   toastMessage: string | null;
+  /** Route to resume once the visitor signs in or creates an account. */
+  postAuthRoute: ClarityRoute | null;
+  marketHasReports: boolean;
+  /** Set once a guest has generated an overview worth carrying into an account. */
+  marketGuestReady: boolean;
+  marketGuestSaved: boolean;
+  /** Distinguishes creating a new report from refreshing the current one. */
+  marketCreateMode: boolean;
+  /** Non-null when viewing an archived snapshot rather than the current report. */
+  marketSnapshotDate: string | null;
+  marketReportTab: MarketReportTab;
+  marketOpportunityView: MarketOpportunityView;
+  /** `<view>-<index>` key of the expanded opportunity row, or null when all are collapsed. */
+  marketOpportunityDetail: string | null;
 }
 
 export type ClarityRoute =
@@ -75,7 +97,6 @@ export type ClarityRoute =
   | 'pivot-input'
   | 'pivot-preview'
   | 'market-input'
-  | 'market-preview'
   | 'signin'
   | 'signup'
   | 'dashboard-home'
@@ -94,6 +115,14 @@ export type ClarityRoute =
   | 'job-workspace-new'
   | 'job-workspace-review'
   | 'job-workspace-result'
+  | 'market-workspace-empty'
+  | 'market-workspace-new'
+  | 'market-workspace-generating'
+  | 'market-workspace-result'
+  | 'market-workspace-insights'
+  | 'market-workspace-full'
+  | 'market-workspace-snapshot'
+  | 'market-workspace-history'
   | `signup-${string}`
   | `prototype-new-account-${number}`
   | 'how'
@@ -122,4 +151,11 @@ export type DemoStateKey =
   | 'job-history'
   | 'job-new'
   | 'job-review'
-  | 'job-result';
+  | 'job-result'
+  | 'market-empty'
+  | 'market-profile'
+  | 'market-generating'
+  | 'market-result'
+  | 'market-insights'
+  | 'market-full'
+  | 'market-history';
