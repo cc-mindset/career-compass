@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
 import { DashboardShell } from '../../components/DashboardShell';
-import { SelectField } from '../../components/forms';
-import { icon, LOCATION_OPTIONS, ROLE_OPTIONS } from '../../consts';
+import { icon } from '../../consts';
 import { useClarity } from '../../state/contexts/ClarityContext';
-import type { HomeMode, JobSource, Tool } from '../../types';
+import type { HomeMode, Tool } from '../../types';
 import { JobWorkspaceHistoryView } from '../job-workspace';
 
 const SWITCHER_MODES: Array<[HomeMode, string, string]> = [
@@ -527,121 +526,6 @@ export const HomeView: React.FC<{ mode: HomeMode }> = ({ mode }) => {
   );
 };
 
-const START_JOB_SOURCES: Array<[JobSource, string, string]> = [
-  ['paste', 'Paste description', 'Paste the complete posting'],
-  ['url', 'Job URL', 'Use a public accessible URL'],
-  ['upload', 'Upload file', 'PDF, DOCX or TXT'],
-];
-
-const DashboardToolStart: React.FC<{ tool: Extract<Tool, 'job' | 'market'> }> = ({
-  tool,
-}) => {
-  const { state, patch, navigate, setJobSource } = useClarity();
-  const isJob = tool === 'job';
-
-  return (
-    <DashboardShell
-      title={isJob ? 'Job Analyzer' : 'Market Report'}
-      subtitle="Start new"
-      activeNav={isJob ? 'job' : 'market'}
-      hideProfilePct
-    >
-      <div className="flowHeader">
-        <div>
-          <div className="eyebrow">New analysis</div>
-          <h1>{isJob ? 'Analyze a new job' : 'Create a new Market Report'}</h1>
-          <p>
-            {isJob
-              ? 'Add a complete job description to reveal stated requirements and likely hidden expectations.'
-              : 'Choose a role, seniority and location to review demand and rising skill signals.'}
-          </p>
-        </div>
-      </div>
-      <section className="flowPanel">
-        {isJob ? (
-          <>
-            <div className="choicegrid">
-              {START_JOB_SOURCES.map(([key, title, hint]) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`choice ${state.jobSource === key ? 'active' : ''}`}
-                  onClick={() => setJobSource(key)}
-                >
-                  <b>{title}</b>
-                  <small>{hint}</small>
-                </button>
-              ))}
-            </div>
-            <div className="field">
-              <label>
-                Job information <small>Required</small>
-              </label>
-              <textarea
-                className="input"
-                style={{ minHeight: 180 }}
-                placeholder="Paste the complete job description here…"
-              />
-            </div>
-          </>
-        ) : (
-          <div className="split">
-            <SelectField
-              label={
-                <>
-                  Role <small>Required</small>
-                </>
-              }
-              value={state.market.role}
-              options={ROLE_OPTIONS}
-              onChange={(role) => patch({ market: { ...state.market, role } })}
-            />
-            <SelectField
-              label={
-                <>
-                  Seniority <small>Required</small>
-                </>
-              }
-              value={state.market.level}
-              options={['Mid-level', 'Lead / Manager', 'Director', 'Executive']}
-              onChange={(level) => patch({ market: { ...state.market, level } })}
-            />
-            <SelectField
-              label={
-                <>
-                  Location <small>Required</small>
-                </>
-              }
-              value={state.market.location}
-              options={LOCATION_OPTIONS}
-              onChange={(location) => patch({ market: { ...state.market, location } })}
-            />
-          </div>
-        )}
-        <div className="flowActions">
-          <a
-            className="btn secondary"
-            href="#dashboard-home"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate('dashboard-home');
-            }}
-          >
-            Cancel
-          </a>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => patch({ pendingGuest: null, entryPoint: 'result' })}
-          >
-            {isJob ? 'Analyze this job' : 'Generate Market Report'} →
-          </button>
-        </div>
-      </section>
-    </DashboardShell>
-  );
-};
-
 const PIVOT_RESULTS: Array<[string, string, string]> = [
   [
     'Payments Platform Product Lead',
@@ -708,84 +592,15 @@ const RestoredPivotResult: React.FC = () => {
   );
 };
 
-const RestoredMarketResult: React.FC = () => {
-  const { state } = useClarity();
-  return (
-    <>
-      <div className="context">
-        <div>
-          <b>Guest market report restored</b>
-          <p>
-            {state.market.role} · {state.market.location}
-          </p>
-        </div>
-        <span className="pill high">Saved to your account</span>
-      </div>
-      <section className="fullresult">
-        <div className="eyebrow">Complete Market Report</div>
-        <h2>Demand, skill signals and adjacent opportunities</h2>
-        <div className="marketstats">
-          <div className="stat">
-            <strong>Stable</strong>
-            <small>Demand direction</small>
-          </div>
-          <div className="stat">
-            <strong>+12%</strong>
-            <small>Illustrative posting trend</small>
-          </div>
-          <div className="stat">
-            <strong>3</strong>
-            <small>Adjacent role clusters</small>
-          </div>
-        </div>
-        <div className="fullgrid">
-          <div className="plainsection">
-            <span className="label">Rising skills</span>
-            <h3>AI-enabled workflows</h3>
-            <p>
-              Employers increasingly expect practical adoption rather than general
-              awareness.
-            </p>
-            <h3>Commercial product ownership</h3>
-            <p>More roles connect product decisions with revenue, margin or retention.</p>
-          </div>
-          <div className="plainsection">
-            <span className="label">Adjacent opportunity areas</span>
-            <h3>Platform Product Lead</h3>
-            <p>Strong overlap with senior product experience.</p>
-            <h3>Product Operations</h3>
-            <p>Good adjacency where operating cadence and metrics are demonstrated.</p>
-          </div>
-        </div>
-        <div className="evidence">
-          <b>Production sourcing requirement</b>
-          <br />
-          Every live market claim must show source, geography and retrieval date. Values
-          shown here are prototype data.
-        </div>
-      </section>
-    </>
-  );
-};
-
-const TOOL_NAMES: Record<Tool, string> = {
-  job: 'Job Analyzer',
-  pivot: 'Career Pivot',
-  market: 'Market Report',
-};
-
-export const DashboardToolView: React.FC<{ tool: Tool }> = ({ tool }) => {
-  const { state } = useClarity();
-
+/** Market Report is served by its own workspace routes, so only job and pivot arrive here. */
+export const DashboardToolView: React.FC<{ tool: Exclude<Tool, 'market'> }> = ({
+  tool,
+}) => {
   if (tool === 'job') return <JobWorkspaceHistoryView />;
 
-  if (tool === 'market' && state.entryPoint === 'dashboard' && !state.pendingGuest) {
-    return <DashboardToolStart tool="market" />;
-  }
-
   return (
-    <DashboardShell title={TOOL_NAMES[tool]} subtitle="Your workspace" activeNav={tool}>
-      {tool === 'pivot' ? <RestoredPivotResult /> : <RestoredMarketResult />}
+    <DashboardShell title="Career Pivot" subtitle="Your workspace" activeNav="pivot">
+      <RestoredPivotResult />
     </DashboardShell>
   );
 };

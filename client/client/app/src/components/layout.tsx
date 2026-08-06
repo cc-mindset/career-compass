@@ -1,5 +1,5 @@
 import React from 'react';
-import { DEMO_STATES } from '../consts';
+import { DEMO_MARKET_START, DEMO_STATES } from '../consts';
 import { useClarity } from '../state/contexts/ClarityContext';
 import type { DemoStateKey } from '../types';
 
@@ -207,7 +207,8 @@ export const DemoNavigator: React.FC = () => {
         {group('Dashboard Home states', 3, 6)}
         {group('Guest-to-account journeys', 6, 13)}
         {group('Profile and match', 13, 16)}
-        {group('Job Analyzer workspace', 16, 21)}
+        {group('Job Analyzer workspace', 16, DEMO_MARKET_START)}
+        {group('Market Report workspace', DEMO_MARKET_START, DEMO_STATES.length)}
         <div className="demoStepNav">
           <button type="button" onClick={() => demoMove(-1)}>
             ← Previous state

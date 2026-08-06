@@ -12,11 +12,24 @@ import type {
   ClarityState,
   DemoStateKey,
   JobSource,
+  MarketOpportunityView,
+  MarketReportTab,
   ProfileOrigin,
   ProfileSource,
   ThemePreference,
   Tool,
 } from '../../types';
+
+/**
+ * Actions offered from the Market Report overview. Guests are sent to sign-up with the
+ * matching tab remembered; registered users go straight to the destination.
+ */
+export type MarketAction =
+  | 'skills'
+  | 'insights'
+  | 'path'
+  | 'recommendations'
+  | 'full';
 
 interface ClarityContextValue {
   state: ClarityState;
@@ -49,6 +62,17 @@ interface ClarityContextValue {
   startTool: () => void;
   scrollTool: () => void;
   scrollMvp: (direction: number) => void;
+  startNewMarketReport: () => void;
+  refreshMarketReport: () => void;
+  reviewMarketSnapshot: (date: string) => void;
+  setMarketReportTab: (tab: MarketReportTab) => void;
+  setMarketOpportunityView: (view: MarketOpportunityView) => void;
+  toggleMarketOpportunityDetail: (key: string) => void;
+  openMarketAction: (action: MarketAction) => void;
+  openFullMarketReport: () => void;
+  openSkillsFromMarket: () => void;
+  /** Copies saved career direction into the market inputs so questions are not repeated. */
+  syncProfileToMarket: () => void;
 }
 
 const ClarityContext = createContext<ClarityContextValue | null>(null);
@@ -257,16 +281,21 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
             tool: 'market',
             pendingGuest: 'market',
             entryPoint: 'guest-market',
+            marketHasReports: true,
+            marketGuestReady: true,
           });
-          return demoJump('market-preview');
+          return demoJump('market-workspace-result');
         case 'saved-market':
           patch({
             ...base,
             tool: 'market',
             pendingGuest: 'market',
             entryPoint: 'guest-market',
+            marketHasReports: true,
+            marketGuestReady: true,
+            marketGuestSaved: true,
           });
-          return demoJump('dashboard-market');
+          return demoJump('market-workspace-result');
         case 'profile':
           patch({
             ...base,
@@ -306,6 +335,40 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
         case 'job-result':
           patch({ ...base, pendingGuest: null, entryPoint: 'dashboard' });
           return demoJump('job-workspace-result');
+        case 'market-empty':
+          patch({
+            ...base,
+            marketHasReports: false,
+            marketSnapshotDate: null,
+            profileComplete: false,
+          });
+          return demoJump('market-workspace-empty');
+        case 'market-profile':
+          patch({
+            ...base,
+            marketHasReports: false,
+            marketSnapshotDate: null,
+            profileComplete: true,
+          });
+          return demoJump('market-workspace-new');
+        case 'market-generating':
+          patch({ ...base, marketHasReports: false, marketSnapshotDate: null });
+          return demoJump('market-workspace-generating');
+        case 'market-result':
+        case 'market-insights':
+          patch({ ...base, marketHasReports: true, marketSnapshotDate: null });
+          return demoJump('market-workspace-result');
+        case 'market-full':
+          patch({
+            ...base,
+            marketHasReports: true,
+            marketSnapshotDate: null,
+            marketReportTab: 'overview',
+          });
+          return demoJump('market-workspace-full');
+        case 'market-history':
+          patch({ ...base, marketHasReports: true, marketSnapshotDate: null });
+          return demoJump('market-workspace-history');
         default:
           return demoJump('landing');
       }
@@ -323,6 +386,61 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
     },
     [demoGo],
   );
+
+  // Idempotent and identity-stable so views can call it from an effect without looping.
+  const syncProfileToMarket = useCallback(() => {
+    setState((prev) => {
+      if (!prev.profileComplete) return prev;
+      const market = {
+        ...prev.market,
+        role: prev.pivot.title,
+        industry: prev.pivot.industry,
+        level: prev.pivot.experience,
+        location: prev.pivot.location,
+      };
+      const unchanged = (Object.keys(market) as Array<keyof typeof market>).every(
+        (key) => market[key] === prev.market[key],
+      );
+      return unchanged ? prev : { ...prev, market };
+    });
+  }, []);
+
+  const openSkillsFromMarket = useCallback(() => {
+    patch({ profileOrigin: 'skills', entryPoint: 'market-report' });
+    if (state.profileComplete) {
+      navigate('skills-match');
+      return;
+    }
+    patch({ profileModal: false, profilePageStep: 1 });
+    navigate('career-profile');
+  }, [navigate, patch, state.profileComplete]);
+
+  const focusMarketInsights = useCallback(() => {
+    navigate('market-workspace-result');
+    window.setTimeout(
+      () =>
+        document
+          .getElementById('market-insights')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      80,
+    );
+  }, [navigate]);
+
+  const openFullMarketReport = useCallback(() => {
+    if (state.registered) {
+      patch({ marketReportTab: 'overview' });
+      navigate('market-workspace-full');
+      return;
+    }
+    patch({
+      pendingGuest: 'market',
+      tool: 'market',
+      entryPoint: 'guest-market',
+      marketGuestReady: true,
+      postAuthRoute: 'market-workspace-result',
+    });
+    navigate('signup-market');
+  }, [navigate, patch, state.registered]);
 
   const value = useMemo<ClarityContextValue>(
     () => ({
@@ -406,6 +524,62 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
           .getElementById('mvpRail')
           ?.scrollBy({ left: direction * 370, behavior: 'smooth' });
       },
+      startNewMarketReport: () => {
+        patch({ marketCreateMode: true, marketSnapshotDate: null });
+        navigate('market-workspace-new');
+      },
+      refreshMarketReport: () => {
+        patch({ marketCreateMode: false, marketSnapshotDate: null });
+        navigate('market-workspace-new');
+      },
+      reviewMarketSnapshot: (date) => {
+        patch({ marketSnapshotDate: date });
+        navigate('market-workspace-snapshot');
+      },
+      setMarketReportTab: (marketReportTab) => patch({ marketReportTab }),
+      setMarketOpportunityView: (marketOpportunityView) =>
+        patch({ marketOpportunityView, marketOpportunityDetail: null }),
+      toggleMarketOpportunityDetail: (key) =>
+        setState((prev) => ({
+          ...prev,
+          marketOpportunityDetail: prev.marketOpportunityDetail === key ? null : key,
+        })),
+      openMarketAction: (action) => {
+        if (state.registered) {
+          if (action === 'skills') {
+            openSkillsFromMarket();
+            return;
+          }
+          if (action === 'insights') {
+            focusMarketInsights();
+            return;
+          }
+          if (action === 'path') {
+            navigate('prototype-new-account-2');
+            return;
+          }
+          patch({ marketReportTab: action === 'recommendations' ? 'skills' : 'overview' });
+          navigate('market-workspace-full');
+          return;
+        }
+        patch({
+          pendingGuest: 'market',
+          tool: 'market',
+          entryPoint: 'guest-market',
+          marketGuestReady: true,
+          marketReportTab:
+            action === 'recommendations'
+              ? 'skills'
+              : action === 'path'
+                ? 'opportunities'
+                : 'overview',
+          postAuthRoute: 'market-workspace-result',
+        });
+        navigate('signup-market');
+      },
+      openFullMarketReport,
+      openSkillsFromMarket,
+      syncProfileToMarket,
     }),
     [
       state,
@@ -418,6 +592,10 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
       demoMove,
       demoIndex,
       setTheme,
+      openSkillsFromMarket,
+      focusMarketInsights,
+      openFullMarketReport,
+      syncProfileToMarket,
     ],
   );
 

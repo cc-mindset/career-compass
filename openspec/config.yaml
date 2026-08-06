@@ -1,0 +1,42 @@
+schema: spec-driven
+
+context: |
+  Repo is a multi-surface monorepo with openspec/ for planning artifacts.
+  web-server is the TypeScript/Express backend; it owns API routes, Redis queueing, websocket progress, and MongoDB-backed LLM cache/models.
+  web-server uses Pinecone for RAG retrieval context and Redis for job queueing/cache coordination.
+  client/client/app is the active Vite + React + TypeScript frontend for the guest-first Clarity Coach prototype; it preserves hash routes and prototype class names.
+  client/legacy-client/app is a separate older Vite + React + TypeScript app; it has Jest/ts-jest and React Testing Library, with tests under src/views/auth/__test__.
+  serverless is a separate Serverless Framework package for scheduled jobs (index.js, serverless.yml).
+  Testing: web-server uses Vitest with supertest; client/client/app has lint only in package.json; legacy-client uses Jest; no top-level ai-enabler test runner was checked.
+  Naming/structure: runtime-specific folders stay separate by surface, and web-server follows routes/, services/, db/, lib/, types/, and utils/ conventions.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
