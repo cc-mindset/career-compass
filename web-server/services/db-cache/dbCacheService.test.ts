@@ -47,6 +47,10 @@ vi.mock('../../utils/logger', () => ({
     }
 }));
 
+vi.mock('../../utils/city', () => ({
+    getDistrictOfACity: vi.fn(() => ''),
+}));
+
 import LlmMarketReport from '../../db/models/marketReport';
 import LlmIndustryTrend from '../../db/models/industryTrends';
 import LlmMarketNews from '../../db/models/marketNews';
@@ -125,6 +129,7 @@ describe('dbCacheService', () => {
                     vars_id: mockCacheKey,
                     status: LlmCacheStatus.ACTIVE,
                     location: 'location',
+                    region: '',
                     data: mockResponse
                 },
                 { upsert: true }
@@ -149,6 +154,7 @@ describe('dbCacheService', () => {
                     vars_id: mockCacheKey,
                     status: LlmCacheStatus.ACTIVE,
                     location: 'location',
+                    region: '',
                     data: mockResponse
                 },
                 { upsert: true }
@@ -180,6 +186,7 @@ describe('dbCacheService', () => {
                     vars_id: mockCacheKey,
                     status: LlmCacheStatus.ACTIVE,
                     location: 'location',
+                    region: '',
                     data: mockResponseWithSections.market_news
                 },
                 { upsert: true }
@@ -191,9 +198,8 @@ describe('dbCacheService', () => {
                     vars_id: mockCacheKey,
                     status: LlmCacheStatus.ACTIVE,
                     location: 'location',
+                    region: '',
                     data: {
-                        strategies_by_experience: mockResponseWithSections.strategies_by_experience,
-                        key_findings: mockResponseWithSections.key_findings,
                         report_sources: mockResponseWithSections.report_sources
                     }
                 },
@@ -228,7 +234,8 @@ describe('dbCacheService', () => {
                 {
                     vars_id: mockCacheKey,
                     status: LlmCacheStatus.UPDATING,
-                    location: 'location'
+                    location: 'location',
+                    region: ''
                 },
                 { upsert: true }
             );
@@ -251,7 +258,8 @@ describe('dbCacheService', () => {
                 {
                     vars_id: mockCacheKey,
                     status: LlmCacheStatus.UPDATING,
-                    location: 'location'
+                    location: 'location',
+                    region: ''
                 },
                 { upsert: true }
             );
@@ -275,7 +283,8 @@ describe('dbCacheService', () => {
                 {
                     vars_id: mockCacheKey,
                     status: LlmCacheStatus.UPDATING,
-                    location: 'location'
+                    location: 'location',
+                    region: ''
                 },
                 { upsert: true }
             );
@@ -285,7 +294,8 @@ describe('dbCacheService', () => {
                 {
                     vars_id: mockCacheKey,
                     status: LlmCacheStatus.UPDATING,
-                    location: 'location'
+                    location: 'location',
+                    region: ''
                 },
                 { upsert: true }
             );
@@ -387,8 +397,6 @@ describe('dbCacheService', () => {
             expect(result).toEqual({
                 data: {
                     market_news: mockMarketNews.data,
-                    strategies_by_experience: mockCareerIntel.data.strategies_by_experience,
-                    key_findings: mockCareerIntel.data.key_findings,
                     report_sources: mockCareerIntel.data.report_sources
                 },
                 status: LlmCacheStatus.ACTIVE
