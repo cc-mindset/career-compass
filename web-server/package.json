@@ -7,7 +7,9 @@
     "start": "tsx server/index.ts",
     "build": "tsc",
     "type-check": "tsc --noEmit",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:core": "vitest run lib/vitestHarnessMocks.test.ts services/job-analyzer/jobAnalyzerService.test.ts services/job-analyzer/jobAnalysisPersistence.test.ts services/market-reports/userMarketReportService.test.ts",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {

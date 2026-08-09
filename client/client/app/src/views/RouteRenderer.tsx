@@ -88,10 +88,12 @@ const MarketAuthGate: React.FC = () => {
     patch({
       entryPoint: 'market-auth-required',
       pendingGuest: marketGuestReady ? 'market' : null,
-      postAuthRoute: marketGuestReady ? 'market-workspace-result' : null,
+      postAuthRoute: marketGuestReady
+        ? state.postAuthRoute || 'market-workspace-result'
+        : null,
     });
     toast('Sign in or create an account to access Market Report.');
-  }, [marketGuestReady, patch, toast]);
+  }, [marketGuestReady, patch, state.postAuthRoute, toast]);
 
   return <SignInView />;
 };
@@ -100,6 +102,7 @@ const MarketRoute: React.FC<{ route: string }> = ({ route }) => {
   const { state } = useClarity();
 
   if (route === 'dashboard-market') {
+    // History view fetches list and redirects to empty when none exist (no fake rows).
     return state.marketHasReports ? (
       <MarketWorkspaceHistoryView />
     ) : (
@@ -120,6 +123,8 @@ const MarketRoute: React.FC<{ route: string }> = ({ route }) => {
       return <MarketWorkspaceFullReportView />;
     case 'market-workspace-history':
       return <MarketWorkspaceHistoryView />;
+    case 'market-workspace-snapshot':
+      return <MarketWorkspaceResultView />;
     default:
       return <MarketWorkspaceResultView />;
   }

@@ -2,6 +2,8 @@ import express, { Request, Response } from "express";
 import { corsCheck } from "../middlewares/cors";
 import userRouter from "../routes/user";
 import marketInsightRouter from "../routes/marketInsight";
+import marketReportsRouter from "../routes/marketReports";
+import jobAnalyzerRouter from "../routes/jobAnalyzer";
 import testResumeRouter from "../routes/testResume";
 import resumeRouter from "../routes/resume";
 import cronRouter from "../routes/cron";
@@ -18,6 +20,8 @@ app.get("/", (_req: Request, res: Response) => {
 });
 app.use("/api/users", userRouter);
 app.use("/api/market-insights", marketInsightRouter);
+app.use("/api/market-reports", marketReportsRouter);
+app.use("/api/job-analyzer", jobAnalyzerRouter);
 app.use("/api/resume", resumeRouter);
 app.use("/api/test-resume", testResumeRouter);
 app.use("/api/cron", cronRouter)

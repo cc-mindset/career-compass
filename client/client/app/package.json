@@ -6,20 +6,34 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "lint": "eslint . --ext .ts,.tsx"
+    "preview": "vite preview --host 127.0.0.1 --port 3002",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:core": "vitest run src/lib/apiBase.test.ts src/lib/jobUploadFile.test.ts src/services/marketInsights/adapter.test.ts src/services/jobAnalyzer/api.test.ts",
+    "e2e:pulse": "playwright test e2e/pulse.spec.ts",
+    "e2e:smoke": "playwright test e2e/smoke.spec.ts",
+    "e2e:p0": "playwright test e2e/p0.spec.ts",
+    "e2e:all": "playwright test"
   },
   "dependencies": {
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
+    "jsdom": "^26.1.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^3.2.7"
   }
 }

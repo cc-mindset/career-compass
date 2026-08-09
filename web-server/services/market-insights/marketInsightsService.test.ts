@@ -1,48 +1,98 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { LlmCacheStatus } from '../../constants/db.js';
+import { LLM_SECTION_LABELS } from '../../constants/index.js';
 
-vi.mock('../ragService.js');
-vi.mock('../../utils/logger.js');
-vi.mock('../../lib/websocket.js');
-vi.mock('fs/promises');
-vi.mock('path');
+vi.mock('../ragRetrievalService.js', () => ({
+  retrieve: vi.fn(),
+}));
+vi.mock('../../lib/ragContextFormatters.js', () => ({
+  formatMarketInsightsContext: vi.fn(),
+}));
+vi.mock('../../utils/logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+vi.mock('../../lib/websocket.js', () => ({
+  emitToJob: vi.fn(),
+}));
+vi.mock('fs/promises', () => ({
+  writeFile: vi.fn(),
+  mkdir: vi.fn(),
+}));
+vi.mock('../db-cache/dbCacheService.js', () => ({
+  getCachedMarketInsightsFromDb: vi.fn(),
+  getMarketInsightsCacheKey: vi.fn(
+    (location: string, job?: string, seniority?: string) =>
+      `rag:${location}__${job || ''}__${seniority || ''}`,
+  ),
+  getCachedLlmResponseFromDb: vi.fn(),
+  getUniqueDbCacheKeyForLlmResponse: vi.fn(
+    (prefix: string, ...vars: string[]) => `${prefix}:${vars.join('__')}`,
+  ),
+  updateCacheResponseInDb: vi.fn(),
+  cacheLlmResponseToDb: vi.fn(),
+}));
+vi.mock('../../lib/openai.js', () => ({
+  openaiClient: {
+    generateJSONCompletion: vi.fn(),
+    generateCompletion: vi.fn(),
+  },
+  RateLimitError: class RateLimitError extends Error {},
+  QuotaExceededError: class QuotaExceededError extends Error {},
+  ConnectionTimeoutError: class ConnectionTimeoutError extends Error {},
+}));
 
 import { generateMarketInsights } from './marketInsightsService_multipart.js';
-import { generateMultipleWithSharedContext } from '../ragService.js';
+import { retrieve } from '../ragRetrievalService.js';
+import { formatMarketInsightsContext } from '../../lib/ragContextFormatters.js';
 import { logger } from '../../utils/logger.js';
 import { emitToJob } from '../../lib/websocket.js';
-import { writeFile } from 'fs/promises';
-import path from 'path';
+import { writeFile, mkdir } from 'fs/promises';
+import {
+  getCachedMarketInsightsFromDb,
+  getCachedLlmResponseFromDb,
+} from '../db-cache/dbCacheService.js';
+import { openaiClient } from '../../lib/openai.js';
 
-const mockGenerateMultipleWithSharedContext = generateMultipleWithSharedContext as any;
-const mockLoggerInfo = logger.info as any;
-const mockLoggerWarn = logger.warn as any;
-const mockEmitToJob = emitToJob as any;
-const mockWriteFile = writeFile as any;
-const mockPathJoin = path.join as any;
+const mockRetrieve = vi.mocked(retrieve);
+const mockFormatContext = vi.mocked(formatMarketInsightsContext);
+const mockGetTupleCache = vi.mocked(getCachedMarketInsightsFromDb);
+const mockGetSectionCache = vi.mocked(getCachedLlmResponseFromDb);
+const mockLoggerInfo = vi.mocked(logger.info);
+const mockLoggerWarn = vi.mocked(logger.warn);
+const mockEmitToJob = vi.mocked(emitToJob);
+const mockWriteFile = vi.mocked(writeFile);
+const mockMkdir = vi.mocked(mkdir);
+const mockGenerateJson = vi.mocked(openaiClient.generateJSONCompletion);
 
 describe('generateMarketInsights', () => {
   const location = 'New York, NY';
   const userId = 'user123';
   const jobId = 'job456';
 
+  const sectionPayloads = {
+    [LLM_SECTION_LABELS.marketReport]: { executive_summary: 'Summary' },
+    [LLM_SECTION_LABELS.industryTrends]: { high_growth_sectors: [] },
+    [LLM_SECTION_LABELS.newsAndCareerIntel]: { market_news: [] },
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPathJoin.mockReturnValue('/temp/path/insights.json');
+    mockGetTupleCache.mockResolvedValue(null);
+    mockRetrieve.mockResolvedValue({ results: [] } as any);
+    mockFormatContext.mockReturnValue({ text: 'formatted context' } as any);
+    mockMkdir.mockResolvedValue(undefined as any);
+    mockWriteFile.mockResolvedValue(undefined as any);
+    mockGetSectionCache.mockImplementation(async (_key, section) => ({
+      data: sectionPayloads[section as keyof typeof sectionPayloads],
+      status: LlmCacheStatus.ACTIVE,
+    }));
   });
 
   it('should generate insights successfully without jobId', async () => {
-    const mockResults = {
-      marketReport: { executive_summary: 'Summary' },
-      industryTrends: { high_growth_sectors: [] },
-      newsAndCareerIntel: { market_news: [] },
-    };
-    mockGenerateMultipleWithSharedContext.mockImplementation(async (_systemPrompt: any, _queries: any, options: any) => {
-      options.onSectionComplete('marketReport', mockResults.marketReport);
-      options.onSectionComplete('industryTrends', mockResults.industryTrends);
-      options.onSectionComplete('newsAndCareerIntel', mockResults.newsAndCareerIntel);
-      return mockResults;
-    });
-
     const result = await generateMarketInsights(location, userId);
 
     expect(result.insights).toEqual({
@@ -51,24 +101,15 @@ describe('generateMarketInsights', () => {
       market_news: [],
     });
     expect(result.failedSections).toEqual([]);
-    expect(mockLoggerInfo).toHaveBeenCalledWith(`📊 Starting independent section generation for: ${location}`);
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      `📊 Starting independent section generation for: ${location}`,
+    );
     expect(mockEmitToJob).not.toHaveBeenCalled();
-    expect(mockWriteFile).toHaveBeenCalledWith('/temp/path/insights.json', JSON.stringify(result.insights, null, 2), 'utf8');
+    expect(mockWriteFile).toHaveBeenCalled();
+    expect(mockGenerateJson).not.toHaveBeenCalled();
   });
 
   it('should generate insights successfully with jobId', async () => {
-    const mockResults = {
-      marketReport: { executive_summary: 'Summary' },
-      industryTrends: { high_growth_sectors: [] },
-      newsAndCareerIntel: { market_news: [] },
-    };
-    mockGenerateMultipleWithSharedContext.mockImplementation(async (_systemPrompt: any, _queries: any, options: any) => {
-      options.onSectionComplete('marketReport', mockResults.marketReport);
-      options.onSectionComplete('industryTrends', mockResults.industryTrends);
-      options.onSectionComplete('newsAndCareerIntel', mockResults.newsAndCareerIntel);
-      return mockResults;
-    });
-
     const result = await generateMarketInsights(location, userId, jobId);
 
     expect(result.insights).toEqual({
@@ -77,25 +118,66 @@ describe('generateMarketInsights', () => {
       market_news: [],
     });
     expect(result.failedSections).toEqual([]);
-    expect(mockEmitToJob).toHaveBeenCalledWith(jobId, 'progress', expect.objectContaining({ type: 'job_start' }));
-    expect(mockEmitToJob).toHaveBeenCalledWith(jobId, 'progress', expect.objectContaining({ type: 'section_success', section: 'marketReport' }));
-    expect(mockEmitToJob).toHaveBeenCalledWith(jobId, 'progress', expect.objectContaining({ type: 'section_success', section: 'industryTrends' }));
-    expect(mockEmitToJob).toHaveBeenCalledWith(jobId, 'progress', expect.objectContaining({ type: 'section_success', section: 'newsAndCareerIntel' }));
-    expect(mockEmitToJob).toHaveBeenCalledWith(jobId, 'progress', expect.objectContaining({ type: 'job_complete' }));
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({ type: 'job_start' }),
+    );
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({
+        type: 'section_success',
+        section: 'marketReport',
+      }),
+    );
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({
+        type: 'section_success',
+        section: 'industryTrends',
+      }),
+    );
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({
+        type: 'section_success',
+        section: 'newsAndCareerIntel',
+      }),
+    );
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({ type: 'job_complete' }),
+    );
   });
 
   it('should handle partial failures', async () => {
-    const mockResults = {
-      marketReport: { executive_summary: 'Summary' },
-      industryTrends: null, // Simulate failure
-      newsAndCareerIntel: { market_news: [] },
-    };
-    mockGenerateMultipleWithSharedContext.mockImplementation(async (_systemPrompt: any, _queries: any, options: any) => {
-      options.onSectionComplete('marketReport', mockResults.marketReport);
-      options.onSectionComplete('industryTrends', null, 'Error in industry trends');
-      options.onSectionComplete('newsAndCareerIntel', mockResults.newsAndCareerIntel);
-      return mockResults;
+    mockGetSectionCache.mockImplementation(async (_key, section) => {
+      if (section === LLM_SECTION_LABELS.industryTrends) return null;
+      return {
+        data: sectionPayloads[section as keyof typeof sectionPayloads],
+        status: LlmCacheStatus.ACTIVE,
+      };
     });
+    mockGenerateJson.mockImplementation(async (_system, userPrompt) => {
+      if (String(userPrompt).includes('industry') || String(userPrompt).toLowerCase().includes('growth')) {
+        throw new Error('Error in industry trends');
+      }
+      return { ok: true };
+    });
+
+    // Force industryTrends generation path to fail: no cache + openai throws
+    mockGetSectionCache.mockImplementation(async (_key, section) => {
+      if (section === LLM_SECTION_LABELS.industryTrends) return null;
+      return {
+        data: sectionPayloads[section as keyof typeof sectionPayloads],
+        status: LlmCacheStatus.ACTIVE,
+      };
+    });
+    mockGenerateJson.mockRejectedValue(new Error('Error in industry trends'));
 
     const result = await generateMarketInsights(location, userId, jobId);
 
@@ -104,33 +186,51 @@ describe('generateMarketInsights', () => {
       market_news: [],
     });
     expect(result.failedSections).toEqual(['industryTrends']);
-    expect(mockEmitToJob).toHaveBeenCalledWith(jobId, 'progress', expect.objectContaining({ type: 'section_error', section: 'industryTrends' }));
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({ type: 'section_error', section: 'industryTrends' }),
+    );
   });
 
   it('should handle complete failure', async () => {
-    mockGenerateMultipleWithSharedContext.mockRejectedValue(new Error('Network error'));
+    mockRetrieve.mockRejectedValue(new Error('Network error'));
 
-    await expect(generateMarketInsights(location, userId, jobId)).rejects.toThrow('Network error');
-    expect(mockEmitToJob).toHaveBeenCalledWith(jobId, 'progress', expect.objectContaining({ type: 'job_error' }));
+    await expect(generateMarketInsights(location, userId, jobId)).rejects.toThrow(
+      'Network error',
+    );
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({ type: 'job_error' }),
+    );
   });
 
   it('should handle file write failure gracefully', async () => {
-    const mockResults = {
-      marketReport: { executive_summary: 'Summary' },
-      industryTrends: { high_growth_sectors: [] },
-      newsAndCareerIntel: { market_news: [] },
-    };
-    mockGenerateMultipleWithSharedContext.mockImplementation(async (_systemPrompt: any, _queries: any, options: any) => {
-      options.onSectionComplete('marketReport', mockResults.marketReport);
-      options.onSectionComplete('industryTrends', mockResults.industryTrends);
-      options.onSectionComplete('newsAndCareerIntel', mockResults.newsAndCareerIntel);
-      return mockResults;
-    });
     mockWriteFile.mockRejectedValue(new Error('Write error'));
 
     const result = await generateMarketInsights(location, userId);
 
     expect(result.insights).toBeDefined();
-    expect(mockLoggerWarn).toHaveBeenCalledWith('Failed to write temp file', expect.any(Error));
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Failed to write temp file',
+      expect.any(Error),
+    );
+  });
+
+  it('returns tuple cache hit without RAG retrieve', async () => {
+    mockGetTupleCache.mockResolvedValue({
+      insights: { from_tuple: true },
+    } as any);
+
+    const result = await generateMarketInsights(location, userId, jobId);
+
+    expect(result).toEqual({ insights: { from_tuple: true }, failedSections: [] });
+    expect(mockRetrieve).not.toHaveBeenCalled();
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({ type: 'job_complete', insights: { from_tuple: true } }),
+    );
   });
 });

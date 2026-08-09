@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { FileDropZone } from '../../components/FileDropZone';
 import { SelectField } from '../../components/forms';
 import { JourneyHeader, Progress } from '../../components/layout';
 import { SkillPicker } from '../../components/SkillPicker';
 import { INDUSTRY_OPTIONS, LOCATION_OPTIONS, ROLE_OPTIONS } from '../../consts';
+import { testIds } from '../../data-test-ids';
+import { setJobUploadFile } from '../../lib/jobUploadFile';
 import { useClarity } from '../../state/contexts/ClarityContext';
 import type { JobSource, Tool } from '../../types';
 
@@ -51,24 +54,111 @@ const PROCESSING_LABELS: Record<Tool, string> = {
 };
 
 /**
- * Interstitial that forwards to the result route, mirroring the prototype delay. Market
- * Report opens its guest workspace overview instead of a preview page.
+ * Interstitial that runs live generate for Market Report / Job Analyzer when configured.
  */
 export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
-  const { navigate, patch } = useClarity();
+  const { navigate, patch, state, toast } = useClarity();
   const { step, names } = progressSteps(tool);
+  const [progressLabel, setProgressLabel] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (tool === 'market') {
-        patch({ marketHasReports: true, marketGuestReady: true });
-        navigate('market-workspace-result');
-        return;
+    let cancelled = false;
+
+    if (tool === 'pivot') {
+      const timer = window.setTimeout(() => navigate('pivot-preview'), 850);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }
+
+    if (tool === 'job') {
+      const finishJob = async () => {
+        setProgressLabel('Analyzing posting');
+        const { runJobAnalysis } = await import('../job-workspace/runJobAnalysis');
+        const result = await runJobAnalysis({
+          source: state.jobSource,
+          postingText: state.jobPostingText,
+          url: state.jobUrl,
+          job: state.job,
+          registered: state.registered,
+        });
+        if (cancelled) return;
+
+        if (result.ok && !result.fromFixtures && result.analysis) {
+          patch({
+            jobLiveAnalysis: result.analysis,
+            jobLiveError: null,
+            jobHasAnalyses: state.registered ? true : state.jobHasAnalyses,
+          });
+          navigate(state.registered ? 'job-workspace-result' : 'job-preview');
+          return;
+        }
+        if (result.ok) {
+          patch({ jobLiveError: null });
+          navigate(state.registered ? 'job-workspace-result' : 'job-preview');
+          return;
+        }
+        toast(result.error);
+        patch({ jobLiveError: result.error });
+        navigate(state.registered ? 'job-workspace-review' : 'job-review');
+      };
+      void finishJob();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const finishMarket = async () => {
+      const { runMarketReportGeneration } = await import(
+        '../market-workspace/runMarketReportGeneration'
+      );
+      const result = await runMarketReportGeneration(state.market, (update) => {
+        if (!cancelled) setProgressLabel(update.message || null);
+      });
+      if (cancelled) return;
+
+      if (result.ok && !result.fromFixtures) {
+        patch({
+          marketHasReports: true,
+          marketGuestReady: true,
+          marketLiveInsights: result.insights,
+          marketLiveError: null,
+        });
+      } else if (result.ok) {
+        patch({
+          marketHasReports: true,
+          marketGuestReady: true,
+          marketLiveError: null,
+        });
+      } else {
+        toast(result.error);
+        patch({
+          marketHasReports: true,
+          marketGuestReady: true,
+          marketLiveError: result.error,
+        });
       }
-      navigate(`${tool}-preview`);
-    }, 850);
-    return () => window.clearTimeout(timer);
-  }, [navigate, patch, tool]);
+      navigate('market-workspace-result');
+    };
+
+    void finishMarket();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    navigate,
+    patch,
+    state.job,
+    state.jobHasAnalyses,
+    state.jobPostingText,
+    state.jobSource,
+    state.jobUrl,
+    state.market,
+    state.registered,
+    toast,
+    tool,
+  ]);
 
   return (
     <>
@@ -85,6 +175,7 @@ export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
                 …
               </div>
               <h2>Preparing your {PROCESSING_LABELS[tool]}</h2>
+              {progressLabel ? <p style={{ marginTop: 12 }}>{progressLabel}</p> : null}
             </div>
           </section>
         </div>
@@ -103,6 +194,7 @@ export const JobSourceChoices: React.FC<{
         <button
           key={key}
           type="button"
+          data-testid={testIds.jobSource(key)}
           className={`choice ${state.jobSource === key ? 'active' : ''}`}
           onClick={() => setJobSource(key)}
         >
@@ -115,7 +207,7 @@ export const JobSourceChoices: React.FC<{
 };
 
 export const JobInputView: React.FC = () => {
-  const { state, navigate } = useClarity();
+  const { state, navigate, patch, toast } = useClarity();
 
   return (
     <>
@@ -123,7 +215,7 @@ export const JobInputView: React.FC = () => {
       <main className="view">
         <div className="shell">
           <Progress active={0} />
-          <section className="workspace">
+          <section className="workspace" data-testid={testIds.jobWorkspace}>
             <div className="workspacehead">
               <div>
                 <div className="eyebrow">Job Analyzer</div>
@@ -143,7 +235,9 @@ export const JobInputView: React.FC = () => {
                   </label>
                   <input
                     className="input"
-                    defaultValue="https://example.com/jobs/senior-product-manager"
+                    value={state.jobUrl}
+                    onChange={(event) => patch({ jobUrl: event.target.value })}
+                    placeholder="https://…"
                   />
                 </div>
               ) : state.jobSource === 'upload' ? (
@@ -151,17 +245,22 @@ export const JobInputView: React.FC = () => {
                   <label>
                     Job description file <small>Required</small>
                   </label>
-                  <div
-                    className="input"
-                    style={{
-                      minHeight: 130,
-                      display: 'grid',
-                      placeItems: 'center',
-                      color: '#64748b',
+                  <FileDropZone
+                    accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"
+                    emptyLabel="Drop PDF, DOCX or TXT here, or choose a file"
+                    hint="PDF, DOCX or TXT · maximum 10 MB · images are not supported"
+                    selectedName={state.jobUploadFileName}
+                    testId={testIds.jobUploadDropzone}
+                    onInvalid={(message) => toast(message)}
+                    onFile={(file) => {
+                      setJobUploadFile(file);
+                      patch({
+                        jobUploadFileName: file.name,
+                        jobPostingText: `[Uploaded file: ${file.name}]`,
+                      });
+                      toast(`Selected ${file.name}`);
                     }}
-                  >
-                    Drop PDF, DOCX or TXT here, or choose a file
-                  </div>
+                  />
                 </div>
               ) : (
                 <div className="field">
@@ -170,10 +269,10 @@ export const JobInputView: React.FC = () => {
                   </label>
                   <textarea
                     className="input"
+                    data-testid={testIds.jobPasteTextarea}
                     style={{ minHeight: 230 }}
-                    defaultValue={
-                      'Senior Product Manager — Northstar Financial\n\nOwn product strategy and roadmap, lead cross-functional delivery, use customer and performance data to improve measurable outcomes, and influence senior stakeholders across the organization.'
-                    }
+                    value={state.jobPostingText}
+                    onChange={(event) => patch({ jobPostingText: event.target.value })}
                   />
                 </div>
               )}
@@ -184,7 +283,25 @@ export const JobInputView: React.FC = () => {
                 <button
                   type="button"
                   className="btn primary"
-                  onClick={() => navigate('job-review')}
+                  data-testid={testIds.jobReviewContinue}
+                  onClick={() => {
+                    if (
+                      state.jobSource === 'paste' &&
+                      state.jobPostingText.trim().length < 40
+                    ) {
+                      toast('Paste the complete job description before continuing.');
+                      return;
+                    }
+                    if (state.jobSource === 'url' && !state.jobUrl.trim()) {
+                      toast('Enter a public job URL, or switch to paste.');
+                      return;
+                    }
+                    if (state.jobSource === 'upload' && !state.jobUploadFileName) {
+                      toast('Choose a PDF, DOCX, or TXT posting file.');
+                      return;
+                    }
+                    navigate('job-review');
+                  }}
                 >
                   Review job →
                 </button>
@@ -198,7 +315,7 @@ export const JobInputView: React.FC = () => {
 };
 
 export const JobReviewView: React.FC = () => {
-  const { state, navigate } = useClarity();
+  const { state, navigate, patch } = useClarity();
   const [processing, setProcessing] = useState(false);
 
   if (processing) return <Processing tool="job" />;
@@ -223,32 +340,36 @@ export const JobReviewView: React.FC = () => {
                   <label>
                     Job title <small>Required</small>
                   </label>
-                  <input className="input" defaultValue={state.job.title} />
+                  <input
+                    className="input"
+                    value={state.job.title}
+                    onChange={(event) =>
+                      patch({ job: { ...state.job, title: event.target.value } })
+                    }
+                  />
                 </div>
                 <div className="field">
                   <label>
-                    Company <small>Required</small>
+                    Company <small>Optional</small>
                   </label>
-                  <input className="input" defaultValue={state.job.company} />
+                  <input
+                    className="input"
+                    value={state.job.company}
+                    onChange={(event) =>
+                      patch({ job: { ...state.job, company: event.target.value } })
+                    }
+                  />
                 </div>
                 <div className="field">
                   <label>Location</label>
-                  <input className="input" defaultValue={state.job.location} />
+                  <input
+                    className="input"
+                    value={state.job.location}
+                    onChange={(event) =>
+                      patch({ job: { ...state.job, location: event.target.value } })
+                    }
+                  />
                 </div>
-                <div className="field">
-                  <label>Work arrangement</label>
-                  <select className="input" defaultValue="Hybrid">
-                    <option>Hybrid</option>
-                    <option>Remote</option>
-                    <option>On-site</option>
-                  </select>
-                </div>
-              </div>
-              <div className="evidence">
-                <b>Posting quality: Good</b>
-                <br />
-                We found enough detail to separate required, preferred and implied
-                expectations.
               </div>
               <div className="formactions">
                 <a
@@ -409,7 +530,7 @@ export const MarketInputView: React.FC = () => {
       <main className="view">
         <div className="shell">
           <Progress active={0} names={['Your input', 'Preview']} />
-          <section className="workspace">
+          <section className="workspace" data-testid={testIds.marketWorkspace}>
             <div className="workspacehead">
               <div>
                 <div className="eyebrow">Market Report</div>
@@ -478,6 +599,7 @@ export const MarketInputView: React.FC = () => {
                 <button
                   type="button"
                   className="btn primary"
+                  data-testid={testIds.marketGenerateCta}
                   onClick={() => setProcessing(true)}
                 >
                   Show my market snapshot →
@@ -567,61 +689,90 @@ const PreviewBase: React.FC<PreviewBaseProps> = ({ title, subtitle, tool, childr
   );
 };
 
-export const JobPreviewView: React.FC = () => (
-  <PreviewBase
-    title="Job Analyzer preview"
-    subtitle="Senior Product Manager · Northstar Financial"
-    tool="job"
-  >
-    <section className="resultsection">
-      <span className="label">Role focus</span>
-      <h3>Turn product strategy into a more reliable operating rhythm.</h3>
-      <p className="lead" style={{ fontSize: 14 }}>
-        The posting emphasizes ownership, cross-functional alignment and measurable
-        outcomes more often than feature delivery.
-      </p>
-    </section>
-    <section className="resultsection">
-      <span className="label">Key stated requirements</span>
-      <div className="chips" style={{ marginTop: 12 }}>
-        {[
-          'Product strategy',
-          'Roadmap ownership',
-          'Cross-functional delivery',
-          'Customer and performance data',
-        ].map((item) => (
-          <span key={item} className="chip">
-            {item}
+export const JobPreviewView: React.FC = () => {
+  const { state, navigate, patch } = useClarity();
+  const live = state.jobLiveAnalysis?.result;
+  const stated = live?.statedRequirements?.slice(0, 4) ?? [];
+  const hidden = live?.hiddenExpectations?.[0];
+
+  return (
+    <PreviewBase
+      title="Job Analyzer preview"
+      subtitle={`${state.job.title} · ${state.job.company}`}
+      tool="job"
+    >
+      <section className="resultsection">
+        <span className="label">Role focus</span>
+        <h3>{live?.roleFocus ?? 'Turn product strategy into a more reliable operating rhythm.'}</h3>
+        <p className="lead" style={{ fontSize: 14 }}>
+          {live?.roleFocusSummary ??
+            'The posting emphasizes ownership, cross-functional alignment and measurable outcomes more often than feature delivery.'}
+        </p>
+      </section>
+      <section className="resultsection">
+        <span className="label">Key stated requirements</span>
+        <div className="chips" style={{ marginTop: 12 }}>
+          {(stated.length
+            ? stated.map((item) => item.title)
+            : [
+                'Product strategy',
+                'Roadmap ownership',
+                'Cross-functional delivery',
+                'Customer and performance data',
+              ]
+          ).map((item) => (
+            <span key={item} className="chip">
+              {item}
+            </span>
+          ))}
+        </div>
+      </section>
+      <section className="resultsection">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15 }}>
+          <span className="label">Likely hidden expectation</span>
+          <span className={`pill ${hidden?.confidence === 'medium' ? 'medium' : 'high'}`}>
+            {(hidden?.confidence ?? 'high').replace(/^./, (c) => c.toUpperCase())} confidence
           </span>
-        ))}
-      </div>
-    </section>
-    <section className="resultsection">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 15 }}>
-        <span className="label">Likely hidden expectation</span>
-        <span className="pill high">High confidence</span>
-      </div>
-      <h3>Stabilize cross-functional product delivery</h3>
-      <div className="evidence">
-        <b>Why this was inferred</b>
-        <br />
-        Repeated references to operating cadence, stakeholder alignment, dependencies and
-        measurable execution.
-      </div>
-      <p>
-        <b>What it means:</b> Prepare one example showing how you restored momentum across
-        teams without relying on formal authority.
-      </p>
-    </section>
-    <section className="resultsection">
-      <span className="label">Questions worth asking</span>
-      <p>
-        Where does product delivery currently lose momentum? What would success look like
-        after six months?
-      </p>
-    </section>
-  </PreviewBase>
-);
+        </div>
+        <h3>{hidden?.title ?? 'Stabilize cross-functional product delivery'}</h3>
+        <div className="evidence">
+          <b>Why this was inferred</b>
+          <br />
+          {hidden?.evidence?.map((e) => e.quote).join(' · ') ||
+            'Repeated references to operating cadence, stakeholder alignment, dependencies and measurable execution.'}
+        </div>
+        <p>
+          <b>What it means:</b>{' '}
+          {hidden?.implication ??
+            'Prepare one example showing how you restored momentum across teams without relying on formal authority.'}
+        </p>
+      </section>
+      <section className="resultsection">
+        <span className="label">Questions worth asking</span>
+        <p>
+          {live?.questionsWorthAsking?.join(' ') ||
+            'Where does product delivery currently lose momentum? What would success look like after six months?'}
+        </p>
+      </section>
+      <section className="resultsection">
+        <button
+          type="button"
+          className="btn secondary"
+          onClick={() => {
+            patch({
+              pendingGuest: 'job',
+              postAuthRoute: 'job-workspace-result',
+              entryPoint: 'guest-job',
+            });
+            navigate('signup-job');
+          }}
+        >
+          Save full analysis →
+        </button>
+      </section>
+    </PreviewBase>
+  );
+};
 
 const PIVOT_PATHS: Array<[string, string, string]> = [
   ['1', 'Payments Platform Product Lead', 'High transferability'],

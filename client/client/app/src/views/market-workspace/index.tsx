@@ -6,7 +6,6 @@ import { INDUSTRY_OPTIONS, LOCATION_OPTIONS, ROLE_OPTIONS } from '../../consts';
 import { useClarity } from '../../state/contexts/ClarityContext';
 import type { MarketOpportunityView, MarketReportTab } from '../../types';
 import {
-  ARCHIVED_REPORTS,
   CAPABILITIES,
   EVIDENCE_GROUPS,
   EVIDENCE_SOURCES,
@@ -14,7 +13,6 @@ import {
   GUEST_SHIFTS,
   MARKET_INSIGHTS,
   MARKET_OPPORTUNITIES,
-  MARKET_PROGRESS_CHECKPOINTS,
   MARKET_SIGNAL_ROWS,
   OPPORTUNITY_ACTION_LABELS,
   OPPORTUNITY_HEADINGS,
@@ -22,6 +20,17 @@ import {
   SENIORITY_OPTIONS,
   type OpportunityGroup,
 } from './data';
+import { runMarketReportGeneration } from './runMarketReportGeneration';
+import { useAdaptedMarketReport } from './useAdaptedMarketReport';
+import { getClarityUserId } from '../../lib/clarityUserId';
+import {
+  fetchLatestUserMarketReport,
+  fetchUserMarketReportSnapshot,
+  formatReportDate,
+  listUserMarketReports,
+  saveUserMarketReport,
+  type MarketReportSummary,
+} from '../../services/marketReports/historyApi';
 
 /** Labels for in-flight steps, where offering "Create new report" would be confusing. */
 const FLOW_LABELS = ['New report', 'Update report', 'Preparing report'];
@@ -233,45 +242,105 @@ export const MarketWorkspaceEmptyView: React.FC = () => {
   const { state, patch } = useClarity();
 
   useEffect(() => {
-    if (state.marketHasReports || state.marketSnapshotDate) {
-      patch({ marketHasReports: false, marketSnapshotDate: null });
+    if (state.marketHasReports || state.marketSnapshotDate || state.marketSnapshotId) {
+      patch({
+        marketHasReports: false,
+        marketSnapshotDate: null,
+        marketSnapshotId: null,
+      });
     }
-  }, [patch, state.marketHasReports, state.marketSnapshotDate]);
+  }, [
+    patch,
+    state.marketHasReports,
+    state.marketSnapshotDate,
+    state.marketSnapshotId,
+  ]);
 
   return <MarketWorkspaceNewView />;
 };
 
-const FINAL_CHECKPOINT = MARKET_PROGRESS_CHECKPOINTS[MARKET_PROGRESS_CHECKPOINTS.length - 1];
-
 export const MarketWorkspaceGeneratingView: React.FC = () => {
-  const { state, patch, navigate } = useClarity();
-  const [progress, setProgress] = useState(0);
+  const { state, patch, navigate, toast } = useClarity();
+  const [progress, setProgress] = useState(8);
+  const [statusMessage, setStatusMessage] = useState('Preparing your report');
 
   useEffect(() => {
-    const timers: number[] = [];
-    let index = 0;
+    let cancelled = false;
 
-    const advance = () => {
-      const next = MARKET_PROGRESS_CHECKPOINTS[index];
-      index += 1;
-      setProgress(next);
-      if (next === FINAL_CHECKPOINT) {
+    const run = async () => {
+      const userId = state.registered ? getClarityUserId() : 'guest';
+      const result = await runMarketReportGeneration(
+        state.market,
+        (update) => {
+          if (cancelled) return;
+          setProgress(Math.max(8, Math.min(100, Math.round(update.percent))));
+          if (update.message) setStatusMessage(update.message);
+        },
+        { userId },
+      );
+      if (cancelled) return;
+
+      if (result.ok && !result.fromFixtures) {
+        if (state.registered) {
+          try {
+            setStatusMessage('Saving to your history');
+            await saveUserMarketReport({
+              userId: getClarityUserId(),
+              role: state.market.role,
+              level: state.market.level,
+              location: state.market.location,
+              industry: state.market.industry,
+              insights: result.insights,
+            });
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : 'Could not save report history';
+            toast(message);
+          }
+        }
+
+        if (cancelled) return;
         patch({
           marketHasReports: true,
           marketCreateMode: false,
           marketSnapshotDate: null,
+          marketSnapshotId: null,
+          marketLiveInsights: result.insights,
+          marketLiveError: null,
         });
-        timers.push(window.setTimeout(() => navigate('market-workspace-result'), 450));
-        return;
+      } else if (result.ok) {
+        patch({
+          marketHasReports: true,
+          marketCreateMode: false,
+          marketSnapshotDate: null,
+          marketSnapshotId: null,
+          marketLiveError: null,
+        });
+      } else {
+        toast(result.error);
+        patch({
+          marketHasReports: true,
+          marketCreateMode: false,
+          marketSnapshotDate: null,
+          marketSnapshotId: null,
+          marketLiveError: result.error,
+        });
       }
-      timers.push(window.setTimeout(advance, 220));
+
+      setProgress(100);
+      setStatusMessage('Your report is ready');
+      window.setTimeout(() => {
+        if (!cancelled) navigate('market-workspace-result');
+      }, 450);
     };
 
-    timers.push(window.setTimeout(advance, 180));
-    return () => timers.forEach(window.clearTimeout);
-  }, [navigate, patch]);
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, patch, state.market, state.registered, toast]);
 
-  const complete = progress === FINAL_CHECKPOINT;
+  const complete = progress >= 100;
 
   return (
     <MarketWorkspaceShell label="Preparing report">
@@ -289,7 +358,7 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
             >
               <strong>{progress}%</strong>
             </div>
-            <h1>{complete ? 'Your report is ready' : 'Preparing your report'}</h1>
+            <h1>{complete ? 'Your report is ready' : statusMessage}</h1>
             <p>
               {state.market.role} · {state.market.level} · {state.market.location}
             </p>
@@ -300,8 +369,25 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
   );
 };
 
-const PreviousReports: React.FC = () => {
-  const { reviewMarketSnapshot } = useClarity();
+const PreviousReports: React.FC<{
+  snapshots: MarketReportSummary[];
+  onReview: (reportId: string) => void;
+  loading?: boolean;
+}> = ({ snapshots, onReview, loading }) => {
+  if (loading) {
+    return (
+      <section className="mrArchive" aria-label="Previous market reports">
+        <div className="mrArchiveHead">
+          <h2>Previous reports</h2>
+          <span>Loading…</span>
+        </div>
+      </section>
+    );
+  }
+
+  if (snapshots.length === 0) {
+    return null;
+  }
 
   return (
     <section className="mrArchive" aria-label="Previous market reports">
@@ -310,18 +396,20 @@ const PreviousReports: React.FC = () => {
         <span>Earlier snapshots</span>
       </div>
       <div className="mrArchiveList">
-        {ARCHIVED_REPORTS.map((report) => (
-          <div key={report.date} className="mrArchiveRow">
+        {snapshots.map((report) => (
+          <div key={report.reportId} className="mrArchiveRow">
             <div>
-              <b>{report.role} · Toronto</b>
+              <b>
+                {report.role} · {cityOnly(report.location)}
+              </b>
               <p>
-                {report.industry} · {report.date}
+                {report.industry || 'Any industry'} · {formatReportDate(report.generatedAt)}
               </p>
             </div>
             <button
               type="button"
               className="reviewAction"
-              onClick={() => reviewMarketSnapshot(report.date)}
+              onClick={() => onReview(report.reportId)}
             >
               Review →
             </button>
@@ -333,13 +421,98 @@ const PreviousReports: React.FC = () => {
 };
 
 export const MarketWorkspaceHistoryView: React.FC = () => {
-  const { state, patch, navigate, refreshMarketReport } = useClarity();
+  const { state, patch, navigate, refreshMarketReport, toast } = useClarity();
+  const live = useAdaptedMarketReport();
+  const [latest, setLatest] = useState<MarketReportSummary | null>(null);
+  const [snapshots, setSnapshots] = useState<MarketReportSummary[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!state.marketHasReports || state.marketSnapshotDate) {
-      patch({ marketHasReports: true, marketSnapshotDate: null });
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const list = await listUserMarketReports(getClarityUserId());
+        if (cancelled) return;
+
+        if (!list.latest) {
+          patch({
+            marketHasReports: false,
+            marketSnapshotDate: null,
+            marketSnapshotId: null,
+          });
+          navigate('market-workspace-empty');
+          return;
+        }
+
+        setLatest(list.latest);
+        setSnapshots(list.snapshots);
+        patch({
+          marketHasReports: true,
+          marketSnapshotDate: null,
+          marketSnapshotId: null,
+        });
+
+        // Hydrate current insights from latest if client state is empty
+        if (!state.marketLiveInsights) {
+          const detail = await fetchLatestUserMarketReport(getClarityUserId());
+          if (cancelled || !detail) return;
+          patch({
+            marketLiveInsights: detail.insights,
+            market: {
+              ...state.market,
+              role: detail.role,
+              level: detail.level,
+              location: detail.location,
+              industry: detail.industry || state.market.industry,
+            },
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          toast(error instanceof Error ? error.message : 'Could not load report history');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally load once on mount / when entering history
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onReview = async (reportId: string) => {
+    try {
+      const snapshot = await fetchUserMarketReportSnapshot(getClarityUserId(), reportId);
+      if (!snapshot) {
+        toast('Snapshot not found');
+        return;
+      }
+      patch({
+        marketSnapshotId: snapshot.reportId,
+        marketSnapshotDate: formatReportDate(snapshot.generatedAt),
+        marketLiveInsights: snapshot.insights,
+        market: {
+          ...state.market,
+          role: snapshot.role,
+          level: snapshot.level,
+          location: snapshot.location,
+          industry: snapshot.industry || state.market.industry,
+        },
+      });
+      navigate('market-workspace-result');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not open snapshot');
     }
-  }, [patch, state.marketHasReports, state.marketSnapshotDate]);
+  };
+
+  const current = latest;
+  const signals = live?.signals.slice(0, 3) ?? [];
 
   return (
     <MarketWorkspaceShell label="Reports">
@@ -353,87 +526,144 @@ export const MarketWorkspaceHistoryView: React.FC = () => {
             Refresh current report
           </button>
         </div>
-        <section className="mrCurrent">
-          <div>
-            <small>Current report · updated today</small>
-            <h2>
-              {state.market.role} in {state.market.location}
-            </h2>
-            <p>
-              {state.market.level} · {state.market.industry} · 19 sources
-            </p>
-            <div className="mrActions">
-              <a
-                className="btn"
-                href="#market-workspace-result"
-                onClick={(event) => {
-                  event.preventDefault();
-                  navigate('market-workspace-result');
-                }}
-              >
-                Review report →
-              </a>
+        {loading ? (
+          <section className="mrCurrent">
+            <div>
+              <small>Loading your reports…</small>
             </div>
-          </div>
-          <div className="mrCurrentStats">
-            <div className="mrCurrentStat">
-              <strong>Stable</strong>
-              <span>Demand</span>
-            </div>
-            <div className="mrCurrentStat">
-              <strong>High</strong>
-              <span>Resilience</span>
-            </div>
-            <div className="mrCurrentStat">
-              <strong>3</strong>
-              <span>Opportunity areas</span>
-            </div>
-          </div>
-        </section>
-        <PreviousReports />
+          </section>
+        ) : current ? (
+          <>
+            <section className="mrCurrent">
+              <div>
+                <small>
+                  Current report · {formatReportDate(current.generatedAt)}
+                </small>
+                <h2>
+                  {current.role} in {current.location}
+                </h2>
+                <p>
+                  {current.level} · {current.industry || 'Any industry'}
+                </p>
+                <div className="mrActions">
+                  <a
+                    className="btn"
+                    href="#market-workspace-result"
+                    onClick={async (event) => {
+                      event.preventDefault();
+                      try {
+                        const detail = await fetchLatestUserMarketReport(getClarityUserId());
+                        if (detail) {
+                          patch({
+                            marketSnapshotId: null,
+                            marketSnapshotDate: null,
+                            marketLiveInsights: detail.insights,
+                            market: {
+                              ...state.market,
+                              role: detail.role,
+                              level: detail.level,
+                              location: detail.location,
+                              industry: detail.industry || state.market.industry,
+                            },
+                          });
+                        } else {
+                          patch({ marketSnapshotId: null, marketSnapshotDate: null });
+                        }
+                      } catch {
+                        patch({ marketSnapshotId: null, marketSnapshotDate: null });
+                      }
+                      navigate('market-workspace-result');
+                    }}
+                  >
+                    Review report →
+                  </a>
+                </div>
+              </div>
+              <div className="mrCurrentStats">
+                {(signals.length
+                  ? signals
+                  : [
+                      { label: 'Demand', value: '—' },
+                      { label: 'Outlook', value: '—' },
+                      { label: 'Focus', value: '—' },
+                    ]
+                ).map((signal) => (
+                  <div key={signal.label} className="mrCurrentStat">
+                    <strong>{signal.value}</strong>
+                    <span>{signal.label}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <PreviousReports snapshots={snapshots} onReview={onReview} />
+          </>
+        ) : null}
       </div>
     </MarketWorkspaceShell>
   );
 };
 
-const MarketInsightList: React.FC = () => (
-  <div className="marketInsightList">
-    {MARKET_INSIGHTS.map((insight, index) => (
-      <details
-        key={insight.title}
-        className="marketInsightDetail"
-        open={index === 0}
-      >
-        <summary>
-          <span className="shiftNumber">{index + 1}</span>
-          <span className="marketInsightTitle">
-            <b>{insight.title}</b>
-            <small>{insight.summary}</small>
-          </span>
-          <span className="insightCategory">{insight.category}</span>
-          <span className="insightChevron">›</span>
-        </summary>
-        <div className="marketInsightBody">
-          <div>
-            <small>What this means for you</small>
-            <p>{insight.meaning}</p>
+const MarketInsightList: React.FC = () => {
+  const live = useAdaptedMarketReport();
+  const insights = live
+    ? live.shifts.map((shift, index) => ({
+        title: shift.title,
+        summary: shift.copy,
+        category: 'Market shift',
+        meaning: live.recommendation.copy,
+        action: live.path.copy,
+        source: live.sources[index]?.name || 'Live market insights',
+      }))
+    : MARKET_INSIGHTS;
+
+  return (
+    <div className="marketInsightList">
+      {insights.map((insight, index) => (
+        <details
+          key={insight.title}
+          className="marketInsightDetail"
+          open={index === 0}
+        >
+          <summary>
+            <span className="shiftNumber">{index + 1}</span>
+            <span className="marketInsightTitle">
+              <b>{insight.title}</b>
+              <small>{insight.summary}</small>
+            </span>
+            <span className="insightCategory">{insight.category}</span>
+            <span className="insightChevron">›</span>
+          </summary>
+          <div className="marketInsightBody">
+            <div>
+              <small>What this means for you</small>
+              <p>{insight.meaning}</p>
+            </div>
+            <div>
+              <small>Recommended action</small>
+              <p>{insight.action}</p>
+            </div>
+            <div>
+              <small>Source and data period</small>
+              <p>{insight.source}</p>
+            </div>
           </div>
-          <div>
-            <small>Recommended action</small>
-            <p>{insight.action}</p>
-          </div>
-          <div>
-            <small>Source and data period</small>
-            <p>{insight.source}</p>
-          </div>
-        </div>
-      </details>
-    ))}
-  </div>
-);
+        </details>
+      ))}
+    </div>
+  );
+};
 
 const GuestMarketReport: React.FC = () => {
   const { state, openMarketAction } = useClarity();
+  const live = useAdaptedMarketReport();
+  const shifts = live?.shifts.length
+    ? live.shifts.map((s) => [s.title, s.copy] as [string, string])
+    : GUEST_SHIFTS;
+  const signals = live?.signals.slice(0, 3) ?? [
+    { label: 'Role demand', value: 'Stable' },
+    { label: 'Competition', value: 'High' },
+    { label: 'Evidence quality', value: 'High' },
+  ];
 
   return (
     <div className="guestMarketReport">
@@ -447,36 +677,30 @@ const GuestMarketReport: React.FC = () => {
         </div>
         <div className="guestMarketFresh">
           <i />
-          <span>Updated today · 60-day view</span>
+          <span>{live?.fromLive ? 'Live market data' : 'Updated today · 60-day view'}</span>
         </div>
       </div>
       <section className="guestMarketVerdict">
         <div className="guestVerdictTop">
-          <span>Stable market</span>
-          <small>Positive 12-month outlook</small>
+          <span>{live?.verdictLabel ?? 'Stable market'}</span>
+          <small>{live?.outlookLabel ?? 'Positive 12-month outlook'}</small>
         </div>
         <h2>
-          Your experience remains relevant, but the strongest senior roles are changing.
+          {live?.headline ??
+            'Your experience remains relevant, but the strongest senior roles are changing.'}
         </h2>
         <p>
-          Toronto employers continue to hire experienced product leaders. The clearest
-          shift is toward AI-enabled delivery, commercial ownership and confident execution
-          in regulated environments.
+          {live?.summary ??
+            'Toronto employers continue to hire experienced product leaders. The clearest shift is toward AI-enabled delivery, commercial ownership and confident execution in regulated environments.'}
         </p>
       </section>
       <section className="guestSignalStrip" aria-label="Market signals">
-        <div className="guestSignal">
-          <small>Role demand</small>
-          <strong>Stable</strong>
-        </div>
-        <div className="guestSignal">
-          <small>Competition</small>
-          <strong>High</strong>
-        </div>
-        <div className="guestSignal">
-          <small>Evidence quality</small>
-          <strong>High</strong>
-        </div>
+        {signals.map((signal) => (
+          <div key={signal.label} className="guestSignal">
+            <small>{signal.label}</small>
+            <strong>{signal.value}</strong>
+          </div>
+        ))}
       </section>
       <section className="guestMarketPanel">
         <div className="guestPanelHead">
@@ -488,7 +712,7 @@ const GuestMarketReport: React.FC = () => {
             See all insights →
           </button>
         </div>
-        {GUEST_SHIFTS.map(([title, copy], index) => (
+        {shifts.map(([title, copy], index) => (
           <div key={title} className="guestInsight">
             <span className="shiftNumber">{index + 1}</span>
             <div>
@@ -501,10 +725,10 @@ const GuestMarketReport: React.FC = () => {
       <section className="guestNextMove">
         <div>
           <small>Recommended next step</small>
-          <h3>Strengthen your AI product evidence</h3>
+          <h3>{live?.recommendation.title ?? 'Strengthen your AI product evidence'}</h3>
           <p>
-            Compare your current skills with the capabilities employers now expect from
-            senior product leaders.
+            {live?.recommendation.copy ??
+              'Compare your current skills with the capabilities employers now expect from senior product leaders.'}
           </p>
         </div>
         <button
@@ -520,12 +744,45 @@ const GuestMarketReport: React.FC = () => {
 };
 
 const ApprovedMarketReport: React.FC = () => {
-  const { state, patch, navigate, openMarketAction } = useClarity();
+  const { state, patch, navigate, openMarketAction, toast } = useClarity();
+  const live = useAdaptedMarketReport();
+  const viewingSnapshot = Boolean(state.marketSnapshotId);
   const date = state.marketSnapshotDate || 'today';
+  const signals = live?.signals.slice(0, 3) ?? [
+    { label: 'Role demand', value: 'Stable' },
+    { label: 'Competition', value: 'High' },
+    { label: '12-month outlook', value: 'Positive' },
+  ];
+
+  const returnToCurrent = async () => {
+    try {
+      const detail = await fetchLatestUserMarketReport(getClarityUserId());
+      if (detail) {
+        patch({
+          marketSnapshotId: null,
+          marketSnapshotDate: null,
+          marketLiveInsights: detail.insights,
+          market: {
+            ...state.market,
+            role: detail.role,
+            level: detail.level,
+            location: detail.location,
+            industry: detail.industry || state.market.industry,
+          },
+        });
+      } else {
+        patch({ marketSnapshotId: null, marketSnapshotDate: null });
+      }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not load current report');
+      patch({ marketSnapshotId: null, marketSnapshotDate: null });
+    }
+    navigate('market-workspace-result');
+  };
 
   return (
     <div className="approvedReport">
-      {state.marketSnapshotDate ? (
+      {viewingSnapshot ? (
         <div className="snapshotBanner">
           <div>
             <small>SAVED SNAPSHOT</small>
@@ -536,8 +793,7 @@ const ApprovedMarketReport: React.FC = () => {
             href="#market-workspace-result"
             onClick={(event) => {
               event.preventDefault();
-              patch({ marketSnapshotDate: null });
-              navigate('market-workspace-result');
+              void returnToCurrent();
             }}
           >
             View current report →
@@ -556,36 +812,36 @@ const ApprovedMarketReport: React.FC = () => {
           <i />
           <div>
             <b>Updated {date}</b>
-            <small>19 sources · 60-day data window</small>
+            <small>
+              {live?.fromLive
+                ? `${Math.max(live.sources.length, 1)} sources · live data`
+                : '19 sources · 60-day data window'}
+            </small>
           </div>
         </div>
       </div>
       <section className="marketVerdict">
         <div>
           <div className="verdictFlag">
-            <b>Stable market</b>
-            <span>Positive outlook</span>
+            <b>{live?.verdictLabel ?? 'Stable market'}</b>
+            <span>{live?.outlookLabel ?? 'Positive outlook'}</span>
           </div>
-          <h2>Your experience remains relevant, but senior product roles are changing.</h2>
+          <h2>
+            {live?.headline ??
+              'Your experience remains relevant, but senior product roles are changing.'}
+          </h2>
           <p>
-            Toronto employers continue to hire product leaders with financial-services
-            experience. The clearest shift is toward AI-enabled delivery and stronger
-            commercial ownership.
+            {live?.summary ??
+              'Toronto employers continue to hire product leaders with financial-services experience. The clearest shift is toward AI-enabled delivery and stronger commercial ownership.'}
           </p>
         </div>
         <div className="verdictStats">
-          <div className="verdictStat">
-            <span>Role demand</span>
-            <b>Stable</b>
-          </div>
-          <div className="verdictStat">
-            <span>Competition</span>
-            <b>High</b>
-          </div>
-          <div className="verdictStat">
-            <span>12-month outlook</span>
-            <b>Positive</b>
-          </div>
+          {signals.map((signal) => (
+            <div key={signal.label} className="verdictStat">
+              <span>{signal.label}</span>
+              <b>{signal.value}</b>
+            </div>
+          ))}
         </div>
       </section>
       <section className="approvedOverviewGrid">
@@ -605,10 +861,10 @@ const ApprovedMarketReport: React.FC = () => {
         <aside className="reportCard recommendCard">
           <small>Recommended next step</small>
           <span className="recommendIcon">↗</span>
-          <h2>Strengthen your AI product evidence</h2>
+          <h2>{live?.recommendation.title ?? 'Strengthen your AI product evidence'}</h2>
           <p>
-            Compare your current skills with what employers expect from AI-enabled product
-            leaders.
+            {live?.recommendation.copy ??
+              'Compare your current skills with what employers expect from AI-enabled product leaders.'}
           </p>
           <button
             type="button"
@@ -625,18 +881,18 @@ const ApprovedMarketReport: React.FC = () => {
       <section className="approvedPath">
         <div>
           <small>One path worth exploring</small>
-          <h2>AI Product Lead</h2>
+          <h2>{live?.path.title ?? 'AI Product Lead'}</h2>
           <p>
-            Your product strategy, regulated-market and stakeholder-leadership experience
-            provide a strong foundation.
+            {live?.path.copy ??
+              'Your product strategy, regulated-market and stakeholder-leadership experience provide a strong foundation.'}
           </p>
         </div>
         <div>
           <small>Why it fits</small>
           <div className="fitTags">
-            <span>Product strategy</span>
-            <span>Payments</span>
-            <span>Leadership</span>
+            {(live?.path.tags ?? ['Product strategy', 'Payments', 'Leadership']).map((tag) => (
+              <span key={tag}>{tag}</span>
+            ))}
           </div>
         </div>
         <button
@@ -712,14 +968,34 @@ interface OpportunityRowsProps {
 
 const OpportunityRows: React.FC<OpportunityRowsProps> = ({ group }) => {
   const { state, toggleMarketOpportunityDetail } = useClarity();
+  const live = useAdaptedMarketReport();
+
+  const liveItems =
+    live &&
+    (group === 'best'
+      ? live.opportunities
+      : group === 'emerging'
+        ? live.emerging
+        : live.risks);
+
+  const items =
+    liveItems && liveItems.length > 0
+      ? liveItems.map((item) => ({
+          name: item.name,
+          summary: item.summary,
+          signal: item.signal,
+          marketDetail: item.summary,
+          meaningDetail: item.summary,
+        }))
+      : MARKET_OPPORTUNITIES[group];
 
   return (
     <section className="opportunityList">
-      {MARKET_OPPORTUNITIES[group].map((item, index) => {
+      {items.map((item, index) => {
         const key = `${group}-${index}`;
         const open = state.marketOpportunityDetail === key;
         return (
-          <div key={item.name} className="opportunityItem">
+          <div key={`${item.name}-${index}`} className="opportunityItem">
             <div className="opportunityRow">
               <span className="capNumber">{index + 1}</span>
               <div>
@@ -778,100 +1054,109 @@ const OpportunityContent: React.FC<{ view: MarketOpportunityView }> = ({ view })
   return <OpportunityRows group={view} />;
 };
 
-const OverviewTab: React.FC = () => (
-  <>
-    <section className="reportSummary">
-      <div>
-        <div className="verdictFlag">
-          <b>Stable market</b>
-          <span>Positive 12-month outlook</span>
-        </div>
-        <h2>
-          Your background is relevant. The opportunity is to make your AI and commercial
-          impact easier to see.
-        </h2>
-        <p>
-          Toronto demand remains above the Canadian baseline for senior product talent,
-          especially in regulated platforms, AI-enabled products and financial
-          infrastructure.
-        </p>
-      </div>
-      <div className="reportSummaryStats">
-        <div className="reportSummaryStat">
-          <span>Role demand</span>
-          <b>Stable</b>
-        </div>
-        <div className="reportSummaryStat">
-          <span>Competition</span>
-          <b>High</b>
-        </div>
-        <div className="reportSummaryStat">
-          <span>Evidence quality</span>
-          <b>High</b>
-        </div>
-      </div>
-    </section>
-    <section className="marketChartCard">
-      <div className="marketChartHead">
+const OverviewTab: React.FC = () => {
+  const live = useAdaptedMarketReport();
+  const signals = live?.signals.slice(0, 3) ?? [
+    { label: 'Role demand', value: 'Stable' },
+    { label: 'Competition', value: 'High' },
+    { label: 'Evidence quality', value: 'High' },
+  ];
+  const rows = live?.shifts.length
+    ? live.shifts.map((shift, index) => ({
+        index: String(index + 1).padStart(2, '0'),
+        title: shift.title,
+        copy: shift.copy,
+      }))
+    : MARKET_SIGNAL_ROWS;
+
+  return (
+    <>
+      <section className="reportSummary">
         <div>
-          <small className="fullReportKicker">Market direction</small>
-          <h3>Toronto hiring remains above the national baseline</h3>
-        </div>
-        <span className="windowTag">Last 60 days</span>
-      </div>
-      <svg
-        className="marketChart"
-        viewBox="0 0 700 220"
-        role="img"
-        aria-label="Toronto product hiring trend compared with Canada"
-      >
-        <line className="chartGrid" x1="48" y1="40" x2="672" y2="40" />
-        <line className="chartGrid" x1="48" y1="105" x2="672" y2="105" />
-        <line className="chartGrid" x1="48" y1="170" x2="672" y2="170" />
-        <text className="chartLabel" x="10" y="44">
-          120
-        </text>
-        <text className="chartLabel" x="10" y="109">
-          100
-        </text>
-        <text className="chartLabel" x="17" y="174">
-          80
-        </text>
-        <polyline
-          className="chartCanada"
-          points="55,154 130,139 205,135 280,126 355,102 430,108 505,91 580,96 655,82"
-        />
-        <polyline
-          className="chartToronto"
-          points="55,143 130,118 205,124 280,87 355,99 430,67 505,80 580,47 655,57"
-        />
-      </svg>
-      <div className="chartLegend">
-        <span>
-          <i />
-          Toronto region
-        </span>
-        <span>
-          <i />
-          Canada
-        </span>
-      </div>
-    </section>
-    <section className="signalCard">
-      <small className="fullReportKicker">What changed</small>
-      <h3>The signals that matter most to you</h3>
-      {MARKET_SIGNAL_ROWS.map((signal) => (
-        <div key={signal.index} className="signalRow">
-          <span>{signal.index}</span>
-          <div>
-            <b>{signal.title}</b>
-            <p>{signal.copy}</p>
+          <div className="verdictFlag">
+            <b>{live?.verdictLabel ?? 'Stable market'}</b>
+            <span>{live?.outlookLabel ?? 'Positive 12-month outlook'}</span>
           </div>
+          <h2>
+            {live?.headline ??
+              'Your background is relevant. The opportunity is to make your AI and commercial impact easier to see.'}
+          </h2>
+          <p>
+            {live?.summary ??
+              'Toronto demand remains above the Canadian baseline for senior product talent, especially in regulated platforms, AI-enabled products and financial infrastructure.'}
+          </p>
         </div>
-      ))}
-    </section>
-  </>
-);
+        <div className="reportSummaryStats">
+          {signals.map((signal) => (
+            <div key={signal.label} className="reportSummaryStat">
+              <span>{signal.label}</span>
+              <b>{signal.value}</b>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="marketChartCard">
+        <div className="marketChartHead">
+          <div>
+            <small className="fullReportKicker">Market direction</small>
+            <h3>Toronto hiring remains above the national baseline</h3>
+          </div>
+          <span className="windowTag">Last 60 days</span>
+        </div>
+        <svg
+          className="marketChart"
+          viewBox="0 0 700 220"
+          role="img"
+          aria-label="Toronto product hiring trend compared with Canada"
+        >
+          <line className="chartGrid" x1="48" y1="40" x2="672" y2="40" />
+          <line className="chartGrid" x1="48" y1="105" x2="672" y2="105" />
+          <line className="chartGrid" x1="48" y1="170" x2="672" y2="170" />
+          <text className="chartLabel" x="10" y="44">
+            120
+          </text>
+          <text className="chartLabel" x="10" y="109">
+            100
+          </text>
+          <text className="chartLabel" x="17" y="174">
+            80
+          </text>
+          <polyline
+            className="chartCanada"
+            points="55,154 130,139 205,135 280,126 355,102 430,108 505,91 580,96 655,82"
+          />
+          <polyline
+            className="chartToronto"
+            points="55,143 130,118 205,124 280,87 355,99 430,67 505,80 580,47 655,57"
+          />
+        </svg>
+        <div className="chartLegend">
+          <span>
+            <i />
+            Toronto region
+          </span>
+          <span>
+            <i />
+            Canada
+          </span>
+        </div>
+      </section>
+      <section className="signalCard">
+        <small className="fullReportKicker">What changed</small>
+        <h3>The signals that matter most to you</h3>
+        {rows.map((signal) => (
+          <div key={signal.index} className="signalRow">
+            <span>{signal.index}</span>
+            <div>
+              <b>{signal.title}</b>
+              <p>{signal.copy}</p>
+            </div>
+          </div>
+        ))}
+      </section>
+    </>
+  );
+};
 
 const OpportunitiesTab: React.FC = () => {
   const { state, setMarketOpportunityView } = useClarity();
@@ -904,6 +1189,16 @@ const OpportunitiesTab: React.FC = () => {
 
 const SkillsTab: React.FC = () => {
   const { openSkillsFromMarket } = useClarity();
+  const live = useAdaptedMarketReport();
+  const capabilities =
+    live?.skills.length
+      ? live.skills.map((skill) => ({
+          name: skill.name,
+          demand: skill.demand,
+          action: skill.action,
+          width: skill.width,
+        }))
+      : CAPABILITIES;
 
   return (
     <>
@@ -913,8 +1208,8 @@ const SkillsTab: React.FC = () => {
         <p>This is a priority list, not a full learning catalogue.</p>
       </div>
       <section className="capabilityCard">
-        {CAPABILITIES.map((capability, index) => (
-          <div key={capability.name} className="capabilityRow">
+        {capabilities.map((capability, index) => (
+          <div key={`${capability.name}-${index}`} className="capabilityRow">
             <div className="capabilityTop">
               <span className="capNumber">{index + 1}</span>
               <h3>{capability.name}</h3>
@@ -948,54 +1243,74 @@ const SkillsTab: React.FC = () => {
   );
 };
 
-const EvidenceTab: React.FC = () => (
-  <>
-    <div className="fullReportContentHead">
-      <small className="fullReportKicker">Evidence</small>
-      <h2>See the evidence behind your report</h2>
-      <p>
-        Review the market data, hiring signals and trusted sources supporting your outlook,
-        opportunities and recommended actions.
-      </p>
-    </div>
-    <section className="evidenceGroups">
-      {EVIDENCE_GROUPS.map((group) => (
-        <div key={group.index} className="evidenceGroup">
-          <span>{group.index}</span>
-          <div>
-            <h3>{group.title}</h3>
-            <div className="evidenceTags">
-              {group.tags.map((tag) => (
-                <span key={tag}>{tag}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      ))}
-    </section>
-    <section className="sourceQuality">
-      <div className="sourceQualityHead">
-        <div>
-          <small className="fullReportKicker">Source quality</small>
-          <h3>Current, local and traceable</h3>
-        </div>
-        <span className="windowTag">High confidence</span>
+const EvidenceTab: React.FC = () => {
+  const live = useAdaptedMarketReport();
+  const groups =
+    live && live.evidenceTags.some((row) => row.length)
+      ? EVIDENCE_GROUPS.map((group, index) => ({
+          ...group,
+          tags: live.evidenceTags[index] ?? group.tags,
+        }))
+      : EVIDENCE_GROUPS;
+  const sources =
+    live?.sources.length
+      ? live.sources.map((source) => ({
+          name: source.name,
+          role: source.role,
+          date: source.date,
+        }))
+      : EVIDENCE_SOURCES;
+
+  return (
+    <>
+      <div className="fullReportContentHead">
+        <small className="fullReportKicker">Evidence</small>
+        <h2>See the evidence behind your report</h2>
+        <p>
+          Review the market data, hiring signals and trusted sources supporting your outlook,
+          opportunities and recommended actions.
+        </p>
       </div>
-      <div className="sourceList">
-        {EVIDENCE_SOURCES.map((source) => (
-          <div key={source.name} className="sourceRow">
-            <span className="sourceIcon">↗</span>
+      <section className="evidenceGroups">
+        {groups.map((group) => (
+          <div key={group.index} className="evidenceGroup">
+            <span>{group.index}</span>
             <div>
-              <b>{source.name}</b>
-              <small>{source.role}</small>
+              <h3>{group.title}</h3>
+              <div className="evidenceTags">
+                {group.tags.map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </div>
             </div>
-            <span className="sourceDate">{source.date}</span>
           </div>
         ))}
-      </div>
-    </section>
-  </>
-);
+      </section>
+      <section className="sourceQuality">
+        <div className="sourceQualityHead">
+          <div>
+            <small className="fullReportKicker">Source quality</small>
+            <h3>Current, local and traceable</h3>
+          </div>
+          <span className="windowTag">{live?.fromLive ? 'Live data' : 'High confidence'}</span>
+        </div>
+        <div className="sourceList">
+          {sources.map((source) => (
+            <div key={source.name} className="sourceRow">
+              <span className="sourceIcon">↗</span>
+              <div>
+                <b>{source.name}</b>
+                <small>
+                  {source.role} · {source.date}
+                </small>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+};
 
 const FULL_REPORT_TABS: Array<[MarketReportTab, string, string, string]> = [
   ['overview', '1', 'Overview', 'Your market at a glance'],
