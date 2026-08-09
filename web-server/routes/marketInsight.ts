@@ -12,7 +12,8 @@ marketInsightRouter.post(
   "/generate",
   async (req: Request, res: Response) => {
     try {
-      const { location: requestedLocation, userId, job, seniority } = req.body;
+      const { location: requestedLocation, userId, job, seniority, industry } =
+        req.body;
 
       if (!requestedLocation || typeof requestedLocation !== "string") {
         return res
@@ -25,6 +26,11 @@ marketInsightRouter.post(
       if (sanitizedLocation.length === 0) {
         return res.status(400).json({ error: "Location cannot be empty" });
       }
+
+      const sanitizedIndustry =
+        typeof industry === "string" && industry.trim()
+          ? industry.trim().substring(0, 200)
+          : undefined;
 
       const { locationCity, locationDistrict } = getTopCityOfDistrictOfACity(sanitizedLocation);
 
@@ -39,28 +45,14 @@ marketInsightRouter.post(
         });
       }
 
-      // ── Step 1: Check mock DB cache (swap with real DB check later) ──
-      // const cacheStatus = mockDbCache.check(sanitizedLocation);
-      // if (cacheStatus.hit && cacheStatus.isLTS) {
-      //   console.log(
-      //     `📦 Mock DB Cache HIT (LTS): "${sanitizedLocation}" — returning mock cached data`,
-      //   );
-      //   return res.json({
-      //     success: true,
-      //     insights: mockDbCache.getMockInsights(sanitizedLocation),
-      //     fromCache: true,
-      //     generated_at: new Date().toISOString(),
-      //   });
-      // }
-
       // Cache miss or stale → enter queue
-      // ── Step 2: Try to queue the job ──
       const jobId = await enqueueJob(
         sanitizedLocation,
         userId || "",
         locationDistrict || "",
         job,
-        seniority
+        seniority,
+        sanitizedIndustry,
       );
 
       if (jobId) {
@@ -75,15 +67,16 @@ marketInsightRouter.post(
         });
       }
 
-      // If not queued (Redis down), direct
+      // If not queued (Redis down), generate synchronously
       console.log(`--> Processing directly: ${sanitizedLocation}`);
-      const insights = await generateMarketInsights(
+      const { insights } = await generateMarketInsights(
         sanitizedLocation,
         userId || "",
         "",
         locationDistrict || "",
         job,
-        seniority
+        seniority,
+        sanitizedIndustry,
       );
 
       return res.json({

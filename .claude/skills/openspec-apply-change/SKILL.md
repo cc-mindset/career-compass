@@ -103,11 +103,36 @@ Implement tasks from an OpenSpec change.
    - Error or blocker encountered → report and wait for guidance
    - User interrupts
 
-7. **On completion or pause, show status**
+7. **Unit tests while implementing (inner gate — see AGENTS.md)**
+
+   For logic-shaped work (helpers, adapters, validation, persistence, API client shaping):
+   - Add or extend a **failing** colocated Vitest first
+   - Implement until it passes; re-run **focused** Vitest (`npx vitest run <path>` / `npm run test:core`) before the next task
+   - Do not mark those tasks complete without green focused tests
+   - Do not chase repo-wide coverage %
+
+8. **E2E for product work (outer gate — see AGENTS.md)**
+
+   When the change touches product UI or API used by UI:
+   - Add or update Playwright coverage in the same apply (`e2e/` + `data-test-ids.ts` as needed)
+   - Prefer extending `e2e:p0` journeys; use `e2e:smoke` for shell/routes
+
+9. **E2E validation ladder before complete (required — see AGENTS.md)**
+
+   | When | Run (`cd client/client/app`) |
+   |------|------------------------------|
+   | **Always** | `npm run e2e:pulse` |
+   | UI routes / shell / tools chooser | also `npm run e2e:smoke` |
+   | Guest job/market or API-for-UI | also `npm run e2e:p0` |
+
+   Do not claim apply complete without this ladder when product UI/API-for-UI was touched.
+
+10. **On completion or pause, show status**
 
    Display:
    - Tasks completed this session
    - Overall progress: "N/M tasks complete"
+   - Gate results attempted (Vitest / Playwright)
    - If all done: suggest archive
    - If paused: explain why and wait for guidance
 
@@ -176,6 +201,8 @@ What would you like to do?
 - Consider every guidance entry; explain any inapplicable or conflicting advice
 - Do not copy runtime context or operation guidance into implementation files or planning artifacts
 - Preserve CLI-controlled blocked/ready/all-done behavior and completion criteria
+- Do not claim apply complete without AGENTS.md e2e add/update rules and validation ladder when product UI/API-for-UI was touched
+- Do not claim logic-shaped tasks complete without focused Vitest green
 
 **Fluid Workflow Integration**
 

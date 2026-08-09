@@ -14,7 +14,6 @@ web-api-server/venv/
 .env.production.local
 web-api-server/.env
 client/app/.env
-**/.env
 
 # SAM / AWS
 ai-enabler/rag-pipeline/samconfig.toml
@@ -138,8 +137,6 @@ venv/
 web-api-server/venv/
 
 # Environment variables
-.env
-.env.local
 .env.development.local
 .env.test.local
 .env.production.local

@@ -1,5 +1,6 @@
 import React from 'react';
 import { DashboardShell } from '../../components/DashboardShell';
+import { FileDropZone } from '../../components/FileDropZone';
 import { useClarity } from '../../state/contexts/ClarityContext';
 import type { ProfileSource } from '../../types';
 
@@ -216,8 +217,9 @@ const CareerProfileCompleteModal: React.FC = () => {
 };
 
 const ProfileSourceInput: React.FC = () => {
-  const { state, openManualExperience } = useClarity();
+  const { state, openManualExperience, toast, patch } = useClarity();
   const source = state.profileSource;
+  const [resumeName, setResumeName] = React.useState<string | null>(null);
 
   if (source === 'resume') {
     return (
@@ -225,20 +227,19 @@ const ProfileSourceInput: React.FC = () => {
         <label>
           Upload your résumé <small>PDF or DOCX · Required</small>
         </label>
-        <div
-          className="input"
-          style={{
-            minHeight: 150,
-            display: 'grid',
-            placeItems: 'center',
-            textAlign: 'center',
-            color: '#64748b',
+        <FileDropZone
+          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          emptyLabel="Drop your résumé here"
+          hint="or click to choose a file · Maximum 10 MB · PDF or DOCX"
+          selectedName={resumeName}
+          onInvalid={(message) => toast(message)}
+          onFile={(file) => {
+            setResumeName(file.name);
+            // Keep prototype flow moving; full résumé parse API wiring is separate.
+            patch({ profileSource: 'resume' });
+            toast(`Selected ${file.name}`);
           }}
-        >
-          Drop your résumé here
-          <br />
-          <small>or click to choose a file · Maximum 10 MB</small>
-        </div>
+        />
       </div>
     );
   }
