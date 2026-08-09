@@ -1,8 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { FileDropZone } from '../../components/FileDropZone';
 import { DashboardShell } from '../../components/DashboardShell';
 import { Progress } from '../../components/layout';
+import { getClarityUserId } from '../../lib/clarityUserId';
+import { setJobUploadFile } from '../../lib/jobUploadFile';
+import {
+  fetchJobAnalysis,
+  listJobAnalyses,
+  type JobAnalysisSummary,
+} from '../../services/jobAnalyzer/api';
 import { useClarity } from '../../state/contexts/ClarityContext';
 import type { JobSource } from '../../types';
+import { runJobAnalysis } from './runJobAnalysis';
 
 interface JobWorkspaceShellProps {
   label: string;
@@ -38,7 +47,12 @@ const SavedAnalysesLink: React.FC = () => {
 };
 
 export const JobWorkspaceEmptyView: React.FC = () => {
-  const { navigate } = useClarity();
+  const { navigate, patch } = useClarity();
+
+  useEffect(() => {
+    patch({ jobHasAnalyses: false });
+  }, [patch]);
+
   const openNew = (event: React.MouseEvent) => {
     event.preventDefault();
     navigate('job-workspace-new');
@@ -86,44 +100,61 @@ export const JobWorkspaceEmptyView: React.FC = () => {
   );
 };
 
-interface HistoryRow {
-  title: string;
-  meta: string;
-  pill: string;
-  pillTone: 'high' | 'medium';
-  action: string;
-  target: string;
-}
-
-const HISTORY_ROWS: HistoryRow[] = [
-  {
-    title: 'Senior Product Manager',
-    meta: 'Northstar Financial · Toronto, Canada · Updated today',
-    pill: 'Analysis complete',
-    pillTone: 'high',
-    action: 'Open →',
-    target: 'job-workspace-result',
-  },
-  {
-    title: 'Product Lead',
-    meta: 'FintechCo · Remote — Canada · Updated July 20',
-    pill: '82% Skills Match',
-    pillTone: 'high',
-    action: 'Open →',
-    target: 'job-workspace-result',
-  },
-  {
-    title: 'Platform Product Manager',
-    meta: 'Acme Platforms · Toronto, Canada · Updated July 18',
-    pill: 'Draft',
-    pillTone: 'medium',
-    action: 'Continue →',
-    target: 'job-workspace-review',
-  },
-];
-
 export const JobWorkspaceHistoryView: React.FC = () => {
-  const { navigate } = useClarity();
+  const { navigate, patch, toast } = useClarity();
+  const [rows, setRows] = useState<JobAnalysisSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const analyses = await listJobAnalyses(getClarityUserId());
+        if (cancelled) return;
+        if (analyses.length === 0) {
+          patch({ jobHasAnalyses: false });
+          navigate('job-workspace-empty');
+          return;
+        }
+        setRows(analyses);
+        patch({ jobHasAnalyses: true });
+      } catch (error) {
+        if (!cancelled) {
+          toast(error instanceof Error ? error.message : 'Could not load analyses');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, patch, toast]);
+
+  const openAnalysis = async (analysisId: string) => {
+    try {
+      const record = await fetchJobAnalysis(getClarityUserId(), analysisId);
+      patch({
+        job: {
+          title: record.title,
+          company: record.company,
+          location: record.location,
+        },
+        jobLiveAnalysis: {
+          analysisId: record.analysisId,
+          result: record.result,
+          metadata: record.metadata,
+          saved: true,
+        },
+        jobHasAnalyses: true,
+      });
+      navigate('job-workspace-result');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not open analysis');
+    }
+  };
 
   return (
     <JobWorkspaceShell label="Saved analyses">
@@ -148,45 +179,43 @@ export const JobWorkspaceHistoryView: React.FC = () => {
         </a>
       </div>
       <section className="flowPanel">
-        <div
-          className="split"
-          style={{ gridTemplateColumns: '1fr 220px', marginBottom: 18 }}
-        >
-          <input className="input" placeholder="Search by job title or company" />
-          <select className="input" defaultValue="All statuses">
-            <option>All statuses</option>
-            <option>Complete</option>
-            <option>Match assessed</option>
-            <option>Draft</option>
-          </select>
-        </div>
-        <div style={{ display: 'grid', gap: 10 }}>
-          {HISTORY_ROWS.map((row) => (
-            <div key={row.title} className="recentRow">
-              <div>
-                <b>{row.title}</b>
-                <p>{row.meta}</p>
+        {loading ? (
+          <p>Loading saved analyses…</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {rows.map((row) => (
+              <div key={row.analysisId} className="recentRow">
+                <div>
+                  <b>{row.title}</b>
+                  <p>
+                    {row.company || 'Company'} · {row.location || 'Location'} ·{' '}
+                    {new Date(row.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <span className="pill high">
+                  {row.hiddenExpectationCount} hidden expectation
+                  {row.hiddenExpectationCount === 1 ? '' : 's'}
+                </span>
+                <a
+                  href="#job-workspace-result"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void openAnalysis(row.analysisId);
+                  }}
+                >
+                  Open →
+                </a>
               </div>
-              <span className={`pill ${row.pillTone}`}>{row.pill}</span>
-              <a
-                href={`#${row.target}`}
-                onClick={(event) => {
-                  event.preventDefault();
-                  navigate(row.target);
-                }}
-              >
-                {row.action}
-              </a>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
     </JobWorkspaceShell>
   );
 };
 
 export const JobWorkspaceNewView: React.FC = () => {
-  const { state, setJobSource, navigate, toast } = useClarity();
+  const { state, setJobSource, navigate, patch, toast } = useClarity();
 
   return (
     <JobWorkspaceShell label="New analysis">
@@ -223,7 +252,9 @@ export const JobWorkspaceNewView: React.FC = () => {
             </label>
             <input
               className="input"
-              defaultValue="https://example.com/jobs/senior-product-manager"
+              value={state.jobUrl}
+              onChange={(event) => patch({ jobUrl: event.target.value })}
+              placeholder="https://…"
             />
           </div>
         ) : state.jobSource === 'upload' ? (
@@ -231,30 +262,21 @@ export const JobWorkspaceNewView: React.FC = () => {
             <label>
               Job description file <small>Required</small>
             </label>
-            <div
-              className="input"
-              style={{
-                minHeight: 135,
-                display: 'grid',
-                placeItems: 'center',
-                textAlign: 'center',
+            <FileDropZone
+              accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"
+              emptyLabel="Drop a file here or browse"
+              hint="PDF, DOCX or TXT · maximum 10 MB · images are not supported"
+              selectedName={state.jobUploadFileName}
+              onInvalid={(message) => toast(message)}
+              onFile={(file) => {
+                setJobUploadFile(file);
+                patch({
+                  jobUploadFileName: file.name,
+                  jobPostingText: `[Uploaded file: ${file.name}]`,
+                });
+                toast(`Selected ${file.name}`);
               }}
-            >
-              <div>
-                <b>Drop a file here or browse</b>
-                <br />
-                <small>PDF, DOCX or TXT · maximum 10 MB</small>
-                <br />
-                <button
-                  type="button"
-                  className="btn secondary"
-                  style={{ marginTop: 12 }}
-                  onClick={() => toast('File selected for prototype')}
-                >
-                  Choose file
-                </button>
-              </div>
-            </div>
+            />
           </div>
         ) : (
           <div className="field">
@@ -264,7 +286,8 @@ export const JobWorkspaceNewView: React.FC = () => {
             <textarea
               className="input"
               style={{ minHeight: 190 }}
-              defaultValue="We are seeking a Senior Product Manager to own product strategy, align cross-functional teams, improve delivery cadence and deliver measurable customer and commercial outcomes in a regulated financial environment."
+              value={state.jobPostingText}
+              onChange={(event) => patch({ jobPostingText: event.target.value })}
             />
           </div>
         )}
@@ -274,7 +297,7 @@ export const JobWorkspaceNewView: React.FC = () => {
             href="#job-workspace-history"
             onClick={(event) => {
               event.preventDefault();
-              navigate('job-workspace-history');
+              navigate(state.jobHasAnalyses ? 'job-workspace-history' : 'job-workspace-empty');
             }}
           >
             Cancel
@@ -284,6 +307,18 @@ export const JobWorkspaceNewView: React.FC = () => {
             href="#job-workspace-review"
             onClick={(event) => {
               event.preventDefault();
+              if (state.jobSource === 'paste' && state.jobPostingText.trim().length < 40) {
+                toast('Paste the complete job description before continuing.');
+                return;
+              }
+              if (state.jobSource === 'url' && !state.jobUrl.trim()) {
+                toast('Enter a public job URL, or switch to paste.');
+                return;
+              }
+              if (state.jobSource === 'upload' && !state.jobUploadFileName) {
+                toast('Choose a PDF, DOCX, or TXT posting file.');
+                return;
+              }
               navigate('job-workspace-review');
             }}
           >
@@ -296,7 +331,37 @@ export const JobWorkspaceNewView: React.FC = () => {
 };
 
 export const JobWorkspaceReviewView: React.FC = () => {
-  const { state, navigate } = useClarity();
+  const { state, navigate, patch, toast } = useClarity();
+  const [busy, setBusy] = useState(false);
+
+  const analyze = async () => {
+    setBusy(true);
+    const result = await runJobAnalysis({
+      source: state.jobSource,
+      postingText: state.jobPostingText,
+      url: state.jobUrl,
+      job: state.job,
+      registered: true,
+    });
+    setBusy(false);
+
+    if (result.ok && !result.fromFixtures && result.analysis) {
+      patch({
+        jobLiveAnalysis: result.analysis,
+        jobLiveError: null,
+        jobHasAnalyses: true,
+      });
+      navigate('job-workspace-result');
+      return;
+    }
+    if (result.ok) {
+      patch({ jobLiveError: null, jobHasAnalyses: true });
+      navigate('job-workspace-result');
+      return;
+    }
+    toast(result.error);
+    patch({ jobLiveError: result.error });
+  };
 
   return (
     <JobWorkspaceShell label="Review">
@@ -318,37 +383,38 @@ export const JobWorkspaceReviewView: React.FC = () => {
             <label>
               Job title <small>Required</small>
             </label>
-            <input className="input" defaultValue={state.job.title} />
+            <input
+              className="input"
+              value={state.job.title}
+              onChange={(event) =>
+                patch({ job: { ...state.job, title: event.target.value } })
+              }
+            />
           </div>
           <div className="field">
             <label>
               Company <small>Optional</small>
             </label>
-            <input className="input" defaultValue={state.job.company} />
+            <input
+              className="input"
+              value={state.job.company}
+              onChange={(event) =>
+                patch({ job: { ...state.job, company: event.target.value } })
+              }
+            />
           </div>
           <div className="field">
             <label>
               Location <small>Optional</small>
             </label>
-            <input className="input" defaultValue={state.job.location} />
+            <input
+              className="input"
+              value={state.job.location}
+              onChange={(event) =>
+                patch({ job: { ...state.job, location: event.target.value } })
+              }
+            />
           </div>
-          <div className="field">
-            <label>
-              Work arrangement <small>Optional</small>
-            </label>
-            <select className="input" defaultValue="Hybrid">
-              <option>Hybrid</option>
-              <option>Remote</option>
-              <option>On-site</option>
-            </select>
-          </div>
-        </div>
-        <div className="evidence">
-          <b>Posting quality: Good</b>
-          <br />
-          The description contains enough responsibility, outcome and context language for
-          a useful analysis. Clarity Coach will distinguish explicit requirements from
-          inferred expectations.
         </div>
         <div className="flowActions">
           <a
@@ -361,16 +427,14 @@ export const JobWorkspaceReviewView: React.FC = () => {
           >
             ← Back
           </a>
-          <a
+          <button
+            type="button"
             className="btn primary"
-            href="#job-workspace-result"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate('job-workspace-result');
-            }}
+            disabled={busy}
+            onClick={() => void analyze()}
           >
-            Analyze this job →
-          </a>
+            {busy ? 'Analyzing…' : 'Analyze this job →'}
+          </button>
         </div>
       </section>
     </JobWorkspaceShell>
@@ -378,7 +442,25 @@ export const JobWorkspaceReviewView: React.FC = () => {
 };
 
 export const JobWorkspaceResultView: React.FC = () => {
-  const { navigate } = useClarity();
+  const { state, navigate, patch } = useClarity();
+  const live = state.jobLiveAnalysis?.result;
+  const required = live?.statedRequirements.filter((r) => r.category === 'required') ?? [];
+  const preferred = live?.statedRequirements.filter((r) => r.category === 'preferred') ?? [];
+  const hidden = live?.hiddenExpectations ?? [];
+
+  const openSkillsMatch = () => {
+    // Skills Match backend is out of scope — navigation stub only.
+    if (!state.registered) {
+      patch({
+        pendingGuest: 'job',
+        postAuthRoute: 'skills-match',
+        entryPoint: 'guest-job',
+      });
+      navigate('signup-job');
+      return;
+    }
+    navigate('skills-match');
+  };
 
   return (
     <JobWorkspaceShell label="Analysis result">
@@ -386,7 +468,9 @@ export const JobWorkspaceResultView: React.FC = () => {
         <div>
           <div className="eyebrow">Complete job analysis</div>
           <h1>What this role is really asking for</h1>
-          <p>Senior Product Manager · Northstar Financial</p>
+          <p>
+            {state.job.title} · {state.job.company}
+          </p>
         </div>
         <div className="actions">
           <a
@@ -414,32 +498,74 @@ export const JobWorkspaceResultView: React.FC = () => {
       <section className="fullresult">
         <div className="fullgrid">
           <div>
-            <div className="plainsection">
-              <span className="label">Required</span>
-              <h3>Strategy, delivery and measurable outcomes</h3>
-              <p>
-                Own the roadmap, align multiple functions and connect decisions to
-                performance.
-              </p>
-            </div>
-            <div className="plainsection">
-              <span className="label">Preferred</span>
-              <h3>Regulated financial product experience</h3>
-              <p>
-                Domain language suggests a preference even where it is not written as
-                mandatory.
-              </p>
-            </div>
+            {(required.length ? required : [{ title: 'Strategy, delivery and measurable outcomes', summary: 'Own the roadmap, align multiple functions and connect decisions to performance.' }]).map(
+              (item) => (
+                <div key={item.title} className="plainsection">
+                  <span className="label">Required</span>
+                  <h3>{item.title}</h3>
+                  <p>{item.summary}</p>
+                </div>
+              ),
+            )}
+            {(preferred.length
+              ? preferred
+              : [
+                  {
+                    title: 'Regulated financial product experience',
+                    summary:
+                      'Domain language suggests a preference even where it is not written as mandatory.',
+                  },
+                ]
+            ).map((item) => (
+              <div key={item.title} className="plainsection">
+                <span className="label">Preferred</span>
+                <h3>{item.title}</h3>
+                <p>{item.summary}</p>
+              </div>
+            ))}
           </div>
           <div>
             <div className="plainsection">
               <span className="label">Hidden expectations</span>
-              <h3>1. Stabilize delivery</h3>
-              <p>High confidence · repeated cadence and dependency language.</p>
-              <h3>2. Influence senior stakeholders</h3>
-              <p>High confidence · decision and alignment language.</p>
-              <h3>3. Improve measurement discipline</h3>
-              <p>Medium confidence · recurring outcome language.</p>
+              {(hidden.length
+                ? hidden
+                : [
+                    {
+                      title: 'Stabilize delivery',
+                      summary: 'High confidence · repeated cadence and dependency language.',
+                      confidence: 'high' as const,
+                      implication: '',
+                      evidence: [],
+                    },
+                    {
+                      title: 'Influence senior stakeholders',
+                      summary: 'High confidence · decision and alignment language.',
+                      confidence: 'high' as const,
+                      implication: '',
+                      evidence: [],
+                    },
+                    {
+                      title: 'Improve measurement discipline',
+                      summary: 'Medium confidence · recurring outcome language.',
+                      confidence: 'medium' as const,
+                      implication: '',
+                      evidence: [],
+                    },
+                  ]
+              ).map((item, index) => (
+                <React.Fragment key={item.title}>
+                  <h3>
+                    {index + 1}. {item.title}
+                  </h3>
+                  <p>
+                    {item.confidence
+                      ? `${item.confidence.charAt(0).toUpperCase()}${item.confidence.slice(1)} confidence`
+                      : 'Confidence'}
+                    {' · '}
+                    {item.summary}
+                  </p>
+                </React.Fragment>
+              ))}
             </div>
           </div>
         </div>
@@ -448,22 +574,16 @@ export const JobWorkspaceResultView: React.FC = () => {
           <br />
           Hidden expectations are reasoned from repeated language and role context. They
           are not presented as facts from the employer.
+          {live?.roleFocusSummary ? ` ${live.roleFocusSummary}` : ''}
         </div>
         <div className="formactions">
           <span className="privacy">
             A résumé is not required for job analysis. Add career evidence only when you
             choose to assess your match.
           </span>
-          <a
-            className="btn primary"
-            href="#skills-match"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate('skills-match');
-            }}
-          >
+          <button type="button" className="btn primary" onClick={openSkillsMatch}>
             Assess my skills match →
-          </a>
+          </button>
         </div>
       </section>
     </JobWorkspaceShell>

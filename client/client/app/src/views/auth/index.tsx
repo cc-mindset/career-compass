@@ -148,7 +148,6 @@ export const SignUpView: React.FC<{ mode: string }> = ({ mode }) => {
         tool: guestTool,
         pendingGuest: guestTool,
         entryPoint: guestEntryPoint(guestTool),
-        ...(guestTool === 'market' ? { postAuthRoute: 'market-workspace-result' } : {}),
       });
       return;
     }
@@ -156,27 +155,63 @@ export const SignUpView: React.FC<{ mode: string }> = ({ mode }) => {
   }, [guestTool, patch]);
 
   const completeSignup = () => {
-    patch({
-      registered: true,
-      workState: guestTool ? 'unfinished' : 'none',
-      ...(marketGuest
-        ? {
-            marketHasReports: true,
-            marketGuestReady: true,
-            marketGuestSaved: true,
+    const finish = async () => {
+      if (guestTool === 'job' && state.jobLiveAnalysis) {
+        try {
+          const { saveJobAnalysis } = await import('../../services/jobAnalyzer/api');
+          const { getClarityUserId } = await import('../../lib/clarityUserId');
+          await saveJobAnalysis({
+            userId: getClarityUserId(),
+            analysisId: state.jobLiveAnalysis.analysisId,
+            title: state.job.title,
+            company: state.job.company,
+            location: state.job.location,
+            postingText: state.jobPostingText,
+            result: state.jobLiveAnalysis.result,
+            metadata: state.jobLiveAnalysis.metadata,
+            source: state.jobLiveAnalysis.metadata.source,
+          });
+          patch({
+            registered: true,
+            workState: 'unfinished',
+            jobHasAnalyses: true,
+            jobLiveAnalysis: { ...state.jobLiveAnalysis, saved: true },
             postAuthRoute: null,
-          }
-        : {}),
-    });
-    toast('Account created. Confirmation email sent.');
-    const destination = !guestTool
-      ? 'dashboard-new'
-      : guestTool === 'job'
-        ? 'job-workspace-result'
-        : marketGuest
-          ? state.postAuthRoute || 'market-workspace-result'
-          : `dashboard-${guestTool}`;
-    window.setTimeout(() => navigate(destination), 500);
+          });
+        } catch {
+          patch({
+            registered: true,
+            workState: 'unfinished',
+            postAuthRoute: null,
+          });
+        }
+      } else {
+        patch({
+          registered: true,
+          workState: guestTool ? 'unfinished' : 'none',
+          ...(marketGuest
+            ? {
+                marketHasReports: true,
+                marketGuestReady: true,
+                marketGuestSaved: true,
+                postAuthRoute: null,
+              }
+            : {}),
+        });
+      }
+
+      toast('Account created. Confirmation email sent.');
+      const destination = !guestTool
+        ? 'dashboard-new'
+        : guestTool === 'job'
+          ? state.postAuthRoute || 'job-workspace-result'
+          : marketGuest
+            ? state.postAuthRoute || 'market-workspace-result'
+            : `dashboard-${guestTool}`;
+      window.setTimeout(() => navigate(destination), 500);
+    };
+
+    void finish();
   };
 
   return (

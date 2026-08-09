@@ -219,6 +219,13 @@ export const INITIAL_STATE: ClarityState = {
     company: 'Northstar Financial',
     location: 'Toronto, Canada',
   },
+  jobPostingText:
+    'Senior Product Manager — Northstar Financial\n\nOwn product strategy and roadmap, lead cross-functional delivery, use customer and performance data to improve measurable outcomes, and influence senior stakeholders across the organization.',
+  jobUrl: '',
+  jobUploadFileName: null,
+  jobLiveAnalysis: null,
+  jobLiveError: null,
+  jobHasAnalyses: false,
   pivot: {
     title: 'Product Manager',
     industry: 'Financial Services',
@@ -259,6 +266,9 @@ export const INITIAL_STATE: ClarityState = {
   marketReportTab: 'overview',
   marketOpportunityView: 'roles',
   marketOpportunityDetail: null,
+  marketLiveInsights: null,
+  marketLiveError: null,
+  marketSnapshotId: null,
 };
 
 export const DEMO_STATES: Array<[DemoStateKey, string]> = [

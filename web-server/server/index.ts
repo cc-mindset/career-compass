@@ -11,6 +11,7 @@ import { connectRedis } from "../lib/redis.js";
 import { app } from "./app.js";
 import { mongodbClient } from "../db/controller.js";
 import { processQueue } from "../utils/serverQueue.js";
+import { processJobAnalyzerQueue } from "../utils/jobAnalyzerQueueProcessor.js";
 
 const server = http.createServer(app);
 
@@ -34,6 +35,7 @@ if (!wsEnabled) {
       console.log("Connected to Redis");
       console.log("Starting queue processor...");
       processQueue();
+      processJobAnalyzerQueue();
     } else {
       console.warn("Redis unavailable. Running without cache and queue.");
     }

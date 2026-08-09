@@ -11,6 +11,7 @@ export interface QueueJob {
   locationDistrict?: string; // optional field for more specific location context
   job?: string;              // job title/role (e.g., "senior software engineer")
   seniority?: string;        // seniority level (e.g., "junior", "mid", "senior")
+  industry?: string;         // optional industry context (backward compatible)
 }
 
 const QUEUE_NAME = 'market_insights_queue';
@@ -30,6 +31,7 @@ export async function enqueueJob(
   locationDistrict?: string,
   job?: string,
   seniority?: string,
+  industry?: string,
 ): Promise<string | null> {
   if (!isRedisAvailable()) {
     logger.warn('Redis unavailable - job will be processed immediately');
@@ -57,6 +59,7 @@ export async function enqueueJob(
       locationDistrict,
       job,
       seniority,
+      industry,
     };
 
     await redis.rPush(QUEUE_NAME, JSON.stringify(queueJob));

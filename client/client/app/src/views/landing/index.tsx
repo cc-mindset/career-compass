@@ -1,4 +1,5 @@
 import React from 'react';
+import { FileDropZone } from '../../components/FileDropZone';
 import { SiteFooter, TopNav } from '../../components/layout';
 import {
   INDUSTRY_OPTIONS,
@@ -6,6 +7,8 @@ import {
   ROLE_OPTIONS,
   selectOptions,
 } from '../../consts';
+import { testIds } from '../../data-test-ids';
+import { setJobUploadFile } from '../../lib/jobUploadFile';
 import { useClarity } from '../../state/contexts/ClarityContext';
 import type { JobSource, Tool } from '../../types';
 
@@ -38,7 +41,7 @@ const options = (items: readonly string[], current: string) =>
   ));
 
 const QuickFields: React.FC = () => {
-  const { state, patch, setJobSource } = useClarity();
+  const { state, patch, setJobSource, toast } = useClarity();
 
   const chooseSource = (source: JobSource) => {
     setJobSource(source);
@@ -59,6 +62,8 @@ const QuickFields: React.FC = () => {
           {JOB_SOURCES.map(([value, label]) => (
             <button
               key={value}
+              type="button"
+              data-testid={testIds.jobSource(value)}
               className={state.jobSource === value ? 'active' : ''}
               onClick={() => chooseSource(value)}
             >
@@ -69,29 +74,42 @@ const QuickFields: React.FC = () => {
         {state.jobSource === 'url' ? (
           <div className="field">
             <label>Public job URL</label>
-            <input className="input" placeholder="https://company.com/jobs/role" />
+            <input
+              className="input"
+              placeholder="https://company.com/jobs/role"
+              value={state.jobUrl}
+              onChange={(event) => patch({ jobUrl: event.target.value })}
+            />
           </div>
         ) : state.jobSource === 'upload' ? (
           <div className="field">
             <label>Job description file</label>
-            <div
-              className="input"
-              style={{
-                display: 'grid',
-                placeItems: 'center',
-                minHeight: 88,
-                color: '#64748b',
+            <FileDropZone
+              accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"
+              emptyLabel="Drop PDF, DOCX or TXT here, or choose a file"
+              hint="PDF, DOCX or TXT · maximum 10 MB · images are not supported"
+              selectedName={state.jobUploadFileName}
+              testId={testIds.jobUploadDropzone}
+              onInvalid={(message) => toast(message)}
+              onFile={(file) => {
+                setJobUploadFile(file);
+                patch({
+                  jobUploadFileName: file.name,
+                  jobPostingText: `[Uploaded file: ${file.name}]`,
+                });
+                toast(`Selected ${file.name}`);
               }}
-            >
-              Drop PDF, DOCX or TXT here, or choose a file
-            </div>
+            />
           </div>
         ) : (
           <div className="field">
             <label>Job description</label>
             <textarea
               className="input"
+              data-testid={testIds.jobPasteTextarea}
               placeholder="Paste the complete job description here…"
+              value={state.jobPostingText}
+              onChange={(event) => patch({ jobPostingText: event.target.value })}
             />
           </div>
         )}
@@ -196,7 +214,7 @@ export const LandingView: React.FC = () => {
     <>
       <TopNav />
       <main>
-        <section className="hero">
+        <section className="hero" data-testid={testIds.landingHero}>
           <div className="heroCopy">
             <div className="eyebrow">Career intelligence for your next move</div>
             <h1>Make clearer career decisions in uncertain times.</h1>
@@ -234,7 +252,7 @@ export const LandingView: React.FC = () => {
           </div>
         </section>
 
-        <section className="productStage" id="tools">
+        <section className="productStage" id="tools" data-testid={testIds.toolsSection}>
           <div className="trybox">
             <div className="tryhead">
               <strong>What would you like help with?</strong>
@@ -247,6 +265,8 @@ export const LandingView: React.FC = () => {
               {TASK_CARDS.map(([tool, glyph, title, copy]) => (
                 <button
                   key={tool}
+                  type="button"
+                  data-testid={testIds.toolCard(tool)}
                   className={`taskCard ${state.tool === tool ? 'active' : ''}`}
                   onClick={() => setTool(tool)}
                 >
@@ -264,7 +284,12 @@ export const LandingView: React.FC = () => {
               </div>
               <div className="quickAction">
                 <span className="helper">{quickTrust(state.tool)}</span>
-                <button className="btn primary" onClick={startTool}>
+                <button
+                  type="button"
+                  className="btn primary"
+                  data-testid={testIds.startToolCta}
+                  onClick={startTool}
+                >
                   {quickCta(state.tool)}
                 </button>
               </div>
