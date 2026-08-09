@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DashboardShell, type DashNav } from '../../components/DashboardShell';
+import { FileDropZone } from '../../components/FileDropZone';
 import { SelectField } from '../../components/forms';
 import { SkillPicker } from '../../components/SkillPicker';
 import {
@@ -399,8 +400,9 @@ const StepThreeInitialResult: React.FC = () => {
 };
 
 const StepFourEvidence: React.FC = () => {
-  const { state, patch } = useClarity();
+  const { state, patch, toast } = useClarity();
   const source = state.profileSource;
+  const [resumeName, setResumeName] = useState<string | null>(null);
 
   const inlineInput =
     source === 'resume' ? (
@@ -408,21 +410,18 @@ const StepFourEvidence: React.FC = () => {
         <label>
           Upload your résumé <small>PDF or DOCX · Required</small>
         </label>
-        <div
-          className="input"
-          style={{
-            minHeight: 150,
-            display: 'grid',
-            placeItems: 'center',
-            textAlign: 'center',
-            color: '#64748b',
+        <FileDropZone
+          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          emptyLabel="Drop your résumé here"
+          hint="or click to choose a file · Maximum 10 MB · PDF or DOCX"
+          selectedName={resumeName}
+          onInvalid={(message) => toast(message)}
+          onFile={(file) => {
+            setResumeName(file.name);
+            patch({ profileSource: 'resume' });
+            toast(`Selected ${file.name}`);
           }}
-        >
-          Drop your résumé here
-          <br />
-          <small>or click to choose a file</small>
-        </div>
-        <div className="helper">Maximum file size: 10 MB</div>
+        />
       </div>
     ) : source === 'manual' ? (
       <>

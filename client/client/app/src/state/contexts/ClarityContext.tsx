@@ -64,7 +64,7 @@ interface ClarityContextValue {
   scrollMvp: (direction: number) => void;
   startNewMarketReport: () => void;
   refreshMarketReport: () => void;
-  reviewMarketSnapshot: (date: string) => void;
+  reviewMarketSnapshot: (reportId: string) => void;
   setMarketReportTab: (tab: MarketReportTab) => void;
   setMarketOpportunityView: (view: MarketOpportunityView) => void;
   toggleMarketOpportunityDetail: (key: string) => void;
@@ -437,7 +437,7 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
       tool: 'market',
       entryPoint: 'guest-market',
       marketGuestReady: true,
-      postAuthRoute: 'market-workspace-result',
+      postAuthRoute: 'market-workspace-full',
     });
     navigate('signup-market');
   }, [navigate, patch, state.registered]);
@@ -525,16 +525,25 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
           ?.scrollBy({ left: direction * 370, behavior: 'smooth' });
       },
       startNewMarketReport: () => {
-        patch({ marketCreateMode: true, marketSnapshotDate: null });
+        patch({
+          marketCreateMode: true,
+          marketSnapshotDate: null,
+          marketSnapshotId: null,
+        });
         navigate('market-workspace-new');
       },
       refreshMarketReport: () => {
-        patch({ marketCreateMode: false, marketSnapshotDate: null });
+        patch({
+          marketCreateMode: false,
+          marketSnapshotDate: null,
+          marketSnapshotId: null,
+        });
         navigate('market-workspace-new');
       },
-      reviewMarketSnapshot: (date) => {
-        patch({ marketSnapshotDate: date });
-        navigate('market-workspace-snapshot');
+      reviewMarketSnapshot: (reportId) => {
+        // History view loads the snapshot payload before calling this with a resolved id.
+        patch({ marketSnapshotId: reportId });
+        navigate('market-workspace-result');
       },
       setMarketReportTab: (marketReportTab) => patch({ marketReportTab }),
       setMarketOpportunityView: (marketOpportunityView) =>
@@ -573,7 +582,8 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
               : action === 'path'
                 ? 'opportunities'
                 : 'overview',
-          postAuthRoute: 'market-workspace-result',
+          postAuthRoute:
+            action === 'full' ? 'market-workspace-full' : 'market-workspace-result',
         });
         navigate('signup-market');
       },

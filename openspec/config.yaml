@@ -5,38 +5,29 @@ context: |
   web-server is the TypeScript/Express backend; it owns API routes, Redis queueing, websocket progress, and MongoDB-backed LLM cache/models.
   web-server uses Pinecone for RAG retrieval context and Redis for job queueing/cache coordination.
   client/client/app is the active Vite + React + TypeScript frontend for the guest-first Clarity Coach prototype; it preserves hash routes and prototype class names.
-  client/legacy-client/app is a separate older Vite + React + TypeScript app; it has Jest/ts-jest and React Testing Library, with tests under src/views/auth/__test__.
-  serverless is a separate Serverless Framework package for scheduled jobs (index.js, serverless.yml).
-  Testing: web-server uses Vitest with supertest; client/client/app has lint only in package.json; legacy-client uses Jest; no top-level ai-enabler test runner was checked.
-  Naming/structure: runtime-specific folders stay separate by surface, and web-server follows routes/, services/, db/, lib/, types/, and utils/ conventions.
+  client/legacy-client/app is a separate older Vite + React + TypeScript app; do not mix into active feature work unless requested.
+  serverless is a separate Serverless Framework package for scheduled jobs.
+  Testing: web-server Vitest (npm test / npm run test:core); active client Vitest (npm test / npm run test:core) + Playwright (e2e:pulse / e2e:smoke / e2e:p0).
+  Apply / implement via TDD: failing unit test before production code for logic-shaped work;
+  focused Vitest as the inner gate; AGENTS.md Playwright ladder as the outer gate before apply-complete.
+  Naming/structure: web-server follows routes/, services/, db/, lib/, types/, utils/; active client uses src/views/, src/state/, src/components/.
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+rules:
+  tasks:
+    - Order logic work as TDD pairs: failing unit test task, then implement-until-green task (focused Vitest). Do not put a Tests section after all production tasks.
+    - Include an outer-gate section: Playwright add/update when UI or API-for-UI is touched, then e2e:pulse (+ e2e:p0 / e2e:smoke per AGENTS.md).
+    - Keep investigation/manual staging checks separate from the TDD pairs.
+  design:
+    - When the change is logic-shaped, document the TDD + self-validation ladder (focused Vitest inner gate, Playwright outer gate) under Decisions.
+  proposal:
+    - Call out that apply uses TDD / AGENTS.md self-validation when the change includes helpers, adapters, merge/dedup, or API/client logic.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
-
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+operations:
+  apply:
+    guidance:
+      - For logic-shaped tasks: failing Vitest first, then implement until green; re-run focused Vitest before the next task.
+      - When product UI or API-for-UI changes: add/update Playwright coverage and run the AGENTS.md ladder before claiming apply-complete.
+      - Do not chase repository-wide coverage percentages.
+  archive:
+    guidance:
+      - Confirm inner/outer gates were green (or explicitly documented as out of scope) before archiving.

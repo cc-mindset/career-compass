@@ -11,9 +11,17 @@ let isWebSocketEnabled = false;
  */
 export function initializeWebSocket(httpServer: HttpServer): boolean {
   try {
+    const clientOrigins = (
+      process.env.CLIENT_URL ||
+      'http://localhost:3002,http://localhost:5173,http://localhost:3000'
+    )
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+
     io = new Server(httpServer, {
       cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:5173',
+        origin: clientOrigins.length === 1 ? clientOrigins[0] : clientOrigins,
         methods: ['GET', 'POST'],
       },
     });
@@ -31,6 +39,11 @@ export function initializeWebSocket(httpServer: HttpServer): boolean {
         socket.join(`job:${jobId}`);
         logger.info(`Socket ${socket.id} subscribed to job:${jobId}`);
         console.log(`✓ Socket ${socket.id} subscribed to job:${jobId}`);
+      });
+
+      socket.on('unsubscribe', (jobId: string) => {
+        if (!jobId || typeof jobId !== 'string') return;
+        socket.leave(`job:${jobId}`);
       });
 
       socket.on('disconnect', (reason) => {

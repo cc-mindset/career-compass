@@ -1,0 +1,25 @@
+---
+description: Inner Vitest + outer Playwright gates for OpenSpec applies
+alwaysApply: true
+---
+
+# Agentic test gates
+
+Follow `AGENTS.md` for Clarity Coach quality gates.
+
+## Inner gate (Vitest)
+
+- Logic-shaped work: failing colocated Vitest → implement → focused green.
+- `cd web-server && npx vitest run <path>` or `npm run test:core`
+- `cd client/client/app && npx vitest run <path>` or `npm run test:core`
+- Do not chase repo-wide coverage %. Incomplete without unit proof for helpers/adapters/validation.
+
+## Outer gate (Playwright)
+
+- Product UI or API-for-UI: add/update Playwright; prefer `data-test-ids.ts`.
+- After apply: always `npm run e2e:pulse` (`client/client/app`); add `e2e:smoke` / `e2e:p0` per AGENTS.md.
+- Do not mark OpenSpec apply complete without the ladder when UI/API-for-UI was touched.
+
+## OpenSpec
+
+`openspec/config.yaml` rules require TDD pairs + outer-gate section in `tasks.md`. Apply skill: `.claude/skills/openspec-apply-change/SKILL.md`.

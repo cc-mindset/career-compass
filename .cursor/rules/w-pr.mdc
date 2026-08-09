@@ -1,0 +1,18 @@
+---
+description: Trigger phrase "w/PR" runs OpenSpec apply → branch → draft PR
+alwaysApply: true
+---
+
+# w/PR
+
+When the user message contains **w/PR** (case-insensitive), immediately follow `.claude/skills/openspec-apply-draft-pr/SKILL.md` (mirrored under `.cursor/skills/` when present).
+
+Infer the OpenSpec change name from the message or conversation. If unclear, ask once for the change name, then continue the full flow (apply → branch → commit → push → **draft** PR). Do not ask for confirmation to commit, push, or open the PR.
+
+## Hard requirement: draft only
+
+- **`w/PR` always opens a draft PR.** Never create a ready-for-review PR from this trigger.
+- Prefer GitKraken / GitLens MCP `pull_request_create` with `is_draft: true`.
+- Fallback: `gh pr create --draft ...` (the `--draft` flag is mandatory).
+- If a PR was opened as non-draft by mistake, convert it immediately: `gh pr ready <n> --undo`.
+- Do not mark the PR ready unless the user explicitly asks.
