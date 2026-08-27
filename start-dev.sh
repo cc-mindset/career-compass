@@ -22,6 +22,10 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
+docker_is_ready() {
+    docker info >/dev/null 2>&1
+}
+
 worktree_is_clean() {
     [[ -z "$(git status --porcelain)" ]]
 }
@@ -70,13 +74,39 @@ redis_is_available() {
     fi
 }
 
+ensure_docker_running() {
+    require_command docker
+
+    if docker_is_ready; then
+        log "Docker is already running."
+        return 0
+    fi
+
+    log "Opening Docker Desktop..."
+    open -a Docker >/dev/null 2>&1 || open -a "Docker Desktop" >/dev/null 2>&1 || true
+
+    local attempts=0
+    local max_attempts=60
+
+    log "Waiting for Docker to be ready..."
+    until docker_is_ready; do
+        attempts=$((attempts + 1))
+        if [[ "$attempts" -ge "$max_attempts" ]]; then
+            fail "Docker Desktop did not become ready. Open Docker Desktop and try again."
+        fi
+        sleep 2
+    done
+
+    log "Docker is ready."
+}
+
 ensure_redis() {
     if redis_is_available; then
         log "Redis is already available on port 6379."
         return 0
     fi
 
-    require_command docker
+    ensure_docker_running
 
     if docker ps -a --format '{{.Names}}' | grep -qx "$REDIS_CONTAINER_NAME"; then
         log "Starting existing Redis container..."
@@ -92,10 +122,12 @@ ensure_redis() {
 start_background_process() {
     local dir="$1"
     local log_file="$2"
-    shift 2
+    local pid_var_name="$3"
+    shift 3
 
     (cd "$dir" && "$@") >"$log_file" 2>&1 &
-    echo $!
+    local pid="$!"
+    printf -v "$pid_var_name" '%s' "$pid"
 }
 
 cleanup() {
@@ -129,10 +161,10 @@ FRONTEND_LOG="$PROJECT_ROOT/.dev-frontend.log"
 trap cleanup EXIT INT TERM
 
 log "Starting backend on http://127.0.0.1:${BACKEND_PORT}..."
-BACKEND_PID="$(start_background_process "$BACKEND_DIR" "$BACKEND_LOG" npm run dev)"
+start_background_process "$BACKEND_DIR" "$BACKEND_LOG" BACKEND_PID npm run dev
 
 log "Starting frontend on http://127.0.0.1:${FRONTEND_PORT}..."
-FRONTEND_PID="$(start_background_process "$FRONTEND_DIR" "$FRONTEND_LOG" env VITE_API_URL="http://127.0.0.1:${BACKEND_PORT}" npm run dev)"
+start_background_process "$FRONTEND_DIR" "$FRONTEND_LOG" FRONTEND_PID env VITE_API_URL="http://127.0.0.1:${BACKEND_PORT}" npm run dev
 
 log ""
 log "Career Compass is starting up."
