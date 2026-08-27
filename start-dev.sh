@@ -1,62 +1,146 @@
 #!/usr/bin/env bash
 
-echo "🚀 Starting CC-AI Development Environment"
-
 set -euo pipefail
 
-find_free_port() {
-    for port in {5001..5010}; do
-        if ! lsof -nP -iTCP:${port} -sTCP:LISTEN >/dev/null 2>&1; then
-            echo "$port"
-            return 0
-        fi
-    done
-    return 1
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$PROJECT_ROOT/web-server"
+FRONTEND_DIR="$PROJECT_ROOT/client/client/app"
+BACKEND_PORT="5001"
+FRONTEND_PORT="3002"
+REDIS_CONTAINER_NAME="clarity-coach-redis"
+
+log() {
+    printf '%s\n' "$*"
 }
 
-echo "Checking MongoDB..."
-if ! pgrep -x "mongod" >/dev/null 2>&1; then
-    echo "MongoDB not running. Start it manually with: brew services start mongodb-community"
-fi
+fail() {
+    printf 'Error: %s\n' "$*" >&2
+    exit 1
+}
 
-echo "\n📦 Setting up backend..."
-cd backend
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
 
-echo "Starting Python resume parser on port 5000..."
-python resume_api.py > /tmp/python_api.log 2>&1 &
-PYTHON_PID=$!
-echo "Python PID: ${PYTHON_PID}"
+worktree_is_clean() {
+    [[ -z "$(git status --porcelain)" ]]
+}
 
-sleep 2
+ensure_repo_root() {
+    cd "$PROJECT_ROOT"
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "Run this from inside the Career Compass repo."
+}
 
-npm install --silent
-echo "Backend dependencies installed"
+sync_main_branch() {
+    local current_branch
+    current_branch="$(git branch --show-current)"
 
-PORT_TO_USE=$(find_free_port) || (echo "No free port found" >&2 && exit 1)
-export PORT=${PORT_TO_USE}
+    if [[ -z "$current_branch" ]]; then
+        fail "Could not determine the current git branch."
+    fi
 
-echo "Starting Node backend on port ${PORT}..."
-node --watch server.js &
-BACKEND_PID=$!
-echo "Backend PID: ${BACKEND_PID}"
+    if [[ "$current_branch" != "main" ]]; then
+        log "Switching to main so the app always starts from the latest shared branch..."
+        worktree_is_clean || fail "Please stash or commit local changes before switching branches."
+        git checkout main
+    fi
 
-sleep 2
+    log "Refreshing main from origin..."
+    git fetch origin main
+    git pull --ff-only origin main
+}
 
-echo "\n📦 Setting up frontend..."
-cd ../frontend
-npm install --silent
-echo "Frontend dependencies installed"
+install_dependencies() {
+    local dir="$1"
+    local label="$2"
 
-echo "Starting frontend on port 5173..."
-VITE_API_URL="http://localhost:${PORT}" npm run dev &
-FRONTEND_PID=$!
-echo "Frontend PID: ${FRONTEND_PID}"
+    log "Installing ${label} dependencies..."
+    if [[ -f "$dir/package-lock.json" ]]; then
+        (cd "$dir" && npm ci --no-audit --no-fund)
+    else
+        (cd "$dir" && npm install --no-audit --no-fund)
+    fi
+}
 
-echo "\nServices running:"
-echo "Frontend: http://localhost:5173"
-echo "Backend: http://localhost:${PORT}"
-echo "Python API: http://localhost:5000"
-echo "\nPress Ctrl+C to stop"
+redis_is_available() {
+    if command -v redis-cli >/dev/null 2>&1; then
+        redis-cli -p 6379 ping >/dev/null 2>&1
+    else
+        return 1
+    fi
+}
 
-trap "kill ${BACKEND_PID} ${PYTHON_PID} ${FRONTEND_PID} 2>/dev/null || true" EXIT
-wait
+ensure_redis() {
+    if redis_is_available; then
+        log "Redis is already available on port 6379."
+        return 0
+    fi
+
+    require_command docker
+
+    if docker ps -a --format '{{.Names}}' | grep -qx "$REDIS_CONTAINER_NAME"; then
+        log "Starting existing Redis container..."
+        docker start "$REDIS_CONTAINER_NAME" >/dev/null
+    else
+        log "Creating Redis container..."
+        docker run -d --name "$REDIS_CONTAINER_NAME" -p 6379:6379 redis:7-alpine >/dev/null
+    fi
+
+    log "Redis container started."
+}
+
+start_background_process() {
+    local dir="$1"
+    local log_file="$2"
+    shift 2
+
+    (cd "$dir" && "$@") >"$log_file" 2>&1 &
+    echo $!
+}
+
+cleanup() {
+    local exit_code=$?
+
+    if [[ -n "${BACKEND_PID:-}" ]]; then
+        kill "$BACKEND_PID" 2>/dev/null || true
+    fi
+
+    if [[ -n "${FRONTEND_PID:-}" ]]; then
+        kill "$FRONTEND_PID" 2>/dev/null || true
+    fi
+
+    exit "$exit_code"
+}
+
+ensure_repo_root
+
+log "Starting Career Compass..."
+require_command git
+require_command npm
+
+sync_main_branch
+ensure_redis
+install_dependencies "$BACKEND_DIR" "backend"
+install_dependencies "$FRONTEND_DIR" "frontend"
+
+BACKEND_LOG="$PROJECT_ROOT/.dev-backend.log"
+FRONTEND_LOG="$PROJECT_ROOT/.dev-frontend.log"
+
+trap cleanup EXIT INT TERM
+
+log "Starting backend on http://127.0.0.1:${BACKEND_PORT}..."
+BACKEND_PID="$(start_background_process "$BACKEND_DIR" "$BACKEND_LOG" npm run dev)"
+
+log "Starting frontend on http://127.0.0.1:${FRONTEND_PORT}..."
+FRONTEND_PID="$(start_background_process "$FRONTEND_DIR" "$FRONTEND_LOG" env VITE_API_URL="http://127.0.0.1:${BACKEND_PORT}" npm run dev)"
+
+log ""
+log "Career Compass is starting up."
+log "Frontend: http://127.0.0.1:${FRONTEND_PORT}"
+log "Backend:  http://127.0.0.1:${BACKEND_PORT}"
+log "Logs:     $BACKEND_LOG"
+log "          $FRONTEND_LOG"
+log ""
+log "Press Ctrl+C to stop both services."
+
+wait "$BACKEND_PID" "$FRONTEND_PID"
