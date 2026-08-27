@@ -22,6 +22,10 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
+http_is_ready() {
+    curl --silent --fail "$1" >/dev/null 2>&1
+}
+
 docker_is_ready() {
     docker info >/dev/null 2>&1
 }
@@ -130,6 +134,22 @@ start_background_process() {
     printf -v "$pid_var_name" '%s' "$pid"
 }
 
+wait_for_http() {
+    local url="$1"
+    local label="$2"
+    local attempts=0
+    local max_attempts=60
+
+    log "Waiting for ${label}..."
+    until http_is_ready "$url"; do
+        attempts=$((attempts + 1))
+        if [[ "$attempts" -ge "$max_attempts" ]]; then
+            fail "${label} did not become ready at ${url}. Check $FRONTEND_LOG for details."
+        fi
+        sleep 2
+    done
+}
+
 cleanup() {
     local exit_code=$?
 
@@ -140,6 +160,8 @@ cleanup() {
     if [[ -n "${FRONTEND_PID:-}" ]]; then
         kill "$FRONTEND_PID" 2>/dev/null || true
     fi
+
+    wait 2>/dev/null || true
 
     exit "$exit_code"
 }
@@ -165,6 +187,11 @@ start_background_process "$BACKEND_DIR" "$BACKEND_LOG" BACKEND_PID npm run dev
 
 log "Starting frontend on http://127.0.0.1:${FRONTEND_PORT}..."
 start_background_process "$FRONTEND_DIR" "$FRONTEND_LOG" FRONTEND_PID env VITE_API_URL="http://127.0.0.1:${BACKEND_PORT}" npm run dev
+
+wait_for_http "http://127.0.0.1:${FRONTEND_PORT}" "frontend"
+
+log "Opening the frontend in your browser..."
+open "http://127.0.0.1:${FRONTEND_PORT}" >/dev/null 2>&1 || true
 
 log ""
 log "Career Compass is starting up."
