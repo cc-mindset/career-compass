@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { AnimatedLoader } from '../../components/AnimatedLoader';
+import { MarketOverviewSkeleton } from '../../components/MarketOverviewSkeleton';
 import { DashboardShell } from '../../components/DashboardShell';
 import { SelectField } from '../../components/forms';
 import { JourneyHeader, Progress } from '../../components/layout';
 import { INDUSTRY_OPTIONS, LOCATION_OPTIONS, ROLE_OPTIONS } from '../../consts';
+import { testIds } from '../../data-test-ids';
 import { useClarity } from '../../state/contexts/ClarityContext';
 import type { MarketOpportunityView, MarketReportTab } from '../../types';
 import {
@@ -22,6 +25,7 @@ import {
 } from './data';
 import { runMarketReportGeneration } from './runMarketReportGeneration';
 import { useAdaptedMarketReport } from './useAdaptedMarketReport';
+import { useMarketOverviewUiState } from './useMarketOverviewUiState';
 import { getClarityUserId } from '../../lib/clarityUserId';
 import {
   fetchLatestUserMarketReport,
@@ -260,30 +264,41 @@ export const MarketWorkspaceEmptyView: React.FC = () => {
 };
 
 export const MarketWorkspaceGeneratingView: React.FC = () => {
-  const { state, patch, navigate, toast } = useClarity();
+  const { state, patch, navigate, navigateToOverview, toast } = useClarity();
   const [progress, setProgress] = useState(8);
   const [statusMessage, setStatusMessage] = useState('Preparing your report');
 
   useEffect(() => {
     let cancelled = false;
+    const overviewShown = { current: false };
 
     const run = async () => {
+      patch({ marketGenerationStatus: 'generating' });
       const userId = state.registered ? getClarityUserId() : 'guest';
       const result = await runMarketReportGeneration(
         state.market,
-        (update) => {
-          if (cancelled) return;
-          setProgress(Math.max(8, Math.min(100, Math.round(update.percent))));
-          if (update.message) setStatusMessage(update.message);
+        {
+          onProgress: (update) => {
+            if (cancelled) return;
+            setProgress(Math.max(8, Math.min(100, Math.round(update.percent))));
+            if (update.message) setStatusMessage(update.message);
+          },
+          onOverviewReady: (insights) => {
+            if (cancelled || overviewShown.current) return;
+            overviewShown.current = true;
+            navigateToOverview(insights);
+          },
+          onInsightsUpdate: (insights) => {
+            patch({ marketLiveInsights: insights });
+          },
         },
         { userId },
       );
-      if (cancelled) return;
 
       if (result.ok && !result.fromFixtures) {
         if (state.registered) {
           try {
-            setStatusMessage('Saving to your history');
+            if (!cancelled) setStatusMessage('Saving to your history');
             await saveUserMarketReport({
               userId: getClarityUserId(),
               role: state.market.role,
@@ -293,13 +308,14 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
               insights: result.insights,
             });
           } catch (error) {
-            const message =
-              error instanceof Error ? error.message : 'Could not save report history';
-            toast(message);
+            if (!cancelled) {
+              const message =
+                error instanceof Error ? error.message : 'Could not save report history';
+              toast(message);
+            }
           }
         }
 
-        if (cancelled) return;
         patch({
           marketHasReports: true,
           marketCreateMode: false,
@@ -307,6 +323,7 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
           marketSnapshotId: null,
           marketLiveInsights: result.insights,
           marketLiveError: null,
+          marketGenerationStatus: 'complete',
         });
       } else if (result.ok) {
         patch({
@@ -315,8 +332,9 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
           marketSnapshotDate: null,
           marketSnapshotId: null,
           marketLiveError: null,
+          marketGenerationStatus: 'idle',
         });
-      } else {
+      } else if (!cancelled) {
         toast(result.error);
         patch({
           marketHasReports: true,
@@ -324,21 +342,24 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
           marketSnapshotDate: null,
           marketSnapshotId: null,
           marketLiveError: result.error,
+          marketGenerationStatus: 'idle',
         });
       }
 
-      setProgress(100);
-      setStatusMessage('Your report is ready');
-      window.setTimeout(() => {
-        if (!cancelled) navigate('market-workspace-result');
-      }, 450);
+      if (!overviewShown.current && !cancelled) {
+        setProgress(100);
+        setStatusMessage('Your report is ready');
+        window.setTimeout(() => {
+          navigate('market-workspace-result');
+        }, 450);
+      }
     };
 
     void run();
     return () => {
       cancelled = true;
     };
-  }, [navigate, patch, state.market, state.registered, toast]);
+  }, [navigate, navigateToOverview, patch, state.market, state.registered, toast]);
 
   const complete = progress >= 100;
 
@@ -347,17 +368,16 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
       <div className="mrWorkspace">
         <section className="mrLoader">
           <div className="mrLoaderInner">
-            <div
-              className="mrLoaderRing"
+            <AnimatedLoader />
+            <small
               role="progressbar"
               aria-label="Market Report generation progress"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={progress}
-              style={{ '--progress': progress } as React.CSSProperties}
             >
-              <strong>{progress}%</strong>
-            </div>
+              {progress}%
+            </small>
             <h1>{complete ? 'Your report is ready' : statusMessage}</h1>
             <p>
               {state.market.role} · {state.market.level} · {state.market.location}
@@ -379,8 +399,9 @@ const PreviousReports: React.FC<{
       <section className="mrArchive" aria-label="Previous market reports">
         <div className="mrArchiveHead">
           <h2>Previous reports</h2>
-          <span>Loading…</span>
         </div>
+        <AnimatedLoader size="compact" />
+        <span>Loading…</span>
       </section>
     );
   }
@@ -528,7 +549,8 @@ export const MarketWorkspaceHistoryView: React.FC = () => {
         </div>
         {loading ? (
           <section className="mrCurrent">
-            <div>
+            <div style={{ textAlign: 'center' }}>
+              <AnimatedLoader size="compact" />
               <small>Loading your reports…</small>
             </div>
           </section>
@@ -605,16 +627,26 @@ export const MarketWorkspaceHistoryView: React.FC = () => {
 
 const MarketInsightList: React.FC = () => {
   const live = useAdaptedMarketReport();
-  const insights = live
-    ? live.shifts.map((shift, index) => ({
-        title: shift.title,
-        summary: shift.copy,
-        category: 'Market shift',
-        meaning: live.recommendation.copy,
-        action: live.path.copy,
-        source: live.sources[index]?.name || 'Live market insights',
-      }))
-    : MARKET_INSIGHTS;
+  const { showShiftSkeleton, useFixtures } = useMarketOverviewUiState();
+
+  if (showShiftSkeleton) {
+    return (
+      <MarketOverviewSkeleton variant="registered" hero={false} signals={false} shifts />
+    );
+  }
+
+  const insights = useFixtures
+    ? MARKET_INSIGHTS
+    : live
+      ? live.shifts.map((shift, index) => ({
+          title: shift.title,
+          summary: shift.copy,
+          category: 'Market shift',
+          meaning: live.recommendation.copy,
+          action: live.path.copy,
+          source: live.sources[index]?.name || 'Live market insights',
+        }))
+      : MARKET_INSIGHTS;
 
   return (
     <div className="marketInsightList">
@@ -655,15 +687,26 @@ const MarketInsightList: React.FC = () => {
 
 const GuestMarketReport: React.FC = () => {
   const { state, openMarketAction } = useClarity();
-  const live = useAdaptedMarketReport();
-  const shifts = live?.shifts.length
-    ? live.shifts.map((s) => [s.title, s.copy] as [string, string])
-    : GUEST_SHIFTS;
-  const signals = live?.signals.slice(0, 3) ?? [
-    { label: 'Role demand', value: 'Stable' },
-    { label: 'Competition', value: 'High' },
-    { label: 'Evidence quality', value: 'High' },
-  ];
+  const {
+    live,
+    showVerdictSkeleton,
+    showHeadlineSkeleton,
+    showShiftSkeleton,
+    useFixtures,
+  } = useMarketOverviewUiState();
+
+  const shifts = showShiftSkeleton
+    ? []
+    : useFixtures
+      ? GUEST_SHIFTS
+      : (live?.shifts.map((s) => [s.title, s.copy] as [string, string]) ?? []);
+
+  const signals =
+    live?.signals.slice(0, 3) ?? [
+      { label: 'Role demand', value: 'Stable' },
+      { label: 'Competition', value: 'High' },
+      { label: 'Evidence quality', value: 'High' },
+    ];
 
   return (
     <div className="guestMarketReport">
@@ -680,28 +723,49 @@ const GuestMarketReport: React.FC = () => {
           <span>{live?.fromLive ? 'Live market data' : 'Updated today · 60-day view'}</span>
         </div>
       </div>
-      <section className="guestMarketVerdict">
-        <div className="guestVerdictTop">
-          <span>{live?.verdictLabel ?? 'Stable market'}</span>
-          <small>{live?.outlookLabel ?? 'Positive 12-month outlook'}</small>
-        </div>
-        <h2>
-          {live?.headline ??
-            'Your experience remains relevant, but the strongest senior roles are changing.'}
-        </h2>
-        <p>
-          {live?.summary ??
-            'Toronto employers continue to hire experienced product leaders. The clearest shift is toward AI-enabled delivery, commercial ownership and confident execution in regulated environments.'}
-        </p>
-      </section>
-      <section className="guestSignalStrip" aria-label="Market signals">
-        {signals.map((signal) => (
-          <div key={signal.label} className="guestSignal">
-            <small>{signal.label}</small>
-            <strong>{signal.value}</strong>
-          </div>
-        ))}
-      </section>
+      {showVerdictSkeleton ? (
+        <MarketOverviewSkeleton variant="guest" recommendation />
+      ) : (
+        <>
+          <section className="guestMarketVerdict" data-testid={testIds.marketOverviewHero}>
+            <div className="guestVerdictTop">
+              <span>{live?.verdictLabel ?? 'Stable market'}</span>
+              <small>{live?.outlookLabel ?? 'Positive 12-month outlook'}</small>
+            </div>
+            {showHeadlineSkeleton ? (
+              <MarketOverviewSkeleton
+                variant="guest"
+                headlineBody
+                hero={false}
+                signals={false}
+              />
+            ) : (
+              <>
+                <h2>
+                  {useFixtures
+                    ? 'Your experience remains relevant, but the strongest senior roles are changing.'
+                    : (live?.headline ??
+                      'Your experience remains relevant, but the strongest senior roles are changing.')}
+                </h2>
+                <p>
+                  {useFixtures
+                    ? 'Toronto employers continue to hire experienced product leaders. The clearest shift is toward AI-enabled delivery, commercial ownership and confident execution in regulated environments.'
+                    : (live?.summary ??
+                      'Toronto employers continue to hire experienced product leaders. The clearest shift is toward AI-enabled delivery, commercial ownership and confident execution in regulated environments.')}
+                </p>
+              </>
+            )}
+          </section>
+          <section className="guestSignalStrip" aria-label="Market signals">
+            {signals.map((signal) => (
+              <div key={signal.label} className="guestSignal">
+                <small>{signal.label}</small>
+                <strong>{signal.value}</strong>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
       <section className="guestMarketPanel">
         <div className="guestPanelHead">
           <div>
@@ -712,46 +776,52 @@ const GuestMarketReport: React.FC = () => {
             See all insights →
           </button>
         </div>
-        {shifts.map(([title, copy], index) => (
-          <div key={title} className="guestInsight">
-            <span className="shiftNumber">{index + 1}</span>
-            <div>
-              <b>{title}</b>
-              <p>{copy}</p>
+        {showShiftSkeleton ? (
+          <MarketOverviewSkeleton variant="guest" hero={false} signals={false} shifts />
+        ) : (
+          shifts.map(([title, copy], index) => (
+            <div key={`${title}-${index}`} className="guestInsight">
+              <span className="shiftNumber">{index + 1}</span>
+              <div>
+                <b>{title}</b>
+                <p>{copy}</p>
+              </div>
             </div>
+          ))
+        )}
+      </section>
+      {showHeadlineSkeleton || showVerdictSkeleton ? null : (
+        <section className="guestNextMove">
+          <div>
+            <small>Recommended next step</small>
+            <h3>{live?.recommendation.title ?? 'Strengthen your AI product evidence'}</h3>
+            <p>
+              {live?.recommendation.copy ??
+                'Compare your current skills with the capabilities employers now expect from senior product leaders.'}
+            </p>
           </div>
-        ))}
-      </section>
-      <section className="guestNextMove">
-        <div>
-          <small>Recommended next step</small>
-          <h3>{live?.recommendation.title ?? 'Strengthen your AI product evidence'}</h3>
-          <p>
-            {live?.recommendation.copy ??
-              'Compare your current skills with the capabilities employers now expect from senior product leaders.'}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn secondary"
-          onClick={() => openMarketAction('skills')}
-        >
-          Assess my skills →
-        </button>
-      </section>
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => openMarketAction('skills')}
+          >
+            Assess my skills →
+          </button>
+        </section>
+      )}
     </div>
   );
 };
 
 const ApprovedMarketReport: React.FC = () => {
   const { state, patch, navigate, openMarketAction, toast } = useClarity();
-  const live = useAdaptedMarketReport();
+  const { live, showVerdictSkeleton, showHeadlineSkeleton, useFixtures } = useMarketOverviewUiState();
   const viewingSnapshot = Boolean(state.marketSnapshotId);
   const date = state.marketSnapshotDate || 'today';
   const signals = live?.signals.slice(0, 3) ?? [
     { label: 'Role demand', value: 'Stable' },
     { label: 'Competition', value: 'High' },
-    { label: '12-month outlook', value: 'Positive' },
+    { label: 'Evidence quality', value: 'High' },
   ];
 
   const returnToCurrent = async () => {
@@ -820,30 +890,49 @@ const ApprovedMarketReport: React.FC = () => {
           </div>
         </div>
       </div>
-      <section className="marketVerdict">
-        <div>
-          <div className="verdictFlag">
-            <b>{live?.verdictLabel ?? 'Stable market'}</b>
-            <span>{live?.outlookLabel ?? 'Positive outlook'}</span>
-          </div>
-          <h2>
-            {live?.headline ??
-              'Your experience remains relevant, but senior product roles are changing.'}
-          </h2>
-          <p>
-            {live?.summary ??
-              'Toronto employers continue to hire product leaders with financial-services experience. The clearest shift is toward AI-enabled delivery and stronger commercial ownership.'}
-          </p>
-        </div>
-        <div className="verdictStats">
-          {signals.map((signal) => (
-            <div key={signal.label} className="verdictStat">
-              <span>{signal.label}</span>
-              <b>{signal.value}</b>
+      {showVerdictSkeleton ? (
+        <MarketOverviewSkeleton variant="registered" />
+      ) : (
+        <section className="marketVerdict" data-testid={testIds.marketOverviewHero}>
+          <div>
+            <div className="verdictFlag">
+              <b>{live?.verdictLabel ?? 'Stable market'}</b>
+              <span>{live?.outlookLabel ?? 'Positive outlook'}</span>
             </div>
-          ))}
-        </div>
-      </section>
+            {showHeadlineSkeleton ? (
+              <MarketOverviewSkeleton
+                variant="registered"
+                headlineBody
+                hero={false}
+                signals={false}
+              />
+            ) : (
+              <>
+                <h2>
+                  {useFixtures
+                    ? 'Your experience remains relevant, but senior product roles are changing.'
+                    : (live?.headline ??
+                      'Your experience remains relevant, but senior product roles are changing.')}
+                </h2>
+                <p>
+                  {useFixtures
+                    ? 'Toronto employers continue to hire product leaders with financial-services experience. The clearest shift is toward AI-enabled delivery and stronger commercial ownership.'
+                    : (live?.summary ??
+                      'Toronto employers continue to hire product leaders with financial-services experience. The clearest shift is toward AI-enabled delivery and stronger commercial ownership.')}
+                </p>
+              </>
+            )}
+          </div>
+          <div className="verdictStats">
+            {signals.map((signal) => (
+              <div key={signal.label} className="verdictStat">
+                <span>{signal.label}</span>
+                <b>{signal.value}</b>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <section className="approvedOverviewGrid">
         <article className="reportCard" id="market-insights">
           <div className="reportCardTitle">
@@ -858,25 +947,29 @@ const ApprovedMarketReport: React.FC = () => {
           </div>
           <MarketInsightList />
         </article>
-        <aside className="reportCard recommendCard">
-          <small>Recommended next step</small>
-          <span className="recommendIcon">↗</span>
-          <h2>{live?.recommendation.title ?? 'Strengthen your AI product evidence'}</h2>
-          <p>
-            {live?.recommendation.copy ??
-              'Compare your current skills with what employers expect from AI-enabled product leaders.'}
-          </p>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => openMarketAction('skills')}
-          >
-            Assess my skills
-          </button>
-          <a onClick={() => openMarketAction('recommendations')}>
-            See all recommendations
-          </a>
-        </aside>
+        {showHeadlineSkeleton || showVerdictSkeleton ? (
+          <MarketOverviewSkeleton variant="registered" hero={false} signals={false} recommendation />
+        ) : (
+          <aside className="reportCard recommendCard">
+            <small>Recommended next step</small>
+            <span className="recommendIcon">↗</span>
+            <h2>{live?.recommendation.title ?? 'Strengthen your AI product evidence'}</h2>
+            <p>
+              {live?.recommendation.copy ??
+                'Compare your current skills with what employers expect from AI-enabled product leaders.'}
+            </p>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => openMarketAction('skills')}
+            >
+              Assess my skills
+            </button>
+            <a onClick={() => openMarketAction('recommendations')}>
+              See all recommendations
+            </a>
+          </aside>
+        )}
       </section>
       <section className="approvedPath">
         <div>

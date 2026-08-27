@@ -1,0 +1,136 @@
+.marketOverviewSkeleton__bar,
+.marketOverviewSkeleton__circle {
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: marketOverviewSkeletonShimmer 1.4s ease-in-out infinite;
+}
+
+.marketOverviewSkeleton--guest .marketOverviewSkeleton__bar,
+.marketOverviewSkeleton--guest .marketOverviewSkeleton__circle,
+.marketOverviewSkeleton--registered .reportCard.marketOverviewSkeleton__shifts .marketOverviewSkeleton__bar,
+.marketOverviewSkeleton--registered .reportCard.marketOverviewSkeleton__shifts .marketOverviewSkeleton__circle,
+.marketOverviewSkeleton--registered .recommendCard.marketOverviewSkeleton__recommend .marketOverviewSkeleton__bar {
+  background: linear-gradient(
+    90deg,
+    #e8eef5 0%,
+    #f5f8fb 50%,
+    #e8eef5 100%
+  );
+  background-size: 200% 100%;
+}
+
+.marketOverviewSkeleton__bar {
+  height: 12px;
+  margin-bottom: 10px;
+}
+
+.marketOverviewSkeleton__bar--xs {
+  width: 28%;
+  height: 10px;
+}
+
+.marketOverviewSkeleton__bar--sm {
+  width: 42%;
+  height: 12px;
+}
+
+.marketOverviewSkeleton__bar--md {
+  width: 72%;
+}
+
+.marketOverviewSkeleton__bar--lg {
+  width: 88%;
+  height: 18px;
+}
+
+.marketOverviewSkeleton__hero {
+  pointer-events: none;
+}
+
+.marketOverviewSkeleton--headlineBody {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.guestMarketVerdict .marketOverviewSkeleton__bar {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+}
+
+.marketOverviewSkeleton__heroInner {
+  display: grid;
+  gap: 8px;
+}
+
+.marketOverviewSkeleton__badges {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.marketOverviewSkeleton__stats {
+  margin-top: 18px;
+}
+
+.marketOverviewSkeleton__signals {
+  pointer-events: none;
+}
+
+.marketOverviewSkeleton__signals .guestSignal {
+  display: grid;
+  gap: 8px;
+}
+
+.marketOverviewSkeleton__shiftRow {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 0;
+  border-top: 1px solid #e7edf4;
+}
+
+.marketOverviewSkeleton__shiftRow:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.marketOverviewSkeleton__circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.marketOverviewSkeleton__shiftCopy {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+
+.marketOverviewSkeleton__recommend {
+  display: grid;
+  gap: 10px;
+}
+
+@keyframes marketOverviewSkeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

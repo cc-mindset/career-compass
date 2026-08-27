@@ -80,6 +80,8 @@ export type MarketReportTab = 'overview' | 'opportunities' | 'skills' | 'evidenc
 
 export type MarketOpportunityView = 'roles' | 'sectors' | 'locations' | 'risks';
 
+export type MarketGenerationStatus = 'idle' | 'generating' | 'streaming' | 'complete';
+
 export interface ClarityState {
   tool: Tool;
   jobSource: JobSource;
@@ -129,6 +131,8 @@ export interface ClarityState {
   /** Live insights from POST /api/market-insights/generate; null until a live run succeeds. */
   marketLiveInsights: Record<string, unknown> | null;
   marketLiveError: string | null;
+  /** Tracks in-flight market report generation for skeleton/streaming UI. */
+  marketGenerationStatus: MarketGenerationStatus;
   /** When reviewing a prior snapshot, the snapshot report id (null = current latest). */
   marketSnapshotId: string | null;
 }

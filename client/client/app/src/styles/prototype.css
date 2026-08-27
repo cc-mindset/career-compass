@@ -445,9 +445,6 @@
     .mrSetupFoot{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
     .mrLoader{min-height:520px;display:grid;place-items:center;text-align:center}
     .mrLoaderInner{max-width:440px}
-    .mrLoaderRing{--progress:0;width:92px;height:92px;border-radius:50%;background:conic-gradient(var(--blue) calc(var(--progress) * 1%),#e7edf6 0);margin:0 auto 25px;display:grid;place-items:center;transition:background .22s ease;position:relative}
-    .mrLoaderRing:before{content:"";position:absolute;inset:8px;border-radius:50%;background:#fff}
-    .mrLoaderRing strong{position:relative;z-index:1;font-size:18px;color:#15365f;font-variant-numeric:tabular-nums}
     .mrLoader h1{font-size:34px;margin:0 0 9px}
     .mrLoader p{font-size:14px;color:var(--muted);margin:0 0 24px}
     .mrCurrent{display:grid;grid-template-columns:1.2fr .8fr;gap:24px;background:linear-gradient(135deg,#123766,#1769e0);color:#fff;border-radius:18px;padding:26px;box-shadow:0 16px 36px rgba(20,70,145,.18)}

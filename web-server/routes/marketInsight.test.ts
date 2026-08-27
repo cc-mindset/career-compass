@@ -5,7 +5,12 @@ import request from 'supertest';
 vi.mock('../lib/redisQueue.js', () => ({
   enqueueJob: vi.fn(),
   getJobResult: vi.fn(),
+  getJobPartialResult: vi.fn(),
   getQueueLength: vi.fn(),
+}));
+
+vi.mock('../services/market-insights/normalizeMarketReportVerdict.js', () => ({
+  normalizeMarketReportVerdict: vi.fn((insights: Record<string, unknown>) => insights),
 }));
 
 vi.mock('../services/market-insights/marketInsightsService_multipart.js', () => ({
@@ -23,7 +28,7 @@ vi.mock('../services/db-cache/dbCacheService.js', () => ({
   getCachedMarketInsightsFromDb: vi.fn(),
 }));
 
-import { enqueueJob, getQueueLength } from '../lib/redisQueue.js';
+import { enqueueJob, getJobPartialResult, getJobResult, getQueueLength } from '../lib/redisQueue.js';
 import { generateMarketInsights } from '../services/market-insights/marketInsightsService_multipart.js';
 import { getCachedMarketInsightsFromDb } from '../services/db-cache/dbCacheService.js';
 import marketInsightRouter from './marketInsight.js';
@@ -32,6 +37,8 @@ const mockEnqueue = enqueueJob as ReturnType<typeof vi.fn>;
 const mockQueueLength = getQueueLength as ReturnType<typeof vi.fn>;
 const mockGenerate = generateMarketInsights as ReturnType<typeof vi.fn>;
 const mockCache = getCachedMarketInsightsFromDb as ReturnType<typeof vi.fn>;
+const mockJobResult = getJobResult as ReturnType<typeof vi.fn>;
+const mockPartialResult = getJobPartialResult as ReturnType<typeof vi.fn>;
 
 const app = express();
 app.use(express.json());
@@ -154,5 +161,37 @@ describe('POST /api/market-insights/generate response branches', () => {
       undefined,
       undefined,
     );
+  });
+});
+
+describe('GET /api/market-insights/status/:jobId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns completed insights when final result exists', async () => {
+    mockJobResult.mockResolvedValue({ market_report_verdict: { headline: 'Done' } });
+    mockPartialResult.mockResolvedValue(null);
+
+    const res = await request(app).get('/api/market-insights/status/job-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('completed');
+    expect(res.body.insights).toEqual({ market_report_verdict: { headline: 'Done' } });
+  });
+
+  it('returns partial overview while job is still processing', async () => {
+    mockJobResult.mockResolvedValue(null);
+    mockPartialResult.mockResolvedValue({
+      insights: { market_report_verdict: { headline: 'Overview ready' } },
+      completedSections: ['marketReport'],
+    });
+
+    const res = await request(app).get('/api/market-insights/status/job-2');
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('processing');
+    expect(res.body.completedSections).toEqual(['marketReport']);
+    expect(res.body.insights.market_report_verdict.headline).toBe('Overview ready');
   });
 });

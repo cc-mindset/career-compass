@@ -3,6 +3,8 @@ import {
   CityVsRegionComparison,
   ComparisonData,
   MarketReportSummary,
+  MarketReportSignals,
+  MarketReportVerdict,
   SummaryKeyStats,
   LabourMarketSnapshot,
   MarketHealth,
@@ -56,6 +58,20 @@ const cityVsRegionComparisonSchema = new Schema<CityVsRegionComparison>({
   data: { type: [comparisonDataSchema], required: true, default: [] },
 });
 
+const marketReportSignalsSchema = new Schema<MarketReportSignals>({
+  role_demand: { type: String, enum: ['Stable', 'High', 'Low'], required: true },
+  competition: { type: String, enum: ['Stable', 'High', 'Low'], required: true },
+  evidence_quality: { type: String, enum: ['Stable', 'High', 'Low'], required: true },
+});
+
+const marketReportVerdictSchema = new Schema<MarketReportVerdict>({
+  verdict_label: { type: String, required: true },
+  outlook_label: { type: String, required: true },
+  headline: { type: String, required: true },
+  summary: { type: String, required: true },
+  signals: { type: marketReportSignalsSchema, required: true, _id: false },
+});
+
 const marketReportDataSchema = new Schema<MarketReportData>({
   market_report_summary_brief: { type: String, required: true },
   market_report_summary: { type: marketReportSummarySchema, required: true },
@@ -65,6 +81,7 @@ const marketReportDataSchema = new Schema<MarketReportData>({
     required: true,
   },
   report_sources: [{ type: String, required: true }],
+  market_report_verdict: { type: marketReportVerdictSchema, required: false },
 });
 
 const marketReportSchema = new Schema<IMarketReport>(

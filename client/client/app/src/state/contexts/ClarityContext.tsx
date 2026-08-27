@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { DEMO_STATES, INITIAL_STATE } from '../../consts';
+import type { MarketInsightsPayload } from '../../services/marketInsights/types';
 import type {
   ClarityState,
   DemoStateKey,
@@ -35,6 +36,8 @@ interface ClarityContextValue {
   state: ClarityState;
   route: string;
   navigate: (hash: string) => void;
+  /** Patch overview insights and route to result in one synchronous transition. */
+  navigateToOverview: (insights: MarketInsightsPayload) => void;
   patch: (partial: Partial<ClarityState>) => void;
   setTool: (tool: Tool) => void;
   setJobSource: (source: JobSource) => void;
@@ -107,12 +110,31 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const navigate = useCallback((hash: string) => {
     const clean = hash.replace(/^#/, '');
-    if (window.location.hash === `#${clean}`) {
-      setRoute(clean);
-      window.scrollTo(0, 0);
-      return;
+    setRoute(clean);
+    window.scrollTo(0, 0);
+    if (window.location.hash !== `#${clean}`) {
+      window.location.hash = clean;
     }
-    window.location.hash = clean;
+  }, []);
+
+  const navigateToOverview = useCallback((insights: MarketInsightsPayload) => {
+    setState((prev) => ({
+      ...prev,
+      marketLiveInsights: insights,
+      marketLiveError: null,
+      marketHasReports: true,
+      marketGuestReady: prev.registered ? prev.marketGuestReady : true,
+      marketCreateMode: false,
+      marketSnapshotDate: null,
+      marketSnapshotId: null,
+      marketGenerationStatus: 'streaming',
+    }));
+    const clean = 'market-workspace-result';
+    setRoute(clean);
+    window.scrollTo(0, 0);
+    if (window.location.hash !== `#${clean}`) {
+      window.location.hash = clean;
+    }
   }, []);
 
   useEffect(() => {
@@ -447,6 +469,7 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
       state,
       route,
       navigate,
+      navigateToOverview,
       patch,
       setTool: (tool) => patch({ tool }),
       setJobSource: (jobSource) => patch({ jobSource }),
@@ -529,6 +552,7 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
           marketCreateMode: true,
           marketSnapshotDate: null,
           marketSnapshotId: null,
+          marketGenerationStatus: 'idle',
         });
         navigate('market-workspace-new');
       },
@@ -537,6 +561,7 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
           marketCreateMode: false,
           marketSnapshotDate: null,
           marketSnapshotId: null,
+          marketGenerationStatus: 'idle',
         });
         navigate('market-workspace-new');
       },
@@ -595,6 +620,7 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
       state,
       route,
       navigate,
+      navigateToOverview,
       patch,
       toast,
       clearToast,

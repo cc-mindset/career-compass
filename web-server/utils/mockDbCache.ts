@@ -108,6 +108,19 @@ class MockDbCache {
       },
       key_findings: [],
       report_sources: ['Mock cache — DB integration pending'],
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Positive 12-month outlook',
+        headline:
+          'Your experience remains relevant, but the strongest senior roles are changing.',
+        summary:
+          'Employers continue to hire experienced product leaders. The clearest shift is toward AI-enabled delivery, commercial ownership and confident execution in regulated environments.',
+        signals: {
+          role_demand: 'Stable',
+          competition: 'High',
+          evidence_quality: 'Low',
+        },
+      },
     };
   }
 
@@ -161,6 +174,18 @@ class MockDbCache {
       },
       key_findings: [],
       report_sources: ['Fallback content — service temporarily unavailable'],
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Mixed 12-month outlook',
+        headline: 'Market insights are temporarily unavailable for this location.',
+        summary:
+          'Please try again shortly. When service resumes, your report will include role demand, competition and evidence quality for your search.',
+        signals: {
+          role_demand: 'Stable',
+          competition: 'High',
+          evidence_quality: 'Low',
+        },
+      },
     };
   }
 

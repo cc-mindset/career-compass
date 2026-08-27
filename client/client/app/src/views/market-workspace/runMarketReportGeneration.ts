@@ -1,6 +1,7 @@
 import { isApiConfigured } from '../../lib/apiBase';
 import {
   generateMarketInsights,
+  type MarketGenerateCallbacks,
   type MarketGenerateProgress,
   type MarketInsightsPayload,
 } from '../../services/marketInsights';
@@ -17,16 +18,25 @@ export type RunMarketGenerateResult =
   | { ok: true; insights: null; fromFixtures: true }
   | { ok: false; error: string };
 
+export type RunMarketReportOptions = {
+  userId?: string;
+} & MarketGenerateCallbacks;
+
 /**
  * Live generate when VITE_API_URL is set; otherwise signal fixture/demo path.
  */
 export async function runMarketReportGeneration(
   market: MarketInputs,
-  onProgress?: (update: MarketGenerateProgress) => void,
+  callbacks: MarketGenerateCallbacks = {},
   options?: { userId?: string },
 ): Promise<RunMarketGenerateResult> {
+  const mergedCallbacks: RunMarketReportOptions = {
+    ...callbacks,
+    userId: options?.userId,
+  };
+
   if (!isApiConfigured()) {
-    onProgress?.({ percent: 100, message: 'Demo mode (no API URL)' });
+    mergedCallbacks.onProgress?.({ percent: 100, message: 'Demo mode (no API URL)' });
     return { ok: true, insights: null, fromFixtures: true };
   }
 
@@ -37,9 +47,9 @@ export async function runMarketReportGeneration(
         job: market.role,
         seniority: market.level,
         industry: market.industry,
-        userId: options?.userId || 'guest',
+        userId: mergedCallbacks.userId || 'guest',
       },
-      onProgress,
+      mergedCallbacks,
     );
     return { ok: true, insights, fromFixtures: false };
   } catch (error) {
@@ -47,3 +57,5 @@ export async function runMarketReportGeneration(
     return { ok: false, error: message };
   }
 }
+
+export type { MarketGenerateProgress, MarketGenerateCallbacks };
