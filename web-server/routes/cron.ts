@@ -47,12 +47,14 @@ cronRouter.get("/cache-state-wise", async (req: Request, res: Response) => {
         RagNamespace.LABOR_MARKET_STATS,
         RagNamespace.MARKET_NEWS,
         RagNamespace.MARKET_REPORTS,
+        RagNamespace.GEO_LABOR_SIGNALS,
+        RagNamespace.FORWARD_LOOKING,
       ];
 
       const retrievalResp = await retrieve({
         query: `market insights for ${location}`,
         namespaces,
-        topK: 15,
+        topK: 10,
         useCache: true,
       });
 

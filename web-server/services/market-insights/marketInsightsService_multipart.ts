@@ -345,6 +345,8 @@ export async function generateMarketInsights(
         RagNamespace.LABOR_MARKET_STATS,
         RagNamespace.MARKET_NEWS,
         RagNamespace.MARKET_REPORTS,
+        RagNamespace.GEO_LABOR_SIGNALS,
+        RagNamespace.FORWARD_LOOKING,
       ];
 
       // Build combined query string with location, job, seniority, optional industry
@@ -383,7 +385,7 @@ export async function generateMarketInsights(
       const retrievalResp = await retrieve({
         query: combinedQuery,
         namespaces,
-        topK: 15,
+        topK: 10,
         useCache: true,
       });
 
