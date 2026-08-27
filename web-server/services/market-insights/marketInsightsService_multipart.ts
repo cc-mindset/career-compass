@@ -4,13 +4,16 @@ import { RagNamespace } from '../../types/rag.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../../lib/openai.js';
 import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from '../db-cache/dbCacheService.js';
 import { getCachedMarketInsightsFromDb, getMarketInsightsCacheKey } from '../db-cache/dbCacheService.js';
+import { storeJobPartialResult } from '../../lib/redisQueue.js';
 import pLimit from 'p-limit';
 import { logger } from '../../utils/logger.js';
 import { emitToJob } from '../../lib/websocket.js';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { LlmCacheStatus } from '../../constants/db.js';
 import { LLM_SECTION_LABELS } from '../../constants/index.js';
+import { normalizeMarketReportVerdict } from './normalizeMarketReportVerdict.js';
 
 type SectionName = 'marketReport' | 'industryTrends' | 'newsAndCareerIntel';
 
@@ -31,7 +34,7 @@ type MarketInsightsData = Record<string, unknown>;
 
 /**
  * Part 1: Market Report Section (3 articles)
- * Focuses on: market_report_summary_brief, market_report_summary, labour_market_snapshot, city_vs_region_comparison
+ * Focuses on: market_report_summary_brief, market_report_summary, labour_market_snapshot, city_vs_region_comparison, market_report_verdict
  */
 export function buildMarketReportPrompt(location: string, job?: string, seniority?: string): string {
   const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
@@ -81,6 +84,37 @@ Generate a JSON response with these sections:
        "city": "High-skill, high-volatility – strong demand in AI, frontier tech, finance, product, design; repeated restructuring in big tech and startups.",
        "wider_region": "Mixed but resilient – strong in healthcare, education, logistics, clean energy, advanced manufacturing and public services, with tech distributed across the region."
      }
+
+5. market_report_verdict (UI hero card — REQUIRED; separate from the long brief/overview):
+   - verdict_label: Short market badge, e.g. "Stable market", "Growing market", or "Softening market"
+   - outlook_label: Short outlook line, e.g. "Positive 12-month outlook", "Mixed 12-month outlook", or "Cautious 12-month outlook"
+   - headline: ONE coaching sentence for the hero title (max ~120 characters). Do NOT paste the long brief here.
+   - summary: 1-2 sentences of regular body copy expanding on the headline for the user's role and ${location}
+   - signals: Object with EXACTLY these keys, each value MUST be one of "Stable", "High", or "Low":
+     * role_demand: Overall hiring demand for the user's role/seniority in ${location}
+     * competition: How competitive applications are for comparable roles
+     * evidence_quality: Confidence in the evidence backing this report (source breadth and recency)
+   - Example:
+     {
+       "verdict_label": "Stable market",
+       "outlook_label": "Positive 12-month outlook",
+       "headline": "Your experience remains relevant, but the strongest senior roles are changing.",
+       "summary": "Toronto employers continue to hire experienced product leaders. The clearest shift is toward AI-enabled delivery, commercial ownership and confident execution in regulated environments.",
+       "signals": { "role_demand": "Stable", "competition": "High", "evidence_quality": "High" }
+     }
+
+6. market_shifts (overview UI — REQUIRED; exactly 3 items for "Three shifts affecting you"):
+   - Array of exactly 3 objects, each with:
+     * title: Short shift headline (max ~80 characters) specific to ${location} and the user's role
+     * summary: ONE sentence explaining what changed and how it affects the user — unique per item
+   - Do NOT repeat the same summary text across items
+   - Do NOT paste local_vs_national verbatim into every summary
+   - Example:
+     [
+       { "title": "AI-enabled delivery is becoming baseline", "summary": "Employers expect practical evidence of AI improving workflows and customer outcomes." },
+       { "title": "Commercial ownership matters more", "summary": "Senior postings increasingly emphasize revenue, margin, and operating efficiency." },
+       { "title": "Regulated-platform experience stays valuable", "summary": "Compliance and risk experience continue to differentiate candidates in financial services." }
+     ]
 
 CRITICAL: 
 - Reference specific local factors for ${location}
@@ -194,6 +228,8 @@ export async function generateMarketInsights(
     industryTrends: { status: 'idle' },
     newsAndCareerIntel: { status: 'idle' },
   };
+  let partialInsights: MarketInsightsData = {};
+  const completedSectionNames: SectionName[] = [];
 
   try {
     logger.info(`📊 Starting independent section generation for: ${location}`);
@@ -205,6 +241,13 @@ export async function generateMarketInsights(
         jobId
       });
     }
+
+    const persistPartial = () => {
+      if (!jobId || completedSectionNames.length === 0) return;
+      const normalized = normalizeMarketReportVerdict(partialInsights);
+      partialInsights = normalized;
+      void storeJobPartialResult(jobId, normalized, completedSectionNames);
+    };
 
     const onSectionComplete = (section: string, result: Record<string, unknown> | string | null, error?: string) => {
       const sectionName = section as SectionName;
@@ -234,11 +277,23 @@ export async function generateMarketInsights(
               jobId,
             });
         } else {
+          const sectionData =
+            result && typeof result === 'object' && !Array.isArray(result)
+              ? (result as MarketInsightsData)
+              : null;
+          if (sectionData) {
+            partialInsights = { ...partialInsights, ...sectionData };
+            if (!completedSectionNames.includes(sectionName)) {
+              completedSectionNames.push(sectionName);
+            }
+            persistPartial();
+          }
+
           if (jobId) {
             emitToJob(jobId, 'progress', {
               type: 'section_success',
               section: sectionName,
-              data: result,
+              data: partialInsights,
               jobId,
             });
           }
@@ -365,7 +420,7 @@ export async function generateMarketInsights(
         throw new Error('Failed to generate response');
       }
 
-      const generationPromises = prompts.map(prompt => limit(async () => {
+      const runSectionGeneration = async (prompt: (typeof prompts)[number]) => {
         try {
           const dbCacheKey = (prompt.cacheKeySuffix && (prompt.cacheKeySuffix as string).startsWith('rag:'))
             ? (prompt.cacheKeySuffix as string)
@@ -421,19 +476,32 @@ export async function generateMarketInsights(
           if (onSectionComplete) onSectionComplete(prompt.label, null, err.message);
           throw error;
         }
-      }));
+      };
 
-      await Promise.allSettled(generationPromises);
+      const marketReportPrompt = prompts.find(
+        (p) => p.label === LLM_SECTION_LABELS.marketReport,
+      );
+      const restPrompts = prompts.filter(
+        (p) => p.label !== LLM_SECTION_LABELS.marketReport,
+      );
+
+      if (marketReportPrompt) {
+        await runSectionGeneration(marketReportPrompt);
+      }
+
+      await Promise.allSettled(
+        restPrompts.map((prompt) => limit(() => runSectionGeneration(prompt))),
+      );
 
       const marketReport = results[LLM_SECTION_LABELS.marketReport] as MarketInsightsData || {};
       const industryTrends = results[LLM_SECTION_LABELS.industryTrends] as MarketInsightsData || {};
       const newsAndCareerIntel = results[LLM_SECTION_LABELS.newsAndCareerIntel] as MarketInsightsData || {};
 
-      const combinedInsights: MarketInsightsData = {
+      const combinedInsights: MarketInsightsData = normalizeMarketReportVerdict({
         ...marketReport,
         ...industryTrends,
         ...newsAndCareerIntel,
-      };
+      });
 
       const completedSections = Object.entries(sectionStates)
         .filter(([_, state]) => state.status === 'success')
@@ -456,7 +524,10 @@ export async function generateMarketInsights(
       }
 
       try {
-        const tempDir = path.join(process.cwd(), 'web-server', 'services', 'temp');
+        const tempDir = path.join(
+          path.dirname(fileURLToPath(import.meta.url)),
+          'temp',
+        );
         await mkdir(tempDir, { recursive: true });
         const filename = `insights_${location.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.json`;
         await writeFile(path.join(tempDir, filename), JSON.stringify(combinedInsights, null, 2), 'utf8');

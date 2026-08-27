@@ -48,6 +48,12 @@ export interface AdaptedMarketShift {
   copy: string;
 }
 
+/** Raw LLM shift row from Part 1 market_shifts. */
+export interface MarketShiftPayload {
+  title: string;
+  summary: string;
+}
+
 export interface AdaptedMarketSignal {
   label: string;
   value: string;

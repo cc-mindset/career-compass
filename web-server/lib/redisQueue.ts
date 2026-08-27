@@ -153,6 +153,42 @@ export async function getJobResult(jobId: string): Promise<any | null> {
   }
 }
 
+export type JobPartialResult = {
+  insights: Record<string, unknown>;
+  completedSections: string[];
+};
+
+/**
+ * Store in-progress merged insights so status polling can deliver overview before job_complete.
+ */
+export async function storeJobPartialResult(
+  jobId: string,
+  insights: Record<string, unknown>,
+  completedSections: string[],
+): Promise<void> {
+  if (!isRedisAvailable()) return;
+
+  try {
+    const redis = getRedisClient();
+    const payload: JobPartialResult = { insights, completedSections };
+    await redis.set(`job_partial:${jobId}`, JSON.stringify(payload), { EX: 600 });
+  } catch (error) {
+    logger.error('Failed to store partial job result:', error);
+  }
+}
+
+export async function getJobPartialResult(jobId: string): Promise<JobPartialResult | null> {
+  if (!isRedisAvailable()) return null;
+
+  try {
+    const redis = getRedisClient();
+    const result = await redis.get(`job_partial:${jobId}`);
+    return result ? (JSON.parse(result) as JobPartialResult) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Get queue length (for monitoring)
  */

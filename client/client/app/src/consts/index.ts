@@ -268,6 +268,7 @@ export const INITIAL_STATE: ClarityState = {
   marketOpportunityDetail: null,
   marketLiveInsights: null,
   marketLiveError: null,
+  marketGenerationStatus: 'idle',
   marketSnapshotId: null,
 };
 

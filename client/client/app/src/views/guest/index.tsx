@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AnimatedLoader } from '../../components/AnimatedLoader';
 import { FileDropZone } from '../../components/FileDropZone';
 import { SelectField } from '../../components/forms';
 import { JourneyHeader, Progress } from '../../components/layout';
@@ -57,7 +58,7 @@ const PROCESSING_LABELS: Record<Tool, string> = {
  * Interstitial that runs live generate for Market Report / Job Analyzer when configured.
  */
 export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
-  const { navigate, patch, state, toast } = useClarity();
+  const { navigate, navigateToOverview, patch, state, toast } = useClarity();
   const { step, names } = progressSteps(tool);
   const [progressLabel, setProgressLabel] = useState<string | null>(null);
 
@@ -110,13 +111,28 @@ export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
     }
 
     const finishMarket = async () => {
+      const overviewShown = { current: false };
+      patch({ marketGenerationStatus: 'generating' });
       const { runMarketReportGeneration } = await import(
         '../market-workspace/runMarketReportGeneration'
       );
-      const result = await runMarketReportGeneration(state.market, (update) => {
-        if (!cancelled) setProgressLabel(update.message || null);
-      });
-      if (cancelled) return;
+      const result = await runMarketReportGeneration(
+        state.market,
+        {
+          onProgress: (update) => {
+            if (!cancelled) setProgressLabel(update.message || null);
+          },
+          onOverviewReady: (insights) => {
+            if (cancelled || overviewShown.current) return;
+            overviewShown.current = true;
+            navigateToOverview(insights);
+          },
+          onInsightsUpdate: (insights) => {
+            patch({ marketLiveInsights: insights });
+          },
+        },
+        { userId: 'guest' },
+      );
 
       if (result.ok && !result.fromFixtures) {
         patch({
@@ -124,22 +140,27 @@ export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
           marketGuestReady: true,
           marketLiveInsights: result.insights,
           marketLiveError: null,
+          marketGenerationStatus: 'complete',
         });
       } else if (result.ok) {
         patch({
           marketHasReports: true,
           marketGuestReady: true,
           marketLiveError: null,
+          marketGenerationStatus: 'idle',
         });
-      } else {
+      } else if (!cancelled) {
         toast(result.error);
         patch({
           marketHasReports: true,
           marketGuestReady: true,
           marketLiveError: result.error,
+          marketGenerationStatus: 'idle',
         });
       }
-      navigate('market-workspace-result');
+      if (!overviewShown.current && !cancelled) {
+        navigate('market-workspace-result');
+      }
     };
 
     void finishMarket();
@@ -148,6 +169,7 @@ export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
     };
   }, [
     navigate,
+    navigateToOverview,
     patch,
     state.job,
     state.jobHasAnalyses,
@@ -168,12 +190,7 @@ export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
           <Progress active={step} names={names} />
           <section className="workspace">
             <div className="body" style={{ textAlign: 'center', padding: '80px 25px' }}>
-              <div
-                className="score"
-                style={{ margin: 'auto', borderTopColor: 'var(--green)' }}
-              >
-                …
-              </div>
+              <AnimatedLoader />
               <h2>Preparing your {PROCESSING_LABELS[tool]}</h2>
               {progressLabel ? <p style={{ marginTop: 12 }}>{progressLabel}</p> : null}
             </div>

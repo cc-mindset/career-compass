@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AnimatedLoader } from '../../components/AnimatedLoader';
 import { FileDropZone } from '../../components/FileDropZone';
 import { DashboardShell } from '../../components/DashboardShell';
 import { Progress } from '../../components/layout';
@@ -180,7 +181,10 @@ export const JobWorkspaceHistoryView: React.FC = () => {
       </div>
       <section className="flowPanel">
         {loading ? (
-          <p>Loading saved analyses…</p>
+          <div style={{ textAlign: 'center' }}>
+            <AnimatedLoader size="compact" />
+            <p>Loading saved analyses…</p>
+          </div>
         ) : (
           <div style={{ display: 'grid', gap: 10 }}>
             {rows.map((row) => (

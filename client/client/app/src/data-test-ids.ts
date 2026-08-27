@@ -10,5 +10,7 @@ export const testIds = {
   jobReviewContinue: 'job-review-continue',
   marketWorkspace: 'market-input-workspace',
   marketGenerateCta: 'market-generate-cta',
+  marketOverviewSkeleton: 'market-overview-skeleton',
+  marketOverviewHero: 'market-overview-hero',
   jobWorkspace: 'job-input-workspace',
 } as const;

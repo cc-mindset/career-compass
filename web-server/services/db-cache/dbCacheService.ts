@@ -8,6 +8,7 @@ import { CareerIntelData } from "../../types/careerIntel";
 import { MarketNewsData } from "../../types/marketNews";
 import { getDistrictOfACity } from "../../utils/city";
 import { logger } from "../../utils/logger";
+import { normalizeMarketReportVerdict } from "../market-insights/normalizeMarketReportVerdict";
 
 export const LLM_RESPONSE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -63,11 +64,11 @@ export const getCachedMarketInsightsFromDb = async (
 
     return {
         cacheKey,
-        insights: {
+        insights: normalizeMarketReportVerdict({
             ...(marketReport.data || {}),
             ...(industryTrends.data || {}),
             ...(newsAndCareerIntel.data || {}),
-        },
+        }),
     };
 };
 

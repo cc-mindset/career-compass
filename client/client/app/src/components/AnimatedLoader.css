@@ -1,0 +1,68 @@
+.animatedLoader {
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.animatedLoader--compact {
+  max-width: 280px;
+}
+
+.animatedLoader__canvas {
+  width: 100%;
+  height: 150px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.animatedLoader--compact .animatedLoader__canvas {
+  height: 90px;
+  margin-bottom: 10px;
+}
+
+.animatedLoader__svg {
+  width: 100%;
+  height: 100%;
+}
+
+.animatedLoader__trace {
+  stroke: var(--blue);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  opacity: 0.1;
+}
+
+.animatedLoader__pulse {
+  stroke: var(--blue);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  stroke-dasharray: 1000;
+  animation: ekg-draw 2s ease-in-out infinite;
+}
+
+@keyframes ekg-draw {
+  0% {
+    stroke-dashoffset: 1000;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  90%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}

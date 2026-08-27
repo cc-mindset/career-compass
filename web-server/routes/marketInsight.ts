@@ -1,7 +1,8 @@
 import express, { Request, Response } from "express";
 // import { mockDbCache } from "../utils/mockDbCache";
-import { enqueueJob, getJobResult, getQueueLength } from "../lib/redisQueue";
+import { enqueueJob, getJobPartialResult, getJobResult, getQueueLength } from "../lib/redisQueue";
 import { generateMarketInsights } from "../services/market-insights/marketInsightsService_multipart";
+import { normalizeMarketReportVerdict } from "../services/market-insights/normalizeMarketReportVerdict";
 import { getTopCityOfDistrictOfACity } from "../utils/city";
 import { getCachedMarketInsightsFromDb } from "../services/db-cache/dbCacheService";
 
@@ -113,7 +114,18 @@ marketInsightRouter.get(
         return res.json({
           success: true,
           status: "completed",
-          insights: result,
+          insights: normalizeMarketReportVerdict(result),
+          completedSections: ["marketReport", "industryTrends", "newsAndCareerIntel"],
+        });
+      }
+
+      const partial = await getJobPartialResult(jobId);
+      if (partial) {
+        return res.json({
+          success: true,
+          status: "processing",
+          insights: normalizeMarketReportVerdict(partial.insights),
+          completedSections: partial.completedSections,
         });
       }
 
