@@ -1,9 +1,9 @@
 """
 Market Stats Transformer
 =========================
-Converts normalized fetcher dicts (from fetcher_bls.py, fetcher_statscan.py or
-fetcher_imf.py) into embeddable prose chunks — same logic, same output schema
-regardless of source.
+Converts normalized fetcher dicts (from fetcher_bls.py, fetcher_statscan.py,
+fetcher_imf.py or fetcher_oecd_skills.py) into embeddable prose chunks — same
+logic, same output schema regardless of source.
 
 This is the most important stage: raw numbers embed poorly. The LLM needs
 interpretive language around the numbers to reason about career risk.
@@ -20,8 +20,9 @@ Namespace routing:
   signal_type → namespace
   contraction_indicator, employment_level, worker_confidence, hiring_rate
     → "labor-market-stats"
-  vacancy_rate, unemployment_rate
-    → "labor-market-stats"  (also)
+  vacancy_rate, unemployment_rate, skills_demand
+    → "labor-market-stats"  (also — skills_demand is a national labor-market
+                              health indicator, not geo-specific like wages)
   wage_level
     → "geo-labor-signals"   (wage data is inherently geo-relevant)
   unemployment_outlook, gdp_outlook (IMF WEO projections)
@@ -49,6 +50,7 @@ NAMESPACE_MAP = {
     "hiring_rate":           "labor-market-stats",
     "vacancy_rate":          "labor-market-stats",
     "unemployment_rate":     "labor-market-stats",
+    "skills_demand":         "labor-market-stats",
     "wage_level":            "geo-labor-signals",
     "unemployment_outlook":  "forward-looking",
     "gdp_outlook":           "forward-looking",
@@ -64,6 +66,7 @@ SIGNAL_LABELS = {
     "hiring_rate":           "hires rate",
     "vacancy_rate":          "job vacancy / openings rate",
     "unemployment_rate":     "unemployment rate",
+    "skills_demand":         "skill shortage/surplus index",
     "wage_level":            "average wage / earnings",
     "unemployment_outlook":  "unemployment rate outlook",
     "gdp_outlook":           "GDP growth outlook",
@@ -324,6 +327,30 @@ def _prose_gdp_outlook(d: dict, v: dict) -> str:
     return _prose_outlook("real GDP growth", d, v)
 
 
+def _prose_skills_demand(d: dict, v: dict) -> str:
+    country = d["country_name"]
+    period  = d["period"]
+    source  = d["source"]
+    skill   = v["skill_category"]
+    index   = v["index"]
+
+    if index >= 0.3:
+        reading = "a strong shortage — employers are struggling to fill roles needing this skill"
+    elif index >= 0.1:
+        reading = "a moderate shortage"
+    elif index <= -0.3:
+        reading = "a strong surplus — more workers have this skill than employers currently need"
+    elif index <= -0.1:
+        reading = "a moderate surplus"
+    else:
+        reading = "roughly balanced supply and demand"
+
+    return (
+        f"OECD's Skills for Jobs index rates {skill} in {country} at {index:+.3f} "
+        f"in the {period} edition ({source}), indicating {reading}."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
@@ -337,6 +364,7 @@ PROSE_GENERATORS = {
     "hiring_rate":           _prose_hiring_rate,
     "unemployment_outlook":  _prose_unemployment_outlook,
     "gdp_outlook":           _prose_gdp_outlook,
+    "skills_demand":         _prose_skills_demand,
 }
 
 

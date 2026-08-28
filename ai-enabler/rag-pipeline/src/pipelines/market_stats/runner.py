@@ -53,6 +53,7 @@ for path in (str(project_root), str(src_root)):
 from src.pipelines.market_stats.fetcher_bls      import fetch_bls
 from src.pipelines.market_stats.fetcher_statscan import fetch_statscan
 from src.pipelines.market_stats.fetcher_imf      import fetch_imf
+from src.pipelines.market_stats.fetcher_oecd_skills import fetch_oecd_skills
 from src.pipelines.market_stats.transformer      import transform
 from src.pipelines.market_stats.registry         import get_registry, register_run, update_run, Status
 from src.pipelines.market_stats.cleanup          import run_cleanup, run_ttl_summary
@@ -412,6 +413,157 @@ def run_imf(dry_run: bool = False, projection_years: int = 5) -> dict:
     return summary
 
 
+def run_oecd_skills(dry_run: bool = False) -> dict:
+    """
+    Run the OECD Skills for Jobs pipeline (skills_demand, US + CA in one call).
+
+    NOT run by default (see main()/lambda_handler() — opt-in only, unlike IMF).
+    This is a frozen edition snapshot with no time dimension (see
+    fetcher_oecd_skills.py docstring) — re-running it on a schedule would just
+    re-fetch identical bytes until OECD publishes a new edition under a new
+    dataset code. Trigger manually: once now, and again whenever someone
+    notices a new S4J edition exists.
+    """
+    run_id  = f"oecdskills_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+    summary = {"run_id": run_id, "country": "OECD_SKILLS", "status": "started"}
+
+    logger.info(f"[OECD Skills] Starting run {run_id}")
+    registry = get_registry()
+
+    try:
+        raw_records = fetch_oecd_skills()
+    except Exception as e:
+        logger.error(f"[OECD Skills] Fetch failed: {e}")
+        summary["status"] = "failed_fetch"
+        summary["error"]  = str(e)
+        return summary
+
+    logger.info(f"[OECD Skills] Fetched {len(raw_records)} series")
+    summary["fetched"] = len(raw_records)
+
+    if not raw_records:
+        logger.warning("[OECD Skills] No records returned — aborting")
+        summary["status"] = "empty_fetch"
+        return summary
+
+    register_run(registry, run_id, "OECD_SKILLS", len(raw_records))
+
+    try:
+        chunks = transform(raw_records)
+    except Exception as e:
+        logger.error(f"[OECD Skills] Transform failed: {e}")
+        summary["status"] = "failed_transform"
+        summary["error"]  = str(e)
+        update_run(registry, run_id, Status.FAILED, error=str(e)[:500])
+        return summary
+
+    logger.info(f"[OECD Skills] Produced {len(chunks)} chunks")
+    summary["chunks"] = len(chunks)
+
+    if not chunks:
+        logger.warning("[OECD Skills] No chunks produced — aborting")
+        summary["status"] = "empty_transform"
+        update_run(registry, run_id, Status.FAILED, error="No chunks produced")
+        return summary
+
+    update_run(registry, run_id, Status.TRANSFORMED, chunk_count=len(chunks))
+
+    if dry_run:
+        logger.info("[OECD Skills] DRY RUN — skipping S3 and Pinecone writes")
+        _print_sample_chunks(chunks, n=2)
+        summary["status"] = "dry_run_complete"
+        return summary
+
+    if S3_BUCKET:
+        try:
+            inbox_key = f"{S3_PREFIX}/inbox/oecd-skills/{run_id}.json"
+            upload_json({
+                "run_id":    run_id,
+                "source":    "OECD_SKILLS",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "records":   raw_records,
+            }, inbox_key)
+
+            transformed_key = f"{S3_PREFIX}/transformed/oecd-skills/{run_id}.json"
+            upload_json({
+                "run_id":    run_id,
+                "source":    "OECD_SKILLS",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "chunks":    chunks,
+            }, transformed_key)
+        except Exception as e:
+            logger.warning(f"[OECD Skills] S3 save failed, continuing without audit copy: {e}")
+    else:
+        logger.info("[OECD Skills] S3_BUCKET_NAME not configured — skipping audit-trail copy")
+
+    update_run(registry, run_id, Status.EMBEDDING)
+    upserted   = 0
+    failed_ids = []
+
+    by_namespace: dict[str, list] = {}
+    for chunk in chunks:
+        by_namespace.setdefault(chunk["namespace"], []).append(chunk)
+
+    all_uploaded_ids = []
+
+    for namespace, ns_chunks in by_namespace.items():
+        logger.info(f"[OECD Skills] Namespace '{namespace}': {len(ns_chunks)} chunks")
+        ids = [c["chunk_id"] for c in ns_chunks]
+        pinecone_chunks = [
+            {
+                "chunkId": c["chunk_id"],
+                "text": c["text"],
+                "rawText": c["text"],
+                "metadata": c["metadata"],
+            }
+            for c in ns_chunks
+        ]
+
+        try:
+            embedded = embed_chunks(pinecone_chunks)
+            uploaded_ids = upload_chunks(embedded, namespace=namespace)
+            all_uploaded_ids.extend(uploaded_ids)
+            upserted += len(uploaded_ids)
+            logger.info(f"[OECD Skills] Upserted {len(uploaded_ids)} vectors to '{namespace}'")
+        except Exception as e:
+            logger.error(f"[OECD Skills] Embed/upsert failed for '{namespace}': {e}")
+            failed_ids.extend(ids)
+
+    summary["upserted"]   = upserted
+    summary["failed_ids"] = failed_ids
+
+    if failed_ids:
+        update_run(registry, run_id, Status.EMBEDDED, pinecone_ids=all_uploaded_ids, error=f"{len(failed_ids)} chunks failed")
+    else:
+        update_run(registry, run_id, Status.EMBEDDED, pinecone_ids=all_uploaded_ids)
+
+    if S3_BUCKET:
+        try:
+            processed_key = f"{S3_PREFIX}/processed/oecd-skills/{run_id}.json"
+            upload_json({
+                "run_id":     run_id,
+                "source":     "OECD_SKILLS",
+                "timestamp":  datetime.now(timezone.utc).isoformat(),
+                "fetched":    summary["fetched"],
+                "chunks":     summary["chunks"],
+                "upserted":   upserted,
+                "failed_ids": failed_ids,
+                "namespaces": list(by_namespace.keys()),
+            }, processed_key)
+        except Exception as e:
+            logger.warning(f"[OECD Skills] Could not write processed manifest: {e}")
+
+    summary["status"] = "complete" if not failed_ids else "complete_with_errors"
+    logger.info(f"[OECD Skills] Run complete — {upserted} upserted, {len(failed_ids)} failed")
+
+    if failed_ids:
+        update_run(registry, run_id, Status.FAILED, error=f"Embedding/upsert: {len(failed_ids)} chunks failed")
+    else:
+        update_run(registry, run_id, Status.COMPLETED)
+
+    return summary
+
+
 def _print_sample_chunks(chunks: list[dict], n: int = 2) -> None:
     """Print sample chunks to stdout for dry-run inspection."""
     print(f"\n{'='*60}")
@@ -459,6 +611,11 @@ def main():
     parser.add_argument(
         "--skip-imf", action="store_true",
         help="Skip the IMF outlook fetch (runs by default alongside BLS/StatsCan)"
+    )
+    parser.add_argument(
+        "--include-oecd-skills", action="store_true",
+        help="Run the OECD Skills for Jobs fetch (opt-in only — frozen edition "
+             "snapshot, not meant for the recurring schedule; see run_oecd_skills())"
     )
     args = parser.parse_args()
 
@@ -516,6 +673,21 @@ def main():
     else:
         logger.info("Skipping IMF outlook fetch (--skip-imf)")
 
+    # ── OECD Skills for Jobs (opt-in only — frozen edition, not recurring) ─────
+    if args.include_oecd_skills:
+        oecd_summary = run_oecd_skills(dry_run=args.dry_run)
+        summaries.append(oecd_summary)
+
+        print(f"\n{'─'*50}")
+        print(f"Source:   OECD Skills for Jobs")
+        print(f"Status:   {oecd_summary['status']}")
+        print(f"Fetched:  {oecd_summary.get('fetched', 'n/a')}")
+        print(f"Chunks:   {oecd_summary.get('chunks', 'n/a')}")
+        if not args.dry_run:
+            print(f"Upserted: {oecd_summary.get('upserted', 'n/a')}")
+            if oecd_summary.get("failed_ids"):
+                print(f"Failed:   {len(oecd_summary['failed_ids'])} chunk(s)")
+
     # ── Cleanup stage (opt-in, run quarterly) ──────────────────────────────────
     if args.cleanup:
         logger.info("=== Cleanup ===")
@@ -549,6 +721,7 @@ def lambda_handler(event: dict, context) -> dict:
       - limit: int
       - lookback_years: int
       - include_imf: bool (default: true — IMF outlook, US + CA in one call)
+      - include_oecd_skills: bool (default: false — opt-in only, frozen edition snapshot)
       - cleanup: bool
       - ttl_summary: bool
     Returns a summary dict with per-country run results and optional cleanup stats.
@@ -581,6 +754,9 @@ def lambda_handler(event: dict, context) -> dict:
 
         if event.get("include_imf", True):
             summaries.append(run_imf(dry_run=dry_run))
+
+        if event.get("include_oecd_skills", False):
+            summaries.append(run_oecd_skills(dry_run=dry_run))
 
         result = {"runs": summaries}
 
