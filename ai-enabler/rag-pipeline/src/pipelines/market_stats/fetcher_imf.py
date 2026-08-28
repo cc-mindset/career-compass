@@ -21,7 +21,6 @@ Outputs: list of normalized dicts ready for transformer.py.
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 import requests
 

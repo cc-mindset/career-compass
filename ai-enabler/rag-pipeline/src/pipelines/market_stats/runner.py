@@ -59,6 +59,7 @@ from src.pipelines.market_stats.cleanup          import run_cleanup, run_ttl_sum
 from src.shared.s3_client import upload_json
 from src.shared.embedder import embed_chunks
 from src.shared.pinecone_client import upload_chunks
+from config.settings import S3_BUCKET
 
 logger = logging.getLogger(__name__)
 
@@ -259,6 +260,11 @@ def run_imf(dry_run: bool = False, projection_years: int = 5) -> dict:
     in one call — IMF's API isn't per-country). Mirrors run_country()'s stages;
     kept separate because IMF's fetch/cadence shape doesn't fit the per-country loop.
 
+    S3 save is best-effort: IMF is fetched fresh from a public API every run (not
+    S3-sourced like market_reports' PDFs), so a missing/unconfigured S3_BUCKET_NAME
+    just skips the audit-trail copy with a warning rather than aborting the run —
+    embedding + Pinecone + the Mongo registry are the parts that actually matter.
+
     Note on cadence: IMF WEO only publishes new vintages ~twice a year (April,
     October), unlike BLS's monthly release. Running this on the same monthly
     schedule as BLS/StatsCan just re-fetches an unchanged vintage most months —
@@ -314,28 +320,27 @@ def run_imf(dry_run: bool = False, projection_years: int = 5) -> dict:
         summary["status"] = "dry_run_complete"
         return summary
 
-    try:
-        inbox_key = f"{S3_PREFIX}/inbox/imf/{run_id}.json"
-        upload_json({
-            "run_id":    run_id,
-            "source":    "IMF",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "records":   raw_records,
-        }, inbox_key)
+    if S3_BUCKET:
+        try:
+            inbox_key = f"{S3_PREFIX}/inbox/imf/{run_id}.json"
+            upload_json({
+                "run_id":    run_id,
+                "source":    "IMF",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "records":   raw_records,
+            }, inbox_key)
 
-        transformed_key = f"{S3_PREFIX}/transformed/imf/{run_id}.json"
-        upload_json({
-            "run_id":    run_id,
-            "source":    "IMF",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "chunks":    chunks,
-        }, transformed_key)
-    except Exception as e:
-        logger.error(f"[IMF] S3 save failed: {e}")
-        summary["status"] = "failed_s3"
-        summary["error"]  = str(e)
-        update_run(registry, run_id, Status.FAILED, error=str(e)[:500])
-        return summary
+            transformed_key = f"{S3_PREFIX}/transformed/imf/{run_id}.json"
+            upload_json({
+                "run_id":    run_id,
+                "source":    "IMF",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "chunks":    chunks,
+            }, transformed_key)
+        except Exception as e:
+            logger.warning(f"[IMF] S3 save failed, continuing without audit copy: {e}")
+    else:
+        logger.info("[IMF] S3_BUCKET_NAME not configured — skipping audit-trail copy")
 
     update_run(registry, run_id, Status.EMBEDDING)
     upserted   = 0
@@ -380,20 +385,21 @@ def run_imf(dry_run: bool = False, projection_years: int = 5) -> dict:
     else:
         update_run(registry, run_id, Status.EMBEDDED, pinecone_ids=all_uploaded_ids)
 
-    try:
-        processed_key = f"{S3_PREFIX}/processed/imf/{run_id}.json"
-        upload_json({
-            "run_id":     run_id,
-            "source":     "IMF",
-            "timestamp":  datetime.now(timezone.utc).isoformat(),
-            "fetched":    summary["fetched"],
-            "chunks":     summary["chunks"],
-            "upserted":   upserted,
-            "failed_ids": failed_ids,
-            "namespaces": list(by_namespace.keys()),
-        }, processed_key)
-    except Exception as e:
-        logger.warning(f"[IMF] Could not write processed manifest: {e}")
+    if S3_BUCKET:
+        try:
+            processed_key = f"{S3_PREFIX}/processed/imf/{run_id}.json"
+            upload_json({
+                "run_id":     run_id,
+                "source":     "IMF",
+                "timestamp":  datetime.now(timezone.utc).isoformat(),
+                "fetched":    summary["fetched"],
+                "chunks":     summary["chunks"],
+                "upserted":   upserted,
+                "failed_ids": failed_ids,
+                "namespaces": list(by_namespace.keys()),
+            }, processed_key)
+        except Exception as e:
+            logger.warning(f"[IMF] Could not write processed manifest: {e}")
 
     summary["status"] = "complete" if not failed_ids else "complete_with_errors"
     logger.info(f"[IMF] Run complete — {upserted} upserted, {len(failed_ids)} failed")
