@@ -137,4 +137,59 @@ describe('adaptMarketInsights', () => {
       false,
     );
   });
+
+  it('prefers deterministic evidence_sources over the LLM-reported source bag', () => {
+    const payload: MarketInsightsPayload = {
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Cautious 12-month outlook',
+        headline: 'Demand holds for your role.',
+        summary: 'Employers keep hiring for this role.',
+        signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+      },
+      // LLM's own self-reported bag — should be ignored when evidence_sources exists.
+      report_sources: ['ChatGPT-invented Report 2026'],
+      evidence_sources: [
+        {
+          id: 'labor-market-stats::STATSCAN_LFS::',
+          namespace: 'labor-market-stats',
+          lens: 'Labor market statistics',
+          label: 'Statistics Canada — Labour Force Survey (LFS)',
+          sourceCode: 'STATSCAN_LFS',
+        },
+        {
+          id: 'market-news::Reuters::Layoffs hit tech',
+          namespace: 'market-news',
+          lens: 'Market news',
+          label: 'Reuters — Layoffs hit tech (2026)',
+          sourceCode: 'Reuters',
+          title: 'Layoffs hit tech',
+          publishedAt: '2026-02-01',
+        },
+      ],
+    };
+
+    const adapted = adaptMarketInsights(payload);
+    expect(adapted!.sources).toEqual([
+      { name: 'Statistics Canada — Labour Force Survey (LFS)', role: 'Labor market statistics', date: 'Recent' },
+      { name: 'Reuters — Layoffs hit tech (2026)', role: 'Market news', date: '2026-02-01' },
+    ]);
+    expect(adapted!.sources.some((s) => s.name === 'ChatGPT-invented Report 2026')).toBe(false);
+  });
+
+  it('falls back to the legacy source bag when evidence_sources is absent', () => {
+    const payload: MarketInsightsPayload = {
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Cautious 12-month outlook',
+        headline: 'Demand holds for your role.',
+        summary: 'Employers keep hiring for this role.',
+        signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'Stable' },
+      },
+      report_sources: ['Indeed Hiring Lab'],
+    };
+
+    const adapted = adaptMarketInsights(payload);
+    expect(adapted!.sources[0]?.name).toBe('Indeed Hiring Lab');
+  });
 });

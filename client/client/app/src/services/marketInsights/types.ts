@@ -78,6 +78,21 @@ export interface AdaptedSource {
   date: string;
 }
 
+/**
+ * Deterministic, retrieval-derived source provenance from web-server
+ * (lib/evidenceSources.ts) — independent of whatever the LLM claims it used
+ * in report_sources/sources. Ground truth for the Evidence tab.
+ */
+export interface EvidenceSourcePayload {
+  id: string;
+  namespace: string;
+  lens: string;
+  label: string;
+  sourceCode: string;
+  title?: string;
+  publishedAt?: string;
+}
+
 /** View-model consumed by Clarity Coach Market Report tabs. */
 export interface AdaptedMarketReport {
   verdictLabel: string;

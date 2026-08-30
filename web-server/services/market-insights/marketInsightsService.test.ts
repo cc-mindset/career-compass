@@ -37,6 +37,7 @@ vi.mock('../db-cache/dbCacheService.js', () => ({
   ),
   updateCacheResponseInDb: vi.fn(),
   cacheLlmResponseToDb: vi.fn(),
+  cacheEvidenceSourcesToDb: vi.fn(),
 }));
 vi.mock('../../lib/openai.js', () => ({
   openaiClient: {
@@ -113,6 +114,7 @@ describe('generateMarketInsights', () => {
         executive_summary: 'Summary',
         high_growth_sectors: [],
         market_news: [],
+        evidence_sources: [],
       }),
     );
     expect(result.failedSections).toEqual([]);
@@ -134,6 +136,7 @@ describe('generateMarketInsights', () => {
         executive_summary: 'Summary',
         high_growth_sectors: [],
         market_news: [],
+        evidence_sources: [],
       }),
     );
     expect(result.failedSections).toEqual([]);
@@ -214,6 +217,7 @@ describe('generateMarketInsights', () => {
         market_shifts: [{ title: 'A', summary: 'One' }],
         executive_summary: 'Summary',
         market_news: [],
+        evidence_sources: [],
       }),
     );
     expect(result.failedSections).toEqual(['industryTrends']);

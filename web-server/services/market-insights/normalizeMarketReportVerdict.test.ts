@@ -65,4 +65,44 @@ describe('normalizeMarketReportVerdict', () => {
       evidence_quality: 'Stable',
     });
   });
+
+  it('overrides evidence_quality from evidence_sources even when the LLM returned a full verdict', () => {
+    const insights = {
+      market_report_verdict: {
+        headline: 'Demand is rising for your role.',
+        summary: 'Employers are hiring again in your metro.',
+        signals: { role_demand: 'High', competition: 'High', evidence_quality: 'Low' },
+      },
+      // 8 deduped, retrieval-derived sources -> evidenceFromSourceCount => 'High',
+      // overriding the LLM's own self-reported 'Low' above.
+      evidence_sources: Array.from({ length: 8 }, (_, i) => ({
+        id: `s${i}`,
+        namespace: 'market-news',
+        lens: 'Market news',
+        label: `Source ${i}`,
+        sourceCode: `SRC_${i}`,
+      })),
+    };
+
+    const result = normalizeMarketReportVerdict(insights);
+    expect(result.market_report_verdict?.signals.evidence_quality).toBe('High');
+    // untouched narrative signals still come from the LLM
+    expect(result.market_report_verdict?.signals.role_demand).toBe('High');
+  });
+
+  it('overrides evidence_quality from evidence_sources in the backfilled branch too', () => {
+    const insights = {
+      market_report_summary_brief: 'Demand is steady.',
+      report_sources: ['only-one-legacy-source'],
+      evidence_sources: [
+        { id: 's1', namespace: 'market-news', lens: 'Market news', label: 'A', sourceCode: 'A' },
+        { id: 's2', namespace: 'market-news', lens: 'Market news', label: 'B', sourceCode: 'B' },
+        { id: 's3', namespace: 'market-news', lens: 'Market news', label: 'C', sourceCode: 'C' },
+      ],
+    };
+
+    const result = normalizeMarketReportVerdict(insights);
+    // 1 legacy source would be 'Low'; 3 real evidence_sources is 'Stable' and wins.
+    expect(result.market_report_verdict?.signals.evidence_quality).toBe('Stable');
+  });
 });

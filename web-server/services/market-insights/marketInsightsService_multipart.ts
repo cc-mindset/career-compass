@@ -1,9 +1,10 @@
 import { retrieve } from '../ragRetrievalService.js';
 import { formatMarketInsightsContext } from '../../lib/ragContextFormatters.js';
+import { extractEvidenceSources } from '../../lib/evidenceSources.js';
 import { RagNamespace } from '../../types/rag.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../../lib/openai.js';
 import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from '../db-cache/dbCacheService.js';
-import { getCachedMarketInsightsFromDb, getMarketInsightsCacheKey } from '../db-cache/dbCacheService.js';
+import { getCachedMarketInsightsFromDb, getMarketInsightsCacheKey, cacheEvidenceSourcesToDb } from '../db-cache/dbCacheService.js';
 import { storeJobPartialResult } from '../../lib/redisQueue.js';
 import { generateSingleResponse } from '../llmService.js';
 import pLimit from 'p-limit';
@@ -392,6 +393,13 @@ export async function generateMarketInsights(
       // Step B: Format context for the LLM using the consumer formatter
       const formattedContext = formatMarketInsightsContext(retrievalResp);
 
+      // Deterministic evidence provenance — derived from what was actually
+      // retrieved, independent of whatever the LLM later claims it used.
+      // Cached under the same key as the LLM sections so it also survives
+      // the full tuple-cache-hit path above (see dbCacheService).
+      const evidenceSources = extractEvidenceSources(retrievalResp);
+      void cacheEvidenceSourcesToDb(marketInsightsCacheKey, evidenceSources, locationDistrict || '');
+
       // Step C: Generate each section using existing LLM + DB cache logic
       const prompts = [
         {
@@ -576,6 +584,7 @@ export async function generateMarketInsights(
         ...marketReportVerdict,
         ...industryTrends,
         ...newsAndCareerIntel,
+        evidence_sources: evidenceSources,
       });
 
       const completedSections = Object.entries(sectionStates)

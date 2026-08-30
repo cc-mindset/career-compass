@@ -82,6 +82,18 @@ const evidenceFromSourceCount = (count: number): MarketSignalLevel => {
   return 'Low';
 };
 
+/**
+ * evidence_quality derived from the deterministic, retrieval-derived
+ * evidence_sources list (see lib/evidenceSources.ts) — ground truth, not the
+ * LLM's own opinion of its evidence. Returns null when evidence_sources is
+ * absent/empty (e.g. cached entries from before this existed, or fixtures),
+ * so callers can fall back to the legacy report_sources/sources heuristic.
+ */
+const realEvidenceQuality = (insights: MarketInsightsData): MarketSignalLevel | null => {
+  const count = asArr(insights.evidence_sources).length;
+  return count > 0 ? evidenceFromSourceCount(count) : null;
+};
+
 const parseVerdict = (raw: unknown): MarketReportVerdict | null => {
   const verdict = asObj(raw);
   if (!verdict) return null;
@@ -116,7 +128,7 @@ const backfillVerdict = (insights: MarketInsightsData): MarketReportVerdict => {
   const trend = str(marketHealth?.trend, 'Stable');
   const pivotNecessity = str(keyStats?.pivot_necessity, 'High');
 
-  const sourceCount = [
+  const legacySourceCount = [
     ...asArr(insights.report_sources),
     ...asArr(insights.sources),
   ].length;
@@ -141,7 +153,7 @@ const backfillVerdict = (insights: MarketInsightsData): MarketReportVerdict => {
     signals: {
       role_demand: coerceSignalLevel(trend, 'Stable'),
       competition: coerceSignalLevel(pivotNecessity, 'High'),
-      evidence_quality: evidenceFromSourceCount(sourceCount),
+      evidence_quality: realEvidenceQuality(insights) ?? evidenceFromSourceCount(legacySourceCount),
     },
   };
 };
@@ -151,9 +163,23 @@ export function normalizeMarketReportVerdict(
   insights: MarketInsightsData,
 ): MarketInsightsData {
   const backfilled = backfillVerdict(insights);
+  // evidence_quality is a factual claim ("how much real source material backs
+  // this"), not a narrative judgment like role_demand/competition — so when
+  // we have deterministic evidence_sources, it wins over whatever the LLM
+  // says about its own evidence, in every branch below.
+  const evidenceOverride = realEvidenceQuality(insights);
   const parsed = parseVerdict(insights.market_report_verdict);
   if (parsed) {
-    return { ...insights, market_report_verdict: parsed };
+    return {
+      ...insights,
+      market_report_verdict: {
+        ...parsed,
+        signals: {
+          ...parsed.signals,
+          evidence_quality: evidenceOverride ?? parsed.signals.evidence_quality,
+        },
+      },
+    };
   }
 
   const partial = asObj(insights.market_report_verdict);
@@ -168,12 +194,11 @@ export function normalizeMarketReportVerdict(
       ? {
           role_demand: coerceSignalLevel(partialSignals.role_demand, backfilled.signals.role_demand),
           competition: coerceSignalLevel(partialSignals.competition, backfilled.signals.competition),
-          evidence_quality: coerceSignalLevel(
-            partialSignals.evidence_quality,
-            backfilled.signals.evidence_quality,
-          ),
+          evidence_quality:
+            evidenceOverride ??
+            coerceSignalLevel(partialSignals.evidence_quality, backfilled.signals.evidence_quality),
         }
-      : backfilled.signals,
+      : { ...backfilled.signals, evidence_quality: evidenceOverride ?? backfilled.signals.evidence_quality },
   };
 
   return {

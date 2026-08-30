@@ -78,6 +78,19 @@ const mapSource = (raw: unknown, index: number): AdaptedSource => {
   };
 };
 
+/** Maps a deterministic, retrieval-derived EvidenceSourcePayload (see types.ts). */
+const mapEvidenceSource = (raw: unknown): AdaptedSource | null => {
+  const o = asObj(raw);
+  if (!o) return null;
+  const name = str(o.label);
+  if (!name) return null;
+  return {
+    name,
+    role: str(o.lens, 'Reference'),
+    date: str(o.publishedAt, 'Recent'),
+  };
+};
+
 const mapVerdictSignals = (raw: unknown) => {
   const signals = asObj(raw);
   if (!signals) return null;
@@ -216,6 +229,15 @@ export function adaptMarketInsights(insights: MarketInsightsPayload | null | und
     ...asArr(insights.sources),
   ];
 
+  // Deterministic, retrieval-derived sources (see web-server lib/evidenceSources.ts)
+  // win over the LLM's own self-reported report_sources/sources bag — they can't
+  // cite a source that wasn't actually retrieved. Falls back to the legacy bag
+  // only when evidence_sources is absent (cached entries from before it existed,
+  // fixtures/demo mode).
+  const evidenceSources = asArr(insights.evidence_sources)
+    .map(mapEvidenceSource)
+    .filter(Boolean) as AdaptedSource[];
+
   const headline =
     str(verdict?.headline) ||
     summaryBrief ||
@@ -277,7 +299,7 @@ export function adaptMarketInsights(insights: MarketInsightsPayload | null | und
     emerging: growth.slice(0, 3),
     risks: risks.slice(0, 6),
     skills: skills.slice(0, 8),
-    sources: sourceBag.map(mapSource),
+    sources: evidenceSources.length ? evidenceSources : sourceBag.map(mapSource),
     evidenceTags,
     newsTitles: news.slice(0, 8),
     fromLive: true,
