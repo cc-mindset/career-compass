@@ -18,7 +18,7 @@ export const MARKET_INSIGHTS: MarketInsight[] = [
       'Senior product leaders are increasingly expected to explain how AI improved a workflow, decision or customer outcome.',
     action: 'Add one measurable AI-enabled product example to your Career Profile.',
     source:
-      'WEF Future of Jobs 2025 · LinkedIn and Indeed role signals · Last 60 days',
+      'WEF Future of Jobs 2025 · LinkedIn and Indeed role signals · Last 60 days',   
   },
   {
     title: 'Commercial ownership is appearing more often in senior postings',

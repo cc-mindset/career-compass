@@ -23,22 +23,6 @@ export function mergeMarketSection(
   return { ...accumulated, ...sectionData };
 }
 
-/** True when Part 1 data is enough to render the overview hero + shifts. */
-export function isMarketOverviewReady(insights: MarketInsightsPayload | null | undefined): boolean {
-  if (!insights) return false;
-  if (asObj(insights.market_report_verdict)) return true;
-  const summary = asObj(insights.market_report_summary);
-  const labour = asObj(insights.labour_market_snapshot);
-  return Boolean(summary?.overview && labour?.major_drivers);
-}
-
-export function mergeStatusInsights(
-  accumulated: MarketInsightsPayload,
-  statusInsights: MarketInsightsPayload,
-): MarketInsightsPayload {
-  return { ...accumulated, ...statusInsights };
-}
-
 /** True when verdict signals are present (badge + strip can render). */
 export function hasMarketVerdictSignals(
   insights: MarketInsightsPayload | null | undefined,
@@ -49,6 +33,22 @@ export function hasMarketVerdictSignals(
   return Boolean(
     str(signals.role_demand) && str(signals.competition) && str(signals.evidence_quality),
   );
+}
+
+/** True when verdict hero is enough to navigate to the overview page. */
+export function isMarketOverviewReady(insights: MarketInsightsPayload | null | undefined): boolean {
+  if (!insights) return false;
+  if (hasMarketVerdictSignals(insights)) return true;
+  const summary = asObj(insights.market_report_summary);
+  const labour = asObj(insights.labour_market_snapshot);
+  return Boolean(summary?.overview && labour?.major_drivers);
+}
+
+export function mergeStatusInsights(
+  accumulated: MarketInsightsPayload,
+  statusInsights: MarketInsightsPayload,
+): MarketInsightsPayload {
+  return { ...accumulated, ...statusInsights };
 }
 
 /** True when adapted overview hero has real coaching copy (not generic backfill). */

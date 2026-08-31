@@ -74,6 +74,15 @@ describe('generateMarketInsights', () => {
   const jobId = 'job456';
 
   const sectionPayloads = {
+    [LLM_SECTION_LABELS.marketReportVerdict]: {
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Positive 12-month outlook',
+        headline: 'Demand is steady.',
+        summary: 'Hiring continues in your metro.',
+        signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+      },
+    },
     [LLM_SECTION_LABELS.marketReport]: { executive_summary: 'Summary' },
     [LLM_SECTION_LABELS.industryTrends]: { high_growth_sectors: [] },
     [LLM_SECTION_LABELS.newsAndCareerIntel]: { market_news: [] },
@@ -96,6 +105,13 @@ describe('generateMarketInsights', () => {
     const result = await generateMarketInsights(location, userId);
 
     expect(result.insights).toEqual({
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Positive 12-month outlook',
+        headline: 'Demand is steady.',
+        summary: 'Hiring continues in your metro.',
+        signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+      },
       executive_summary: 'Summary',
       high_growth_sectors: [],
       market_news: [],
@@ -113,6 +129,13 @@ describe('generateMarketInsights', () => {
     const result = await generateMarketInsights(location, userId, jobId);
 
     expect(result.insights).toEqual({
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Positive 12-month outlook',
+        headline: 'Demand is steady.',
+        summary: 'Hiring continues in your metro.',
+        signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+      },
       executive_summary: 'Summary',
       high_growth_sectors: [],
       market_news: [],
@@ -122,6 +145,14 @@ describe('generateMarketInsights', () => {
       jobId,
       'progress',
       expect.objectContaining({ type: 'job_start' }),
+    );
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({
+        type: 'section_success',
+        section: 'marketReportVerdict',
+      }),
     );
     expect(mockEmitToJob).toHaveBeenCalledWith(
       jobId,
@@ -182,6 +213,13 @@ describe('generateMarketInsights', () => {
     const result = await generateMarketInsights(location, userId, jobId);
 
     expect(result.insights).toEqual({
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Positive 12-month outlook',
+        headline: 'Demand is steady.',
+        summary: 'Hiring continues in your metro.',
+        signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+      },
       executive_summary: 'Summary',
       market_news: [],
     });

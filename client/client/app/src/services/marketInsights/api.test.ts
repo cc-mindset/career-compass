@@ -39,7 +39,14 @@ describe('generateMarketInsights queued job', () => {
     vi.restoreAllMocks();
   });
 
-  it('fires onOverviewReady from poll when Part 1 partial lands', async () => {
+  it('fires onOverviewReady from poll when verdict partial lands', async () => {
+    const verdict = {
+      verdict_label: 'Stable market',
+      outlook_label: 'Positive 12-month outlook',
+      headline: 'Overview from poll',
+      summary: 'Hiring remains resilient in your metro.',
+      signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+    };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -58,9 +65,9 @@ describe('generateMarketInsights queued job', () => {
           success: true,
           status: 'processing',
           insights: {
-            market_report_verdict: { headline: 'Overview from poll' },
+            market_report_verdict: verdict,
           },
-          completedSections: ['marketReport'],
+          completedSections: ['marketReportVerdict'],
         }),
       })
       .mockResolvedValueOnce({
@@ -69,7 +76,7 @@ describe('generateMarketInsights queued job', () => {
           success: true,
           status: 'completed',
           insights: {
-            market_report_verdict: { headline: 'Overview from poll' },
+            market_report_verdict: verdict,
             growth_sectors: [],
             market_news: [],
           },
@@ -93,11 +100,11 @@ describe('generateMarketInsights queued job', () => {
     expect(onOverviewReady).toHaveBeenCalledTimes(1);
     expect(onOverviewReady).toHaveBeenCalledWith(
       expect.objectContaining({
-        market_report_verdict: { headline: 'Overview from poll' },
+        market_report_verdict: verdict,
       }),
     );
     expect(onInsightsUpdate).toHaveBeenCalled();
-    expect(insights.market_report_verdict).toEqual({ headline: 'Overview from poll' });
+    expect(insights.market_report_verdict).toEqual(verdict);
   });
 
   it('polls status immediately after section_success', async () => {

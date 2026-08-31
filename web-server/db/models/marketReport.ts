@@ -82,6 +82,18 @@ const marketReportDataSchema = new Schema<MarketReportData>({
   },
   report_sources: [{ type: String, required: true }],
   market_report_verdict: { type: marketReportVerdictSchema, required: false },
+  market_shifts: {
+    type: [
+      new Schema(
+        {
+          title: { type: String, required: true },
+          summary: { type: String, required: true },
+        },
+        { _id: false },
+      ),
+    ],
+    required: false,
+  },
 });
 
 const marketReportSchema = new Schema<IMarketReport>(

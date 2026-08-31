@@ -13,8 +13,9 @@ import type {
 } from './types';
 
 const SECTION_PROGRESS: Record<string, number> = {
-  marketReport: 34,
-  industryTrends: 67,
+  marketReportVerdict: 22,
+  marketReport: 45,
+  industryTrends: 72,
   newsAndCareerIntel: 90,
 };
 
@@ -32,7 +33,7 @@ export type MarketGenerateCallbacks = {
     insights: MarketInsightsPayload,
     meta: { completedSections: string[] },
   ) => void;
-  /** Fires once when Part 1 (marketReport) is enough to render the overview page. */
+  /** Fires once when market_report_verdict is enough to open the overview page. */
   onOverviewReady?: (insights: MarketInsightsPayload) => void;
 };
 
@@ -87,10 +88,13 @@ const applyInsightsUpdate = (
 
 const inferCompletedSections = (insights: MarketInsightsPayload): string[] => {
   const sections: string[] = [];
+  if (insights.market_report_verdict) {
+    sections.push('marketReportVerdict');
+  }
   if (
     insights.market_report_summary ||
-    insights.market_report_verdict ||
-    insights.labour_market_snapshot
+    insights.labour_market_snapshot ||
+    insights.market_shifts
   ) {
     sections.push('marketReport');
   }
@@ -298,7 +302,12 @@ export async function generateMarketInsights(
       onOverviewReady?.(payload.insights);
     }
     onInsightsUpdate?.(payload.insights, {
-      completedSections: ['marketReport', 'industryTrends', 'newsAndCareerIntel'],
+      completedSections: [
+        'marketReportVerdict',
+        'marketReport',
+        'industryTrends',
+        'newsAndCareerIntel',
+      ],
     });
     return payload.insights;
   }

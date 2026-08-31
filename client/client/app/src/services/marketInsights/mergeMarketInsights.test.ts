@@ -8,7 +8,7 @@ import {
 } from './mergeMarketInsights';
 
 describe('mergeMarketInsights', () => {
-  it('isMarketOverviewReady is true when market_report_verdict exists', () => {
+  it('isMarketOverviewReady is true when market_report_verdict has signals', () => {
     expect(
       isMarketOverviewReady({
         market_report_verdict: {
@@ -20,6 +20,14 @@ describe('mergeMarketInsights', () => {
         },
       }),
     ).toBe(true);
+  });
+
+  it('isMarketOverviewReady is false for verdict without signals', () => {
+    expect(
+      isMarketOverviewReady({
+        market_report_verdict: { headline: 'Pending' },
+      }),
+    ).toBe(false);
   });
 
   it('isMarketOverviewReady is false before Part 1 lands', () => {

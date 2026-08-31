@@ -4,6 +4,7 @@ import LlmCareerIntel from "../../db/models/careerIntel";
 import LlmIndustryTrend from "../../db/models/industryTrends";
 import LlmMarketNews from "../../db/models/marketNews";
 import LlmMarketReport from "../../db/models/marketReport";
+import LlmMarketReportVerdict from "../../db/models/marketReportVerdict";
 import { CareerIntelData } from "../../types/careerIntel";
 import { MarketNewsData } from "../../types/marketNews";
 import { getDistrictOfACity } from "../../utils/city";
@@ -45,11 +46,13 @@ export const getCachedMarketInsightsFromDb = async (
     seniority?: string,
 ) => {
     const cacheKey = getMarketInsightsCacheKey(location, job, seniority);
-    const [marketReport, industryTrends, newsAndCareerIntel] = await Promise.all([
+    const [marketReportVerdict, marketReport, industryTrends, newsAndCareerIntel] =
+      await Promise.all([
+        getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.marketReportVerdict),
         getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.marketReport),
         getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.industryTrends),
         getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.newsAndCareerIntel),
-    ]);
+      ]);
 
     if (
         !marketReport ||
@@ -66,6 +69,9 @@ export const getCachedMarketInsightsFromDb = async (
         cacheKey,
         insights: normalizeMarketReportVerdict({
             ...(marketReport.data || {}),
+            ...(marketReportVerdict?.status === LlmCacheStatus.ACTIVE
+              ? marketReportVerdict.data || {}
+              : {}),
             ...(industryTrends.data || {}),
             ...(newsAndCareerIntel.data || {}),
         }),
@@ -109,6 +115,13 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
         region: regionToCache || "",
     };
     switch (section) {
+        case LLM_SECTION_LABELS.marketReportVerdict:
+            result = await LlmMarketReportVerdict.updateOne(
+                { vars_id: cacheKey },
+                { ...commonCacheData, data: response },
+                { upsert: true }
+            );
+            break;
         case LLM_SECTION_LABELS.marketReport:
             result = await LlmMarketReport.updateOne(
                 { vars_id: cacheKey },
@@ -157,6 +170,13 @@ export async function updateCacheResponseInDb(cacheKey: string, section: typeof 
         region
     };
     switch (section) {
+        case LLM_SECTION_LABELS.marketReportVerdict:
+            result = await LlmMarketReportVerdict.updateOne(
+                { vars_id: cacheKey },
+                statusData,
+                { upsert: true }
+            );
+            break;
         case LLM_SECTION_LABELS.marketReport:
             result = await LlmMarketReport.updateOne(
                 { vars_id: cacheKey },
@@ -195,6 +215,9 @@ export const getCachedLlmResponseFromDb = async (cacheKey: string, section: type
     let doc;
     const llmRetrievalFilter = isSkipExpireCheck ? { vars_id: cacheKey } : { vars_id: cacheKey, updatedAt: { $gt: new Date(Date.now() - LLM_RESPONSE_EXPIRATION_MS) } };
     switch (section) {
+        case LLM_SECTION_LABELS.marketReportVerdict:
+            doc = await LlmMarketReportVerdict.findOne(llmRetrievalFilter).lean();
+            break;
         case LLM_SECTION_LABELS.marketReport:
             doc = await LlmMarketReport.findOne(llmRetrievalFilter).lean();
             break;
