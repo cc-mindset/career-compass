@@ -15,7 +15,11 @@ import { LlmCacheStatus } from '../../constants/db.js';
 import { LLM_SECTION_LABELS } from '../../constants/index.js';
 import { normalizeMarketReportVerdict } from './normalizeMarketReportVerdict.js';
 
-type SectionName = 'marketReport' | 'industryTrends' | 'newsAndCareerIntel';
+type SectionName =
+  | 'marketReportVerdict'
+  | 'marketReport'
+  | 'industryTrends'
+  | 'newsAndCareerIntel';
 
 interface SectionState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -33,8 +37,68 @@ Use coaching language that normalizes career pivots and validates concerns. Your
 type MarketInsightsData = Record<string, unknown>;
 
 /**
- * Part 1: Market Report Section (3 articles)
- * Focuses on: market_report_summary_brief, market_report_summary, labour_market_snapshot, city_vs_region_comparison, market_report_verdict
+ * Fast overview hero + "What changed" shifts (streams early for FE navigation).
+ */
+export function buildMarketReportVerdictPrompt(
+  location: string,
+  job?: string,
+  seniority?: string,
+): string {
+  const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
+    .filter(Boolean)
+    .join('; ');
+
+  return `You are analyzing labor market data for ${location}.
+${roleContext ? `Additional user context: ${roleContext}. Use this only to tailor the analysis; do not change the output structure.` : ''}
+
+Return ONLY a JSON object with these required keys:
+
+1. market_report_verdict (UI hero card):
+- verdict_label: Short market badge, e.g. "Stable market", "Growing market", or "Softening market"
+- outlook_label: Short outlook line, e.g. "Positive 12-month outlook", "Mixed 12-month outlook", or "Cautious 12-month outlook"
+- headline: ONE coaching sentence for the hero title (max ~120 characters). Specific to the user's role and ${location}.
+- summary: 1-2 sentences of body copy expanding on the headline
+- signals: Object with EXACTLY these keys, each value MUST be one of "Stable", "High", or "Low":
+  * role_demand: Overall hiring demand for the user's role/seniority in ${location}
+  * competition: How competitive applications are for comparable roles
+  * evidence_quality: Confidence in the evidence backing this report
+
+2. market_shifts (overview UI — REQUIRED; exactly 3 items for "Three shifts affecting you"):
+- Array of exactly 3 objects, each with:
+  * title: Short shift headline (max ~80 characters) specific to ${location} and the user's role
+  * summary: ONE sentence explaining what changed and how it affects the user — unique per item
+- Do NOT repeat the same summary text across items
+- Example:
+  [
+    { "title": "AI-enabled delivery is becoming baseline", "summary": "Employers expect practical evidence of AI improving workflows and customer outcomes." },
+    { "title": "Commercial ownership matters more", "summary": "Senior postings increasingly emphasize revenue, margin, and operating efficiency." },
+    { "title": "Regulated-platform experience stays valuable", "summary": "Compliance and risk experience continue to differentiate candidates in financial services." }
+  ]
+
+Example:
+{
+  "market_report_verdict": {
+    "verdict_label": "Stable market",
+    "outlook_label": "Positive 12-month outlook",
+    "headline": "Your experience remains relevant, but the strongest senior roles are changing.",
+    "summary": "Toronto employers continue to hire experienced product leaders. The clearest shift is toward AI-enabled delivery and commercial ownership.",
+    "signals": { "role_demand": "Stable", "competition": "High", "evidence_quality": "High" }
+  },
+  "market_shifts": [
+    { "title": "AI-enabled delivery is becoming baseline", "summary": "Employers expect practical evidence of AI improving workflows and customer outcomes." },
+    { "title": "Commercial ownership matters more", "summary": "Senior postings increasingly emphasize revenue, margin, and operating efficiency." },
+    { "title": "Regulated-platform experience stays valuable", "summary": "Compliance and risk experience continue to differentiate candidates in financial services." }
+  ]
+}
+
+CRITICAL:
+- Keep the response focused — verdict + market_shifts only, no other keys
+- Reference specific local factors for ${location}
+- Return ONLY valid JSON with NO markdown formatting.`;
+}
+
+/**
+ * Lean Part 1: brief, summary, labour, comparison (no verdict / shifts — separate call).
  */
 export function buildMarketReportPrompt(location: string, job?: string, seniority?: string): string {
   const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
@@ -85,38 +149,8 @@ Generate a JSON response with these sections:
        "wider_region": "Mixed but resilient – strong in healthcare, education, logistics, clean energy, advanced manufacturing and public services, with tech distributed across the region."
      }
 
-5. market_report_verdict (UI hero card — REQUIRED; separate from the long brief/overview):
-   - verdict_label: Short market badge, e.g. "Stable market", "Growing market", or "Softening market"
-   - outlook_label: Short outlook line, e.g. "Positive 12-month outlook", "Mixed 12-month outlook", or "Cautious 12-month outlook"
-   - headline: ONE coaching sentence for the hero title (max ~120 characters). Do NOT paste the long brief here.
-   - summary: 1-2 sentences of regular body copy expanding on the headline for the user's role and ${location}
-   - signals: Object with EXACTLY these keys, each value MUST be one of "Stable", "High", or "Low":
-     * role_demand: Overall hiring demand for the user's role/seniority in ${location}
-     * competition: How competitive applications are for comparable roles
-     * evidence_quality: Confidence in the evidence backing this report (source breadth and recency)
-   - Example:
-     {
-       "verdict_label": "Stable market",
-       "outlook_label": "Positive 12-month outlook",
-       "headline": "Your experience remains relevant, but the strongest senior roles are changing.",
-       "summary": "Toronto employers continue to hire experienced product leaders. The clearest shift is toward AI-enabled delivery, commercial ownership and confident execution in regulated environments.",
-       "signals": { "role_demand": "Stable", "competition": "High", "evidence_quality": "High" }
-     }
-
-6. market_shifts (overview UI — REQUIRED; exactly 3 items for "Three shifts affecting you"):
-   - Array of exactly 3 objects, each with:
-     * title: Short shift headline (max ~80 characters) specific to ${location} and the user's role
-     * summary: ONE sentence explaining what changed and how it affects the user — unique per item
-   - Do NOT repeat the same summary text across items
-   - Do NOT paste local_vs_national verbatim into every summary
-   - Example:
-     [
-       { "title": "AI-enabled delivery is becoming baseline", "summary": "Employers expect practical evidence of AI improving workflows and customer outcomes." },
-       { "title": "Commercial ownership matters more", "summary": "Senior postings increasingly emphasize revenue, margin, and operating efficiency." },
-       { "title": "Regulated-platform experience stays valuable", "summary": "Compliance and risk experience continue to differentiate candidates in financial services." }
-     ]
-
 CRITICAL: 
+- Do NOT include market_report_verdict or market_shifts (generated in a separate call)
 - Reference specific local factors for ${location}
 - Return ONLY valid JSON with NO markdown formatting.`;
 }
@@ -224,6 +258,7 @@ export async function generateMarketInsights(
   industry?: string,
 ): Promise<{ insights: MarketInsightsData; failedSections: string[] }> {
   const sectionStates: Record<SectionName, SectionState> = {
+    marketReportVerdict: { status: 'idle' },
     marketReport: { status: 'idle' },
     industryTrends: { status: 'idle' },
     newsAndCareerIntel: { status: 'idle' },
@@ -326,7 +361,12 @@ export async function generateMarketInsights(
         if (jobId) {
           emitToJob(jobId, 'progress', {
             type: 'job_complete',
-            completedSections: ['marketReport', 'industryTrends', 'newsAndCareerIntel'],
+            completedSections: [
+              'marketReportVerdict',
+              'marketReport',
+              'industryTrends',
+              'newsAndCareerIntel',
+            ],
             failedSections: [],
             insights: cachedInsights.insights,
             jobId,
@@ -351,9 +391,30 @@ export async function generateMarketInsights(
 
       // Step C: Generate each section using existing LLM + DB cache logic
       const prompts = [
-        { label: LLM_SECTION_LABELS.marketReport, query: buildMarketReportPrompt(location, job, seniority), cacheKeySuffix: marketInsightsCacheKey },
-        { label: LLM_SECTION_LABELS.industryTrends, query: buildIndustryTrendsPrompt(location, job, seniority), cacheKeySuffix: marketInsightsCacheKey },
-        { label: LLM_SECTION_LABELS.newsAndCareerIntel, query: buildNewsAndCareerIntelPrompt(location, job, seniority), cacheKeySuffix: marketInsightsCacheKey },
+        {
+          label: LLM_SECTION_LABELS.marketReportVerdict,
+          query: buildMarketReportVerdictPrompt(location, job, seniority),
+          cacheKeySuffix: marketInsightsCacheKey,
+          maxTokens: 1800,
+        },
+        {
+          label: LLM_SECTION_LABELS.marketReport,
+          query: buildMarketReportPrompt(location, job, seniority),
+          cacheKeySuffix: marketInsightsCacheKey,
+          maxTokens: 16000,
+        },
+        {
+          label: LLM_SECTION_LABELS.industryTrends,
+          query: buildIndustryTrendsPrompt(location, job, seniority),
+          cacheKeySuffix: marketInsightsCacheKey,
+          maxTokens: 16000,
+        },
+        {
+          label: LLM_SECTION_LABELS.newsAndCareerIntel,
+          query: buildNewsAndCareerIntelPrompt(location, job, seniority),
+          cacheKeySuffix: marketInsightsCacheKey,
+          maxTokens: 16000,
+        },
       ];
 
       const responseFormat = 'json';
@@ -369,7 +430,8 @@ export async function generateMarketInsights(
         formattedContextText: string,
         queryText: string,
         responseFormat: 'json' | 'text',
-        maxRetries = 3
+        maxRetries = 3,
+        maxTokens = 16000,
       ): Promise<Record<string, unknown> | string> {
         let response: Record<string, unknown> | string;
 
@@ -378,7 +440,7 @@ export async function generateMarketInsights(
             if (responseFormat === 'json') {
               const userPrompt = `${formattedContextText}\n\n${queryText}`;
               response = await openaiClient.generateJSONCompletion(systemPrompt, userPrompt, {
-                max_tokens: 16000,
+                max_tokens: maxTokens,
                 temperature: 0.7,
               });
 
@@ -459,7 +521,8 @@ export async function generateMarketInsights(
             formattedContext.text,
             prompt.query,
             responseFormat as 'json' | 'text',
-            3
+            3,
+            prompt.maxTokens,
           );
 
           if (useCache) {
@@ -478,27 +541,36 @@ export async function generateMarketInsights(
         }
       };
 
-      const marketReportPrompt = prompts.find(
-        (p) => p.label === LLM_SECTION_LABELS.marketReport,
+      const part1Prompts = prompts.filter(
+        (p) =>
+          p.label === LLM_SECTION_LABELS.marketReportVerdict ||
+          p.label === LLM_SECTION_LABELS.marketReport,
       );
       const restPrompts = prompts.filter(
-        (p) => p.label !== LLM_SECTION_LABELS.marketReport,
+        (p) =>
+          p.label !== LLM_SECTION_LABELS.marketReportVerdict &&
+          p.label !== LLM_SECTION_LABELS.marketReport,
       );
 
-      if (marketReportPrompt) {
-        await runSectionGeneration(marketReportPrompt);
-      }
-
+      // Verdict + shifts and lean Part 1 in parallel so FE can paint hero + What changed early.
+      await Promise.allSettled(
+        part1Prompts.map((prompt) => limit(() => runSectionGeneration(prompt))),
+      );
       await Promise.allSettled(
         restPrompts.map((prompt) => limit(() => runSectionGeneration(prompt))),
       );
 
-      const marketReport = results[LLM_SECTION_LABELS.marketReport] as MarketInsightsData || {};
-      const industryTrends = results[LLM_SECTION_LABELS.industryTrends] as MarketInsightsData || {};
-      const newsAndCareerIntel = results[LLM_SECTION_LABELS.newsAndCareerIntel] as MarketInsightsData || {};
+      const marketReportVerdict =
+        (results[LLM_SECTION_LABELS.marketReportVerdict] as MarketInsightsData) || {};
+      const marketReport = (results[LLM_SECTION_LABELS.marketReport] as MarketInsightsData) || {};
+      const industryTrends =
+        (results[LLM_SECTION_LABELS.industryTrends] as MarketInsightsData) || {};
+      const newsAndCareerIntel =
+        (results[LLM_SECTION_LABELS.newsAndCareerIntel] as MarketInsightsData) || {};
 
       const combinedInsights: MarketInsightsData = normalizeMarketReportVerdict({
         ...marketReport,
+        ...marketReportVerdict,
         ...industryTrends,
         ...newsAndCareerIntel,
       });
@@ -511,7 +583,7 @@ export async function generateMarketInsights(
         .filter(([_, state]) => state.status === 'error')
         .map(([name]) => name);
 
-      logger.info(`✓ Job complete: ${completedSections.length}/3 sections succeeded`);
+      logger.info(`✓ Job complete: ${completedSections.length}/4 sections succeeded`);
 
       if (jobId) {
         emitToJob(jobId, 'progress', {

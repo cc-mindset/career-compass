@@ -39,7 +39,7 @@ describe('generateMarketInsights queued job', () => {
     vi.restoreAllMocks();
   });
 
-  it('fires onOverviewReady from poll when Part 1 partial lands', async () => {
+  it('fires onOverviewReady from poll when verdict partial lands', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -58,9 +58,17 @@ describe('generateMarketInsights queued job', () => {
           success: true,
           status: 'processing',
           insights: {
-            market_report_verdict: { headline: 'Overview from poll' },
+            market_report_verdict: {
+              headline: 'Overview from poll',
+              signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+            },
+            market_shifts: [
+              { title: 'A', summary: 'One' },
+              { title: 'B', summary: 'Two' },
+              { title: 'C', summary: 'Three' },
+            ],
           },
-          completedSections: ['marketReport'],
+          completedSections: ['marketReportVerdict'],
         }),
       })
       .mockResolvedValueOnce({
@@ -69,7 +77,15 @@ describe('generateMarketInsights queued job', () => {
           success: true,
           status: 'completed',
           insights: {
-            market_report_verdict: { headline: 'Overview from poll' },
+            market_report_verdict: {
+              headline: 'Overview from poll',
+              signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+            },
+            market_shifts: [
+              { title: 'A', summary: 'One' },
+              { title: 'B', summary: 'Two' },
+              { title: 'C', summary: 'Three' },
+            ],
             growth_sectors: [],
             market_news: [],
           },
@@ -93,11 +109,14 @@ describe('generateMarketInsights queued job', () => {
     expect(onOverviewReady).toHaveBeenCalledTimes(1);
     expect(onOverviewReady).toHaveBeenCalledWith(
       expect.objectContaining({
-        market_report_verdict: { headline: 'Overview from poll' },
+        market_report_verdict: expect.objectContaining({ headline: 'Overview from poll' }),
+        market_shifts: expect.any(Array),
       }),
     );
     expect(onInsightsUpdate).toHaveBeenCalled();
-    expect(insights.market_report_verdict).toEqual({ headline: 'Overview from poll' });
+    expect(insights.market_report_verdict).toEqual(
+      expect.objectContaining({ headline: 'Overview from poll' }),
+    );
   });
 
   it('polls status immediately after section_success', async () => {
@@ -123,8 +142,13 @@ describe('generateMarketInsights queued job', () => {
               summary: 'Summary body',
               signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
             },
+            market_shifts: [
+              { title: 'A', summary: 'One' },
+              { title: 'B', summary: 'Two' },
+              { title: 'C', summary: 'Three' },
+            ],
           },
-          completedSections: ['marketReport'],
+          completedSections: ['marketReportVerdict'],
         }),
       });
 
@@ -143,8 +167,11 @@ describe('generateMarketInsights queued job', () => {
     progressHandlers[0]?.({
       type: 'section_success',
       jobId: 'job-socket-1',
-      section: 'marketReport',
-      data: { market_report_verdict: { headline: 'Socket headline' } },
+      section: 'marketReportVerdict',
+      data: {
+        market_report_verdict: { headline: 'Socket headline' },
+        market_shifts: [{ title: 'A', summary: 'One' }],
+      },
     });
 
     await Promise.resolve();

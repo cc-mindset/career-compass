@@ -6,9 +6,10 @@ import {
   isMarketOverviewReady,
   mergeMarketSection,
 } from './mergeMarketInsights';
+import { adaptMarketInsights } from './adapter';
 
 describe('mergeMarketInsights', () => {
-  it('isMarketOverviewReady is true when market_report_verdict exists', () => {
+  it('isMarketOverviewReady is true when market_report_verdict has signals', () => {
     expect(
       isMarketOverviewReady({
         market_report_verdict: {
@@ -22,17 +23,45 @@ describe('mergeMarketInsights', () => {
     ).toBe(true);
   });
 
+  it('isMarketOverviewReady is false for verdict without signals', () => {
+    expect(
+      isMarketOverviewReady({
+        market_report_verdict: { headline: 'Pending' },
+      }),
+    ).toBe(false);
+  });
+
   it('isMarketOverviewReady is false before Part 1 lands', () => {
     expect(isMarketOverviewReady({ growth_sectors: [] })).toBe(false);
   });
 
   it('mergeMarketSection spreads section keys into accumulated insights', () => {
-    const merged = mergeMarketSection({}, 'marketReport', {
+    const merged = mergeMarketSection({}, 'marketReportVerdict', {
       market_report_verdict: { headline: 'Ready' },
-      labour_market_snapshot: { major_drivers: ['AI hiring'] },
+      market_shifts: [{ title: 'Shift A', summary: 'Copy A' }],
     });
     expect(merged.market_report_verdict).toEqual({ headline: 'Ready' });
-    expect(merged.labour_market_snapshot).toEqual({ major_drivers: ['AI hiring'] });
+    expect(merged.market_shifts).toEqual([{ title: 'Shift A', summary: 'Copy A' }]);
+  });
+
+  it('verdict payload with market_shifts adapts to three shifts', () => {
+    const insights = {
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Positive 12-month outlook',
+        headline: 'Headline',
+        summary: 'Summary',
+        signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+      },
+      market_shifts: [
+        { title: 'Shift one', summary: 'First change for the user.' },
+        { title: 'Shift two', summary: 'Second change for the user.' },
+        { title: 'Shift three', summary: 'Third change for the user.' },
+      ],
+    };
+    expect(isMarketOverviewReady(insights)).toBe(true);
+    const adapted = adaptMarketInsights(insights);
+    expect(adapted?.shifts).toHaveLength(3);
   });
 
   it('isMarketOverviewDisplayReady is false for generic backfill headline', () => {

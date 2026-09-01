@@ -22,6 +22,9 @@ vi.mock('fs/promises', () => ({
   writeFile: vi.fn(),
   mkdir: vi.fn(),
 }));
+vi.mock('../../lib/redisQueue.js', () => ({
+  storeJobPartialResult: vi.fn(),
+}));
 vi.mock('../db-cache/dbCacheService.js', () => ({
   getCachedMarketInsightsFromDb: vi.fn(),
   getMarketInsightsCacheKey: vi.fn(
@@ -74,6 +77,10 @@ describe('generateMarketInsights', () => {
   const jobId = 'job456';
 
   const sectionPayloads = {
+    [LLM_SECTION_LABELS.marketReportVerdict]: {
+      market_report_verdict: { headline: 'Verdict' },
+      market_shifts: [{ title: 'A', summary: 'One' }],
+    },
     [LLM_SECTION_LABELS.marketReport]: { executive_summary: 'Summary' },
     [LLM_SECTION_LABELS.industryTrends]: { high_growth_sectors: [] },
     [LLM_SECTION_LABELS.newsAndCareerIntel]: { market_news: [] },
@@ -95,11 +102,15 @@ describe('generateMarketInsights', () => {
   it('should generate insights successfully without jobId', async () => {
     const result = await generateMarketInsights(location, userId);
 
-    expect(result.insights).toEqual({
-      executive_summary: 'Summary',
-      high_growth_sectors: [],
-      market_news: [],
-    });
+    expect(result.insights).toEqual(
+      expect.objectContaining({
+        market_report_verdict: expect.objectContaining({ headline: 'Verdict' }),
+        market_shifts: [{ title: 'A', summary: 'One' }],
+        executive_summary: 'Summary',
+        high_growth_sectors: [],
+        market_news: [],
+      }),
+    );
     expect(result.failedSections).toEqual([]);
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       `📊 Starting independent section generation for: ${location}`,
@@ -112,16 +123,28 @@ describe('generateMarketInsights', () => {
   it('should generate insights successfully with jobId', async () => {
     const result = await generateMarketInsights(location, userId, jobId);
 
-    expect(result.insights).toEqual({
-      executive_summary: 'Summary',
-      high_growth_sectors: [],
-      market_news: [],
-    });
+    expect(result.insights).toEqual(
+      expect.objectContaining({
+        market_report_verdict: expect.objectContaining({ headline: 'Verdict' }),
+        market_shifts: [{ title: 'A', summary: 'One' }],
+        executive_summary: 'Summary',
+        high_growth_sectors: [],
+        market_news: [],
+      }),
+    );
     expect(result.failedSections).toEqual([]);
     expect(mockEmitToJob).toHaveBeenCalledWith(
       jobId,
       'progress',
       expect.objectContaining({ type: 'job_start' }),
+    );
+    expect(mockEmitToJob).toHaveBeenCalledWith(
+      jobId,
+      'progress',
+      expect.objectContaining({
+        type: 'section_success',
+        section: 'marketReportVerdict',
+      }),
     );
     expect(mockEmitToJob).toHaveBeenCalledWith(
       jobId,
@@ -181,10 +204,14 @@ describe('generateMarketInsights', () => {
 
     const result = await generateMarketInsights(location, userId, jobId);
 
-    expect(result.insights).toEqual({
-      executive_summary: 'Summary',
-      market_news: [],
-    });
+    expect(result.insights).toEqual(
+      expect.objectContaining({
+        market_report_verdict: expect.objectContaining({ headline: 'Verdict' }),
+        market_shifts: [{ title: 'A', summary: 'One' }],
+        executive_summary: 'Summary',
+        market_news: [],
+      }),
+    );
     expect(result.failedSections).toEqual(['industryTrends']);
     expect(mockEmitToJob).toHaveBeenCalledWith(
       jobId,
