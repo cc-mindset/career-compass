@@ -115,7 +115,12 @@ marketInsightRouter.get(
           success: true,
           status: "completed",
           insights: normalizeMarketReportVerdict(result),
-          completedSections: ["marketReport", "industryTrends", "newsAndCareerIntel"],
+          completedSections: [
+            "marketReportVerdict",
+            "marketReport",
+            "industryTrends",
+            "newsAndCareerIntel",
+          ],
         });
       }
 

@@ -6,7 +6,7 @@ import { formatMarketInsightsContext } from "../lib/ragContextFormatters";
 import { RagNamespace } from "../types/rag";
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from "../lib/openai";
 import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from "../services/db-cache/dbCacheService";
-import { buildIndustryTrendsPrompt, buildMarketReportPrompt, buildNewsAndCareerIntelPrompt, SYSTEM_PROMPT } from "../services/market-insights/marketInsightsService_multipart";
+import { buildIndustryTrendsPrompt, buildMarketReportPrompt, buildMarketReportVerdictPrompt, buildNewsAndCareerIntelPrompt, SYSTEM_PROMPT } from "../services/market-insights/marketInsightsService_multipart";
 import LlmCareerIntel from "../db/models/careerIntel";
 import { LlmCacheStatus } from "../constants/db";
 import { logger } from "../utils/logger";
@@ -98,6 +98,7 @@ cronRouter.get("/cache-state-wise", async (req: Request, res: Response) => {
       }
 
       const prompts = [
+        { label: LLM_SECTION_LABELS.marketReportVerdict, query: buildMarketReportVerdictPrompt(location), cacheKeySuffix: `${location}` },
         { label: LLM_SECTION_LABELS.marketReport, query: buildMarketReportPrompt(location), cacheKeySuffix: `${location}` },
         { label: LLM_SECTION_LABELS.industryTrends, query: buildIndustryTrendsPrompt(location), cacheKeySuffix: `${location}` },
         { label: LLM_SECTION_LABELS.newsAndCareerIntel, query: buildNewsAndCareerIntelPrompt(location), cacheKeySuffix: `${location}` },
