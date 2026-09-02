@@ -1,20 +1,11 @@
 import React from 'react';
 import { useClarity } from '../state/contexts/ClarityContext';
-import type { ThemePreference } from '../types';
-
-const THEME_OPTIONS: Array<[ThemePreference, string, string]> = [
-  ['light', '☀', 'Light theme'],
-  ['dark', '☾', 'Dark theme'],
-  ['system', '◐', 'Use system theme'],
-];
 
 const AccountMenu: React.FC = () => {
   const {
-    state,
     closeAccountMenu,
     openAccountProfile,
     requestSignOut,
-    setTheme,
     toast,
   } = useClarity();
 
@@ -43,24 +34,6 @@ const AccountMenu: React.FC = () => {
             <span>⚙ &nbsp; Account settings</span>
             <span>→</span>
           </button>
-        </div>
-        <div className="accountMenuDivider" />
-        <div className="themeRow">
-          <span>Theme</span>
-          <div className="themeOptions" aria-label="Theme">
-            {THEME_OPTIONS.map(([theme, glyph, label]) => (
-              <button
-                key={theme}
-                type="button"
-                className={state.theme === theme ? 'active' : ''}
-                title={label}
-                aria-label={label}
-                onClick={() => setTheme(theme)}
-              >
-                {glyph}
-              </button>
-            ))}
-          </div>
         </div>
         <div className="accountMenuDivider" />
         <div className="accountMenuSection">

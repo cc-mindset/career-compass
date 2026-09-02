@@ -254,7 +254,6 @@ export const INITIAL_STATE: ClarityState = {
   pendingGuest: null,
   accountMenuOpen: false,
   signoutConfirm: false,
-  theme: 'system',
   demoPanelOpen: false,
   toastMessage: null,
   postAuthRoute: null,

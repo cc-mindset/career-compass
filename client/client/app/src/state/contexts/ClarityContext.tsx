@@ -17,7 +17,6 @@ import type {
   MarketReportTab,
   ProfileOrigin,
   ProfileSource,
-  ThemePreference,
   Tool,
 } from '../../types';
 
@@ -47,7 +46,6 @@ interface ClarityContextValue {
   demoGo: (key: DemoStateKey) => void;
   demoMove: (direction: number) => void;
   demoIndex: number;
-  setTheme: (theme: ThemePreference) => void;
   toggleAccountMenu: () => void;
   closeAccountMenu: () => void;
   requestSignOut: () => void;
@@ -84,23 +82,8 @@ const readHash = (): string =>
   (typeof window !== 'undefined' ? window.location.hash : '#landing').replace(/^#/, '') ||
   'landing';
 
-const resolvedTheme = (theme: ThemePreference): 'light' | 'dark' => {
-  if (theme === 'system') {
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return theme;
-};
-
 export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<ClarityState>(() => {
-    let theme: ThemePreference = 'system';
-    try {
-      theme = (localStorage.getItem('clarity-theme') as ThemePreference) || 'system';
-    } catch {
-      /* ignore */
-    }
-    return { ...INITIAL_STATE, theme };
-  });
+  const [state, setState] = useState<ClarityState>(INITIAL_STATE);
   const [route, setRoute] = useState(readHash);
   const [demoIndex, setDemoIndex] = useState(0);
 
@@ -150,19 +133,8 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   useEffect(() => {
-    document.body.dataset.theme = resolvedTheme(state.theme);
-  }, [state.theme]);
-
-  useEffect(() => {
-    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const onChange = () => {
-      if (state.theme === 'system') {
-        document.body.dataset.theme = resolvedTheme('system');
-      }
-    };
-    media?.addEventListener?.('change', onChange);
-    return () => media?.removeEventListener?.('change', onChange);
-  }, [state.theme]);
+    document.body.dataset.theme = 'light';
+  }, []);
 
   // Tracked by generation rather than message text so that repeating the same
   // message does not let an older timer dismiss the newer toast.
@@ -180,15 +152,6 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const clearToast = useCallback(() => {
     patch({ toastMessage: null });
-  }, [patch]);
-
-  const setTheme = useCallback((theme: ThemePreference) => {
-    try {
-      localStorage.setItem('clarity-theme', theme);
-    } catch {
-      /* ignore */
-    }
-    patch({ theme });
   }, [patch]);
 
   const demoJump = useCallback(
@@ -480,7 +443,6 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
       demoGo,
       demoMove,
       demoIndex,
-      setTheme,
       toggleAccountMenu: () =>
         setState((prev) => ({
           ...prev,
@@ -627,7 +589,6 @@ export const ClarityProvider: React.FC<{ children: React.ReactNode }> = ({ child
       demoGo,
       demoMove,
       demoIndex,
-      setTheme,
       openSkillsFromMarket,
       focusMarketInsights,
       openFullMarketReport,

@@ -701,7 +701,7 @@ export const CareerProfileView: React.FC = () => {
 };
 
 export const AccountProfileView: React.FC = () => {
-  const { navigate, toast, toggleAccountMenu, requestSignOut } = useClarity();
+  const { navigate, toast, requestSignOut } = useClarity();
 
   return (
     <DashboardShell
@@ -822,19 +822,6 @@ export const AccountProfileView: React.FC = () => {
             >
               Open Career Profile →
             </a>
-          </section>
-          <section className="asideCard">
-            <h3>Appearance</h3>
-            <p>
-              Use the account menu to switch between light, dark and system themes.
-            </p>
-            <button
-              type="button"
-              className="btn secondary full"
-              onClick={toggleAccountMenu}
-            >
-              Choose theme
-            </button>
           </section>
           <section className="asideCard">
             <h3>Sign out</h3>

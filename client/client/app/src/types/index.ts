@@ -1,6 +1,5 @@
 export type Tool = 'pivot' | 'job' | 'market';
 export type JobSource = 'paste' | 'url' | 'upload';
-export type ThemePreference = 'light' | 'dark' | 'system';
 export type WorkState = 'none' | 'unfinished' | 'completed';
 export type ProfileOrigin = 'profile' | 'pivot' | 'skills';
 export type ProfileSource = 'linkedin' | 'resume' | 'manual';
@@ -111,7 +110,6 @@ export interface ClarityState {
   pendingGuest: PendingGuest;
   accountMenuOpen: boolean;
   signoutConfirm: boolean;
-  theme: ThemePreference;
   demoPanelOpen: boolean;
   toastMessage: string | null;
   /** Route to resume once the visitor signs in or creates an account. */
