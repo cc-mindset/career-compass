@@ -1,6 +1,11 @@
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from "../lib/openai";
 import { logger } from "../utils/logger";
 
+export type GenerateSingleResponseOptions = {
+  maxTokens?: number;
+  temperature?: number;
+};
+
 /**
  * Helper: Generate single response with retry logic
  * DOES NOT retry on rate limit or quota errors - these should be handled at queue level
@@ -10,8 +15,11 @@ export async function generateSingleResponse(
   formattedContext: string,
   query: string,
   responseFormat: 'json' | 'text',
-  maxRetries: number = 3
+  maxRetries: number = 3,
+  options: GenerateSingleResponseOptions = {},
 ): Promise<Record<string, unknown> | string> {
+  const maxTokens = options.maxTokens ?? 16000;
+  const temperature = options.temperature ?? 0.7;
   let response: Record<string, unknown> | string;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -19,8 +27,8 @@ export async function generateSingleResponse(
       if (responseFormat === 'json') {
         const userPrompt = !!formattedContext ? `${formattedContext}\n\n${query}` : query;
         response = await openaiClient.generateJSONCompletion(systemPrompt, userPrompt, {
-          max_tokens: 16000,
-          temperature: 0.7,
+          max_tokens: maxTokens,
+          temperature,
         });
 
         if (!response || typeof response !== 'object') {
