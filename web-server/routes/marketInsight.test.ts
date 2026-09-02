@@ -15,6 +15,11 @@ vi.mock('../services/market-insights/normalizeMarketReportVerdict.js', () => ({
 
 vi.mock('../services/market-insights/marketInsightsService_multipart.js', () => ({
   generateMarketInsights: vi.fn(),
+  produceMarketReportVerdict: vi.fn().mockResolvedValue({ market_report_verdict: { headline: 'x' } }),
+}));
+
+vi.mock('../lib/priorityLlm.js', () => ({
+  startPriorityJobSection: vi.fn(),
 }));
 
 vi.mock('../utils/city.js', () => ({
@@ -29,13 +34,16 @@ vi.mock('../services/db-cache/dbCacheService.js', () => ({
 }));
 
 import { enqueueJob, getJobPartialResult, getJobResult, getQueueLength } from '../lib/redisQueue.js';
-import { generateMarketInsights } from '../services/market-insights/marketInsightsService_multipart.js';
+import { generateMarketInsights, produceMarketReportVerdict } from '../services/market-insights/marketInsightsService_multipart.js';
+import { startPriorityJobSection } from '../lib/priorityLlm.js';
 import { getCachedMarketInsightsFromDb } from '../services/db-cache/dbCacheService.js';
 import marketInsightRouter from './marketInsight.js';
 
 const mockEnqueue = enqueueJob as ReturnType<typeof vi.fn>;
 const mockQueueLength = getQueueLength as ReturnType<typeof vi.fn>;
 const mockGenerate = generateMarketInsights as ReturnType<typeof vi.fn>;
+const mockStartPriority = startPriorityJobSection as ReturnType<typeof vi.fn>;
+const mockProduceVerdict = produceMarketReportVerdict as ReturnType<typeof vi.fn>;
 const mockCache = getCachedMarketInsightsFromDb as ReturnType<typeof vi.fn>;
 const mockJobResult = getJobResult as ReturnType<typeof vi.fn>;
 const mockPartialResult = getJobPartialResult as ReturnType<typeof vi.fn>;
@@ -103,6 +111,23 @@ describe('POST /api/market-insights/generate response branches', () => {
       'Senior',
       'Financial Services',
     );
+    expect(mockStartPriority).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-abc-123',
+        section: 'marketReportVerdict',
+        key: 'marketReportVerdict:job-abc-123',
+      }),
+    );
+    // produce is invoked by the priority lane — ensure the factory closes over request fields
+    const produce = mockStartPriority.mock.calls[0]?.[0]?.produce as () => Promise<unknown>;
+    await produce();
+    expect(mockProduceVerdict).toHaveBeenCalledWith({
+      location: 'Toronto, Canada',
+      locationDistrict: 'Downtown',
+      job: 'Product Manager',
+      seniority: 'Senior',
+      industry: 'Financial Services',
+    });
     expect(mockGenerate).not.toHaveBeenCalled();
   });
 

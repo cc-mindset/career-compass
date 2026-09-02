@@ -48,7 +48,7 @@ vi.mock('../../lib/openai.js', () => ({
   ConnectionTimeoutError: class ConnectionTimeoutError extends Error {},
 }));
 
-import { generateMarketInsights } from './marketInsightsService_multipart.js';
+import { generateMarketInsights, produceMarketReportVerdict } from './marketInsightsService_multipart.js';
 import { retrieve } from '../ragRetrievalService.js';
 import { formatMarketInsightsContext } from '../../lib/ragContextFormatters.js';
 import { logger } from '../../utils/logger.js';
@@ -57,6 +57,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import {
   getCachedMarketInsightsFromDb,
   getCachedLlmResponseFromDb,
+  cacheLlmResponseToDb,
+  updateCacheResponseInDb,
 } from '../db-cache/dbCacheService.js';
 import { openaiClient } from '../../lib/openai.js';
 
@@ -64,6 +66,8 @@ const mockRetrieve = vi.mocked(retrieve);
 const mockFormatContext = vi.mocked(formatMarketInsightsContext);
 const mockGetTupleCache = vi.mocked(getCachedMarketInsightsFromDb);
 const mockGetSectionCache = vi.mocked(getCachedLlmResponseFromDb);
+const mockCacheSection = vi.mocked(cacheLlmResponseToDb);
+const mockUpdateCache = vi.mocked(updateCacheResponseInDb);
 const mockLoggerInfo = vi.mocked(logger.info);
 const mockLoggerWarn = vi.mocked(logger.warn);
 const mockEmitToJob = vi.mocked(emitToJob);
@@ -259,5 +263,72 @@ describe('generateMarketInsights', () => {
       'progress',
       expect.objectContaining({ type: 'job_complete', insights: { from_tuple: true } }),
     );
+  });
+});
+
+describe('produceMarketReportVerdict', () => {
+  const location = 'New York, NY';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRetrieve.mockResolvedValue({ results: [] } as any);
+    mockFormatContext.mockReturnValue({ text: 'formatted context' } as any);
+    mockGetSectionCache.mockResolvedValue(null);
+    mockUpdateCache.mockResolvedValue(undefined as any);
+    mockCacheSection.mockResolvedValue(undefined as any);
+  });
+
+  it('returns cached verdict without LLM', async () => {
+    mockGetSectionCache.mockResolvedValue({
+      status: LlmCacheStatus.ACTIVE,
+      data: {
+        market_report_verdict: { headline: 'Cached verdict' },
+        market_shifts: [{ title: 'A', summary: 'One' }],
+      },
+    });
+
+    const result = await produceMarketReportVerdict({
+      location,
+      job: 'PM',
+      seniority: 'Senior',
+    });
+
+    expect(result).toEqual({
+      market_report_verdict: { headline: 'Cached verdict' },
+      market_shifts: [{ title: 'A', summary: 'One' }],
+    });
+    expect(mockRetrieve).not.toHaveBeenCalled();
+    expect(mockGenerateJson).not.toHaveBeenCalled();
+  });
+
+  it('generates and caches verdict when cache misses', async () => {
+    mockGenerateJson.mockResolvedValue({
+      market_report_verdict: {
+        verdict_label: 'Stable market',
+        outlook_label: 'Positive 12-month outlook',
+        headline: 'Fresh verdict',
+        summary: 'Summary',
+        signals: { role_demand: 'Stable', competition: 'High', evidence_quality: 'High' },
+      },
+      market_shifts: [
+        { title: 'A', summary: 'One' },
+        { title: 'B', summary: 'Two' },
+        { title: 'C', summary: 'Three' },
+      ],
+    });
+
+    const result = await produceMarketReportVerdict({
+      location,
+      locationDistrict: 'Manhattan',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        market_report_verdict: expect.objectContaining({ headline: 'Fresh verdict' }),
+      }),
+    );
+    expect(mockRetrieve).toHaveBeenCalled();
+    expect(mockGenerateJson).toHaveBeenCalled();
+    expect(mockCacheSection).toHaveBeenCalled();
   });
 });
