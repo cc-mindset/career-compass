@@ -1,10 +1,15 @@
 import express, { Request, Response } from "express";
 // import { mockDbCache } from "../utils/mockDbCache";
 import { enqueueJob, getJobPartialResult, getJobResult, getQueueLength } from "../lib/redisQueue";
-import { generateMarketInsights } from "../services/market-insights/marketInsightsService_multipart";
+import { startPriorityJobSection } from "../lib/priorityLlm";
+import {
+  generateMarketInsights,
+  produceMarketReportVerdict,
+} from "../services/market-insights/marketInsightsService_multipart";
 import { normalizeMarketReportVerdict } from "../services/market-insights/normalizeMarketReportVerdict";
 import { getTopCityOfDistrictOfACity } from "../utils/city";
 import { getCachedMarketInsightsFromDb } from "../services/db-cache/dbCacheService";
+import { LLM_SECTION_LABELS } from "../constants/index";
 
 const marketInsightRouter = express.Router();
 
@@ -57,8 +62,25 @@ marketInsightRouter.post(
       );
 
       if (jobId) {
+        // Priority lane: verdict (+ shifts) now; lean Part 1 + Parts 2–3 wait on FIFO.
+        startPriorityJobSection({
+          key: `${LLM_SECTION_LABELS.marketReportVerdict}:${jobId}`,
+          jobId,
+          section: LLM_SECTION_LABELS.marketReportVerdict,
+          stage: "Preparing market verdict",
+          produce: () =>
+            produceMarketReportVerdict({
+              location: sanitizedLocation,
+              locationDistrict: locationDistrict || "",
+              job,
+              seniority,
+              industry: sanitizedIndustry,
+            }),
+          normalize: (data) => normalizeMarketReportVerdict(data),
+        });
+
         const queuePos = await getQueueLength();
-        console.log(`📋 Job queued: ${jobId} (position: ${queuePos})`);
+        console.log(`📋 Job queued: ${jobId} (position: ${queuePos}) — priority verdict started`);
         return res.json({
           success: true,
           queued: true,

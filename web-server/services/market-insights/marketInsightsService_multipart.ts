@@ -5,6 +5,7 @@ import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutErro
 import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from '../db-cache/dbCacheService.js';
 import { getCachedMarketInsightsFromDb, getMarketInsightsCacheKey } from '../db-cache/dbCacheService.js';
 import { storeJobPartialResult } from '../../lib/redisQueue.js';
+import { generateSingleResponse } from '../llmService.js';
 import pLimit from 'p-limit';
 import { logger } from '../../utils/logger.js';
 import { emitToJob } from '../../lib/websocket.js';
@@ -633,4 +634,81 @@ export async function generateMarketInsights(
     }
     throw error;
   }
+}
+
+export type MarketReportVerdictParams = {
+  location: string;
+  locationDistrict?: string;
+  job?: string;
+  seniority?: string;
+  industry?: string;
+};
+
+/**
+ * Domain producer for the market verdict (+ shifts) section.
+ * Delivery (coalesce / emit / lane) belongs to `startPriorityJobSection`.
+ */
+export async function produceMarketReportVerdict(
+  params: MarketReportVerdictParams,
+): Promise<MarketInsightsData> {
+  const { location, locationDistrict, job, seniority, industry } = params;
+
+  const queryParts = [`market insights for ${location}`];
+  if (job) queryParts.push(`job: ${job}`);
+  if (seniority) queryParts.push(`seniority: ${seniority}`);
+  if (industry) queryParts.push(`industry: ${industry}`);
+
+  const marketInsightsCacheKey = getMarketInsightsCacheKey(location, job, seniority);
+  const dbCacheKey = marketInsightsCacheKey.startsWith('rag:')
+    ? marketInsightsCacheKey
+    : getUniqueDbCacheKeyForLlmResponse('rag', marketInsightsCacheKey);
+
+  const cached = await getCachedLlmResponseFromDb(
+    dbCacheKey,
+    LLM_SECTION_LABELS.marketReportVerdict,
+  );
+  if (cached?.data && cached.status === LlmCacheStatus.ACTIVE) {
+    logger.info(`Market verdict cache HIT for ${location}`);
+    return cached.data as MarketInsightsData;
+  }
+
+  const retrievalResp = await retrieve({
+    query: queryParts.join(', '),
+    namespaces: [
+      RagNamespace.LABOR_MARKET_STATS,
+      RagNamespace.MARKET_NEWS,
+      RagNamespace.MARKET_REPORTS,
+    ],
+    topK: 15,
+    useCache: true,
+  });
+  const formattedContext = formatMarketInsightsContext(retrievalResp);
+
+  await updateCacheResponseInDb(
+    dbCacheKey,
+    LLM_SECTION_LABELS.marketReportVerdict,
+    locationDistrict || '',
+  );
+
+  const response = await generateSingleResponse(
+    SYSTEM_PROMPT,
+    formattedContext.text,
+    buildMarketReportVerdictPrompt(location, job, seniority),
+    'json',
+    3,
+    { maxTokens: 1800, temperature: 0.7 },
+  );
+
+  if (!response || typeof response !== 'object' || Array.isArray(response)) {
+    throw new Error('Failed to generate market verdict');
+  }
+
+  const payload = response as MarketInsightsData;
+  await cacheLlmResponseToDb(
+    dbCacheKey,
+    payload,
+    LLM_SECTION_LABELS.marketReportVerdict,
+    locationDistrict || '',
+  );
+  return payload;
 }

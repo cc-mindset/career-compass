@@ -128,11 +128,14 @@ export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
             navigateToOverview(insights);
           },
           onInsightsUpdate: (insights) => {
+            if (cancelled) return;
             patch({ marketLiveInsights: insights });
           },
         },
         { userId: 'guest' },
       );
+
+      if (cancelled) return;
 
       if (result.ok && !result.fromFixtures) {
         patch({
@@ -149,7 +152,7 @@ export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
           marketLiveError: null,
           marketGenerationStatus: 'idle',
         });
-      } else if (!cancelled) {
+      } else {
         toast(result.error);
         patch({
           marketHasReports: true,
@@ -158,7 +161,7 @@ export const Processing: React.FC<{ tool: Tool }> = ({ tool }) => {
           marketGenerationStatus: 'idle',
         });
       }
-      if (!overviewShown.current && !cancelled) {
+      if (!overviewShown.current) {
         navigate('market-workspace-result');
       }
     };

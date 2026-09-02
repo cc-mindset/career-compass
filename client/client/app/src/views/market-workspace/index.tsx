@@ -289,16 +289,19 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
             navigateToOverview(insights);
           },
           onInsightsUpdate: (insights) => {
+            if (cancelled) return;
             patch({ marketLiveInsights: insights });
           },
         },
         { userId },
       );
 
+      if (cancelled) return;
+
       if (result.ok && !result.fromFixtures) {
         if (state.registered) {
           try {
-            if (!cancelled) setStatusMessage('Saving to your history');
+            setStatusMessage('Saving to your history');
             await saveUserMarketReport({
               userId: getClarityUserId(),
               role: state.market.role,
@@ -315,6 +318,8 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
             }
           }
         }
+
+        if (cancelled) return;
 
         patch({
           marketHasReports: true,
@@ -334,7 +339,7 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
           marketLiveError: null,
           marketGenerationStatus: 'idle',
         });
-      } else if (!cancelled) {
+      } else {
         toast(result.error);
         patch({
           marketHasReports: true,
@@ -346,11 +351,11 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
         });
       }
 
-      if (!overviewShown.current && !cancelled) {
+      if (!overviewShown.current) {
         setProgress(100);
         setStatusMessage('Your report is ready');
         window.setTimeout(() => {
-          navigate('market-workspace-result');
+          if (!cancelled) navigate('market-workspace-result');
         }, 450);
       }
     };
