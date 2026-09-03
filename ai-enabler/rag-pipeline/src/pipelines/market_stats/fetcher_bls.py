@@ -23,6 +23,14 @@ import logging
 import requests
 from datetime import datetime, timedelta
 from typing import Optional
+from dotenv import load_dotenv
+
+# This module reads BLS_API_KEY at import time (module-level constant below),
+# and runner.py imports this module before it imports config.settings (whose
+# load_dotenv() call the key was silently depending on) — so without this
+# call, BLS_API_KEY is always "" regardless of what's in .env, no matter what
+# key is configured. load_dotenv() is idempotent/safe to call more than once.
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +127,11 @@ CPS_SERIES = [
     ("LNU04032219",  "Unemployment - sales and office",               "unemployment_rate", "Sales and Office",      "occ", "monthly"),
     ("LNU04032222",  "Unemployment - natural resources construction", "unemployment_rate", "Natural Resources",     "occ", "monthly"),
     ("LNU04032226",  "Unemployment - production transport",           "unemployment_rate", "Production Transport",  "occ", "monthly"),
+    # National unemployment rate, NOT seasonally adjusted — the correct comparator
+    # for METRO_LAUS_SERIES below, which is also NSA (BLS does not seasonally
+    # adjust metro-area LAUS estimates). LNS14000000 above is SA and would be a
+    # methodological mismatch if paired against metro-area trend series.
+    ("LNU04000000",  "US national unemployment rate (NSA, metro-comparable)", "unemployment_rate", "All Industries", "all", "monthly"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -183,6 +196,30 @@ LAUS_SERIES = [
 ]
 
 # ---------------------------------------------------------------------------
+# Metro-area LAUS unemployment rates for the US cities in the client's
+# LOCATION_OPTIONS list (client/consts/index.ts). NOT seasonally adjusted —
+# BLS does not publish SA estimates at metro grain, so compare year-over-year,
+# not month-over-month (see LNU04000000 above for the matching national rate).
+# Area codes verified live against https://download.bls.gov/pub/time.series/la/la.area
+# and the BLS API directly (2 of the initially-derived codes for LA/SF were
+# wrong and corrected after the API returned "series does not exist").
+# Format: LAU + MT{state_fips_2}{cbsa_5}000000 + {measure}; measure 03 = rate.
+# ---------------------------------------------------------------------------
+METRO_LAUS_SERIES = [
+    ("LAUMT363562000000003", "New York metro unemployment rate",      "unemployment_rate", "All Industries", "all", "New York",     "metro", "monthly"),
+    ("LAUMT064186000000003", "San Francisco Bay Area unemployment rate","unemployment_rate", "All Industries", "all", "San Francisco Bay Area", "metro", "monthly"),
+    ("LAUMT063108000000003", "Los Angeles metro unemployment rate",    "unemployment_rate", "All Industries", "all", "Los Angeles",  "metro", "monthly"),
+    ("LAUMT171698000000003", "Chicago metro unemployment rate",        "unemployment_rate", "All Industries", "all", "Chicago",      "metro", "monthly"),
+    ("LAUMT251446000000003", "Boston metro unemployment rate",         "unemployment_rate", "All Industries", "all", "Boston",       "metro", "monthly"),
+    ("LAUMT534266000000003", "Seattle metro unemployment rate",        "unemployment_rate", "All Industries", "all", "Seattle",      "metro", "monthly"),
+    ("LAUMT481242000000003", "Austin metro unemployment rate",         "unemployment_rate", "All Industries", "all", "Austin",       "metro", "monthly"),
+    ("LAUMT481910000000003", "Dallas-Fort Worth metro unemployment rate","unemployment_rate", "All Industries", "all", "Dallas–Fort Worth", "metro", "monthly"),
+    ("LAUMT131206000000003", "Atlanta metro unemployment rate",        "unemployment_rate", "All Industries", "all", "Atlanta",      "metro", "monthly"),
+    ("LAUMT114790000000003", "Washington DC metro unemployment rate",  "unemployment_rate", "All Industries", "all", "Washington, DC", "metro", "monthly"),
+    ("LAUMT123310000000003", "Miami metro unemployment rate",          "unemployment_rate", "All Industries", "all", "Miami",        "metro", "monthly"),
+]
+
+# ---------------------------------------------------------------------------
 # SAE series — state-level payroll employment + avg weekly earnings
 # Format: SMS + S(SA) + {state_fips_2} + {area_5} + {industry_8} + {data_type_2}
 # Statewide total nonfarm: area=00000, industry=00000000
@@ -228,7 +265,7 @@ SAE_SERIES = [
 ]
 
 # Group all series for batched API requests (max 25 per request)
-ALL_SERIES = JOLTS_SERIES + CES_SERIES + CPS_SERIES + LAUS_SERIES + SAE_SERIES
+ALL_SERIES = JOLTS_SERIES + CES_SERIES + CPS_SERIES + LAUS_SERIES + SAE_SERIES + METRO_LAUS_SERIES
 
 
 def _chunk_series(series_list: list, chunk_size: int = 25) -> list[list]:
@@ -424,6 +461,7 @@ def _resolve_source(series_id: str) -> str:
         "LNS": "BLS_CPS",
         "LNU": "BLS_CPS",
         "LAS": "BLS_LAUS",
+        "LAU": "BLS_LAUS",  # metro-area LAUS series (LAUMT...), distinct prefix from state LASST...
         "SMS": "BLS_SAE",
         "SMU": "BLS_SAE",
     }

@@ -12,6 +12,7 @@ import { MarketNewsData } from "../../types/marketNews";
 import { getDistrictOfACity } from "../../utils/city";
 import { logger } from "../../utils/logger";
 import { normalizeMarketReportVerdict } from "../market-insights/normalizeMarketReportVerdict";
+import { resolveHiringTrendSeries } from "../market-insights/hiringTrendService.js";
 
 export const LLM_RESPONSE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -74,6 +75,12 @@ export const getCachedMarketInsightsFromDb = async (
     // it's a deterministic add-on, not one of the three LLM sections. A
     // cache entry written before this existed should still hit — it just
     // renders an empty Evidence tab instead of forcing a full regeneration.
+    // Same reasoning applies to hiringTrendSeries below: it's a cheap,
+    // independent Mongo lookup (not cached alongside the LLM sections),
+    // resolved fresh on every hit so it reflects the latest ingestion run
+    // rather than whatever was true when this cache entry was written.
+    const hiringTrendSeries = await resolveHiringTrendSeries(location);
+
     return {
         cacheKey,
         insights: normalizeMarketReportVerdict({
@@ -82,6 +89,7 @@ export const getCachedMarketInsightsFromDb = async (
             ...(industryTrends.data || {}),
             ...(newsAndCareerIntel.data || {}),
             evidence_sources: evidenceSources,
+            hiring_trend_series: hiringTrendSeries,
         }),
     };
 };

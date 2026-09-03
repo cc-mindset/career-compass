@@ -98,6 +98,24 @@ export interface AdaptedFocusWeek {
   action: string;
 }
 
+/** One month of the Overview "Market direction" chart — real unemployment
+ * rate, local vs national (see web-server hiringTrendService.ts). */
+export interface AdaptedHiringTrendPoint {
+  period: string;
+  localValue: number;
+  nationalValue: number;
+}
+
+/** Deterministic, retrieval-free — never LLM-generated. `available: false`
+ * when the report's location has no metro/CMA coverage yet. */
+export interface AdaptedHiringTrend {
+  available: boolean;
+  windowLabel: string;
+  localLabel: string;
+  nationalLabel: string;
+  points: AdaptedHiringTrendPoint[];
+}
+
 /** One row of the "See all insights" (10-item) list. */
 export interface AdaptedMarketInsight {
   title: string;
@@ -129,5 +147,6 @@ export interface AdaptedMarketReport {
   sources: AdaptedSource[];
   evidenceTags: string[][];
   insights: AdaptedMarketInsight[];
+  hiringTrend: AdaptedHiringTrend;
   fromLive: boolean;
 }

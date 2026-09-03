@@ -16,6 +16,7 @@ import { fileURLToPath } from 'url';
 import { LlmCacheStatus } from '../../constants/db.js';
 import { LLM_SECTION_LABELS } from '../../constants/index.js';
 import { normalizeMarketReportVerdict } from './normalizeMarketReportVerdict.js';
+import { resolveHiringTrendSeries } from './hiringTrendService.js';
 
 type SectionName =
   | 'marketReportVerdict'
@@ -636,12 +637,17 @@ export async function generateMarketInsights(
       const newsAndCareerIntel =
         (results[LLM_SECTION_LABELS.newsAndCareerIntel] as MarketInsightsData) || {};
 
+      // Deterministic, retrieval-free — see hiringTrendService.ts. Never
+      // requested from the LLM (types/marketReport.ts HiringTrendSeries).
+      const hiringTrendSeries = await resolveHiringTrendSeries(location);
+
       const combinedInsights: MarketInsightsData = normalizeMarketReportVerdict({
         ...marketReport,
         ...marketReportVerdict,
         ...industryTrends,
         ...newsAndCareerIntel,
         evidence_sources: evidenceSources,
+        hiring_trend_series: hiringTrendSeries,
       });
 
       const completedSections = Object.entries(sectionStates)

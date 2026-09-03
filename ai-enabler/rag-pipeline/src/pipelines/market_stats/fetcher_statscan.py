@@ -108,6 +108,33 @@ LFS_PROVINCE = [
     (   2063193,  "Prince Edward Island unemployment rate",   "unemployment_rate", "All Industries", "all", "Prince Edward Island",  "provincial", "monthly", "14-10-0287-01"),
 ]
 
+# LFS Labour force characteristics by census metropolitan area, three-month
+# moving average, seasonally adjusted, monthly (14-10-0459-01).
+# Vector IDs resolved live via getCubeMetadata + getDataFromCubePidCoordAndLatestNPeriods
+# (geo dimension member -> vectorId), coordinate = "{geo}.5.1.1.0.0.0.0.0.0"
+# (5 = Unemployment rate, statistics=1 Estimate, data_type=1 Seasonally adjusted).
+# Mississauga/Brampton have no separate CMA in this table — StatsCan folds them
+# into the Toronto CMA, so those two LOCATION_OPTIONS map to this Toronto row.
+# The national row here (same table/methodology) is the correct comparator for
+# these CMA series — it is intentionally separate from LFS_PROVINCE's national
+# row above, which comes from a different table (14-10-0287-01, not a 3-month
+# moving average) and would be a methodological mismatch if paired with these.
+LFS_CMA = [
+    (1643277934,  "Canada - national unemployment rate (CMA-comparable, 3mo avg)",  "unemployment_rate",  "All Industries",  "all",  "national",             "national",  "monthly",  "14-10-0459-01"),
+    (1643279334,  "Toronto unemployment rate",                                       "unemployment_rate",  "All Industries",  "all",  "Toronto",              "metro",     "monthly",  "14-10-0459-01"),
+    (1643280790,  "Vancouver unemployment rate",                                     "unemployment_rate",  "All Industries",  "all",  "Vancouver",            "metro",     "monthly",  "14-10-0459-01"),
+    (1643278830,  "Montreal unemployment rate",                                      "unemployment_rate",  "All Industries",  "all",  "Montreal",             "metro",     "monthly",  "14-10-0459-01"),
+    (1643280342,  "Calgary unemployment rate",                                       "unemployment_rate",  "All Industries",  "all",  "Calgary",              "metro",     "monthly",  "14-10-0459-01"),
+    (1643278942,  "Ottawa unemployment rate",                                        "unemployment_rate",  "All Industries",  "all",  "Ottawa",               "metro",     "monthly",  "14-10-0459-01"),
+    (1643280454,  "Edmonton unemployment rate",                                      "unemployment_rate",  "All Industries",  "all",  "Edmonton",             "metro",     "monthly",  "14-10-0459-01"),
+    (1643280006,  "Winnipeg unemployment rate",                                      "unemployment_rate",  "All Industries",  "all",  "Winnipeg",             "metro",     "monthly",  "14-10-0459-01"),
+    (1643278214,  "Halifax unemployment rate",                                       "unemployment_rate",  "All Industries",  "all",  "Halifax",              "metro",     "monthly",  "14-10-0459-01"),
+    (1643279390,  "Hamilton unemployment rate",                                      "unemployment_rate",  "All Industries",  "all",  "Hamilton",             "metro",     "monthly",  "14-10-0459-01"),
+    (1643279502,  "Kitchener-Waterloo unemployment rate",                            "unemployment_rate",  "All Industries",  "all",  "Kitchener-Waterloo",   "metro",     "monthly",  "14-10-0459-01"),
+    (1643279670,  "London (ON) unemployment rate",                                   "unemployment_rate",  "All Industries",  "all",  "London",               "metro",     "monthly",  "14-10-0459-01"),
+    (1643279838,  "Sudbury unemployment rate",                                       "unemployment_rate",  "All Industries",  "all",  "Sudbury",              "metro",     "monthly",  "14-10-0459-01"),
+]
+
 # LFS Labour force by occupation NOC, monthly (14-10-0421-01)
 LFS_OCCUPATION = [
     (1490031878,  "Canada - unemployment rate total all occupations",  "unemployment_rate",  "All Occupations",  "NOC-all",  "national",  "national",  "monthly",  "14-10-0421-01"),
@@ -155,7 +182,7 @@ SEPH = [
     (  54026820,  "Canada - information culture payroll employment",  "employment_level",  "Information Culture Recreation",  "51",  "national",  "national",  "monthly",  "14-10-0220-01"),
 ]
 
-ALL_SERIES = LFS_EMPLOYMENT + LFS_PROVINCE + LFS_OCCUPATION + JVWS + SEPH
+ALL_SERIES = LFS_EMPLOYMENT + LFS_PROVINCE + LFS_CMA + LFS_OCCUPATION + JVWS + SEPH
 
 # --- REGISTRY END ---
 
@@ -336,6 +363,7 @@ def _resolve_source(table_ref: str) -> str:
         "14-10-0066": "STATSCAN_LFS",
         "14-10-0287": "STATSCAN_LFS",
         "14-10-0355": "STATSCAN_LFS",
+        "14-10-0459": "STATSCAN_LFS",
         "14-10-0325": "STATSCAN_JVWS",
         "14-10-0190": "STATSCAN_SEPH",
     }

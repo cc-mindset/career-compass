@@ -193,6 +193,62 @@ describe('adaptMarketInsights', () => {
     expect(adapted!.sources[0]?.name).toBe('Indeed Hiring Lab');
   });
 
+  it('maps a real hiring_trend_series (deterministic, never LLM-generated)', () => {
+    const payload: MarketInsightsPayload = {
+      hiring_trend_series: {
+        available: true,
+        window_label: 'Last 2 months',
+        local_label: 'Toronto (unemployment rate)',
+        national_label: 'Canada (unemployment rate)',
+        points: [
+          { period: '2026-06', local_index: 7.2, national_index: 7.0 },
+          { period: '2026-07', local_index: 6.8, national_index: 6.9 },
+        ],
+      },
+    };
+
+    const adapted = adaptMarketInsights(payload);
+    expect(adapted!.hiringTrend).toEqual({
+      available: true,
+      windowLabel: 'Last 2 months',
+      localLabel: 'Toronto (unemployment rate)',
+      nationalLabel: 'Canada (unemployment rate)',
+      points: [
+        { period: '2026-06', localValue: 7.2, nationalValue: 7.0 },
+        { period: '2026-07', localValue: 6.8, nationalValue: 6.9 },
+      ],
+    });
+  });
+
+  it('returns available:false for hiring trend when the location has no coverage', () => {
+    const payload: MarketInsightsPayload = {
+      hiring_trend_series: { available: false, window_label: '', local_label: '', national_label: '', points: [] },
+    };
+
+    const adapted = adaptMarketInsights(payload);
+    expect(adapted!.hiringTrend).toEqual({
+      available: false,
+      windowLabel: '',
+      localLabel: '',
+      nationalLabel: '',
+      points: [],
+    });
+  });
+
+  it('treats a malformed hiring_trend_series (missing/invalid points) as unavailable rather than crashing', () => {
+    const payload: MarketInsightsPayload = {
+      hiring_trend_series: { available: true, points: [{ period: '2026-07' }] },
+    };
+
+    const adapted = adaptMarketInsights(payload);
+    expect(adapted!.hiringTrend.available).toBe(false);
+  });
+
+  it('defaults hiringTrend to unavailable when hiring_trend_series is absent entirely', () => {
+    const adapted = adaptMarketInsights({ market_report_summary_brief: 'x' });
+    expect(adapted!.hiringTrend.available).toBe(false);
+  });
+
   it('maps growth_locations, priority_capabilities and thirty_day_focus (NEW fields)', () => {
     const payload: MarketInsightsPayload = {
       growth_locations: [

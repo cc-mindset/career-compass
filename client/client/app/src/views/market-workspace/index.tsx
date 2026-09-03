@@ -25,6 +25,7 @@ import {
 } from './data';
 import { runMarketReportGeneration } from './runMarketReportGeneration';
 import { useAdaptedMarketReport } from './useAdaptedMarketReport';
+import type { AdaptedHiringTrendPoint, AdaptedMarketReport } from '../../services/marketInsights/types';
 import { useMarketOverviewUiState } from './useMarketOverviewUiState';
 import { getClarityUserId } from '../../lib/clarityUserId';
 import {
@@ -1157,6 +1158,126 @@ const OpportunityContent: React.FC<{ view: MarketOpportunityView }> = ({ view })
   return <OpportunityRows group={view} />;
 };
 
+/** Scales real AdaptedHiringTrendPoint values into the 700x220 chart viewBox.
+ * No fixed axis (unlike the old static illustration) — real unemployment
+ * rates don't sit in a known 80-120 index range, so min/max come from the
+ * data itself, padded 10% so lines don't touch the edges. */
+const buildHiringTrendChart = (points: AdaptedHiringTrendPoint[]) => {
+  const xStart = 55;
+  const xEnd = 655;
+  const yTop = 35;
+  const yBottom = 185;
+
+  const allValues = points.flatMap((p) => [p.localValue, p.nationalValue]);
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const span = max - min || 1;
+  const paddedMin = min - span * 0.1;
+  const paddedMax = max + span * 0.1;
+  const paddedSpan = paddedMax - paddedMin || 1;
+
+  const xFor = (index: number) =>
+    points.length > 1 ? xStart + (index / (points.length - 1)) * (xEnd - xStart) : (xStart + xEnd) / 2;
+  const yFor = (value: number) => yBottom - ((value - paddedMin) / paddedSpan) * (yBottom - yTop);
+
+  const toPolyline = (key: 'localValue' | 'nationalValue') =>
+    points.map((p, i) => `${xFor(i).toFixed(1)},${yFor(p[key]).toFixed(1)}`).join(' ');
+
+  const tickCount = 3;
+  const ticks = Array.from({ length: tickCount }, (_, i) => ({
+    y: yTop + (i / (tickCount - 1)) * (yBottom - yTop),
+    label: `${(paddedMax - (i / (tickCount - 1)) * paddedSpan).toFixed(1)}%`,
+  }));
+
+  return {
+    localPolyline: toPolyline('localValue'),
+    nationalPolyline: toPolyline('nationalValue'),
+    ticks,
+    xStart,
+    xEnd,
+  };
+};
+
+/** Headline for the chart card — compares the most recent local vs national
+ * point. Lower unemployment rate = stronger local hiring. */
+const hiringTrendHeadline = (trend: AdaptedMarketReport['hiringTrend']): string => {
+  if (!trend.available) return 'Local hiring trend data is not available for this location yet.';
+  const cityName = trend.localLabel.split(' (')[0];
+  const latest = trend.points[trend.points.length - 1];
+  const diff = latest.localValue - latest.nationalValue;
+  if (diff <= -0.3) return `${cityName} hiring is outpacing the national baseline`;
+  if (diff >= 0.3) return `${cityName} hiring is trailing the national baseline`;
+  return `${cityName} is tracking close to the national baseline`;
+};
+
+/** Overview "Market direction" chart. Renders real local-vs-national
+ * unemployment-rate data (see web-server hiringTrendService.ts) when
+ * available, or an honest "not covered yet" message instead of a fake line —
+ * this location may be outside the ~25 US/Canada metro/CMA areas ingested so
+ * far (see constants/geoHiringTrendLocations.ts server-side), or `live` may
+ * not have loaded yet. Never falls back to fabricated/static data. */
+const HiringTrendChart: React.FC<{ trend: AdaptedMarketReport['hiringTrend'] | undefined }> = ({
+  trend,
+}) => {
+  if (!trend?.available) {
+    return (
+      <section className="marketChartCard">
+        <div className="marketChartHead">
+          <div>
+            <small className="fullReportKicker">Market direction</small>
+            <h3>Local hiring trend not available yet</h3>
+          </div>
+        </div>
+        <p className="chartUnavailable">
+          We don't have verified month-over-month labor data for this location yet — the rest of
+          this report is unaffected.
+        </p>
+      </section>
+    );
+  }
+
+  const chart = buildHiringTrendChart(trend.points);
+
+  return (
+    <section className="marketChartCard">
+      <div className="marketChartHead">
+        <div>
+          <small className="fullReportKicker">Market direction</small>
+          <h3>{hiringTrendHeadline(trend)}</h3>
+        </div>
+        <span className="windowTag">{trend.windowLabel}</span>
+      </div>
+      <svg
+        className="marketChart"
+        viewBox="0 0 700 220"
+        role="img"
+        aria-label={`${trend.localLabel} compared with ${trend.nationalLabel}`}
+      >
+        {chart.ticks.map((tick) => (
+          <React.Fragment key={tick.label}>
+            <line className="chartGrid" x1={chart.xStart - 7} y1={tick.y} x2={chart.xEnd + 17} y2={tick.y} />
+            <text className="chartLabel" x="10" y={tick.y + 4}>
+              {tick.label}
+            </text>
+          </React.Fragment>
+        ))}
+        <polyline className="chartCanada" points={chart.nationalPolyline} />
+        <polyline className="chartToronto" points={chart.localPolyline} />
+      </svg>
+      <div className="chartLegend">
+        <span>
+          <i />
+          {trend.localLabel}
+        </span>
+        <span>
+          <i />
+          {trend.nationalLabel}
+        </span>
+      </div>
+    </section>
+  );
+};
+
 const OverviewTab: React.FC = () => {
   const live = useAdaptedMarketReport();
   const signals = live?.signals.slice(0, 3) ?? [
@@ -1198,52 +1319,7 @@ const OverviewTab: React.FC = () => {
           ))}
         </div>
       </section>
-      <section className="marketChartCard">
-        <div className="marketChartHead">
-          <div>
-            <small className="fullReportKicker">Market direction</small>
-            <h3>Toronto hiring remains above the national baseline</h3>
-          </div>
-          <span className="windowTag">Last 60 days</span>
-        </div>
-        <svg
-          className="marketChart"
-          viewBox="0 0 700 220"
-          role="img"
-          aria-label="Toronto product hiring trend compared with Canada"
-        >
-          <line className="chartGrid" x1="48" y1="40" x2="672" y2="40" />
-          <line className="chartGrid" x1="48" y1="105" x2="672" y2="105" />
-          <line className="chartGrid" x1="48" y1="170" x2="672" y2="170" />
-          <text className="chartLabel" x="10" y="44">
-            120
-          </text>
-          <text className="chartLabel" x="10" y="109">
-            100
-          </text>
-          <text className="chartLabel" x="17" y="174">
-            80
-          </text>
-          <polyline
-            className="chartCanada"
-            points="55,154 130,139 205,135 280,126 355,102 430,108 505,91 580,96 655,82"
-          />
-          <polyline
-            className="chartToronto"
-            points="55,143 130,118 205,124 280,87 355,99 430,67 505,80 580,47 655,57"
-          />
-        </svg>
-        <div className="chartLegend">
-          <span>
-            <i />
-            Toronto region
-          </span>
-          <span>
-            <i />
-            Canada
-          </span>
-        </div>
-      </section>
+      <HiringTrendChart trend={live?.hiringTrend} />
       <section className="signalCard">
         <small className="fullReportKicker">What changed</small>
         <h3>The signals that matter most to you</h3>

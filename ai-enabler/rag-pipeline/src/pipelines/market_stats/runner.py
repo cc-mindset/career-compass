@@ -57,6 +57,7 @@ from src.pipelines.market_stats.fetcher_oecd_skills import fetch_oecd_skills
 from src.pipelines.market_stats.transformer      import transform
 from src.pipelines.market_stats.registry         import get_registry, register_run, update_run, Status
 from src.pipelines.market_stats.cleanup          import run_cleanup, run_ttl_summary
+from src.pipelines.market_stats.geo_trend_store  import persist_periods_history
 from src.shared.s3_client import upload_json
 from src.shared.embedder import embed_chunks
 from src.shared.pinecone_client import upload_chunks
@@ -120,6 +121,19 @@ def run_country(
     # Register the run
     register_run(registry, run_id, country, len(raw_records))
 
+    # ── Step 1b: Persist real periods_history to Mongo (geo_hiring_trend) ──────
+    # Parallel consumer of the same fetch() output, independent of the
+    # chunk/embed/Pinecone path below — see geo_trend_store.py docstring.
+    # Runs unconditionally (including --dry-run) to match register_run()'s
+    # existing precedent of writing registry state regardless of dry_run.
+    try:
+        trend_summary = persist_periods_history(raw_records)
+        logger.info(f"[{country}] geo_hiring_trend: {trend_summary}")
+    except Exception as e:
+        # Non-fatal — the chunk/embed path (the pipeline's primary purpose)
+        # must not fail just because this secondary write path had an issue.
+        logger.error(f"[{country}] persist_periods_history failed: {e}")
+
     # ── Step 2: Transform ────────────────────────────────────────────────────
     logger.info(f"[{country}] Transforming...")
     try:
@@ -149,7 +163,12 @@ def run_country(
         summary["status"] = "dry_run_complete"
         return summary
 
-    # ── Step 3: Save to S3 ──────────────────────────────────────────────────
+    # ── Step 3: Save to S3 (best-effort audit-trail copy) ───────────────────
+    # Was fatal (aborted before embed/upsert on any S3 error) — that meant a
+    # single bad AWS credential blocked Pinecone from ever getting updated,
+    # for the one part of this step (the audit-trail copy) that isn't load-
+    # bearing for the app. Mirrors run_imf()'s already-established handling
+    # of the same tradeoff: log and continue rather than abort the run.
     logger.info(f"[{country}] Saving to S3...")
     try:
         # Raw fetcher output → inbox/
@@ -173,11 +192,7 @@ def run_country(
         logger.info(f"[{country}] Saved chunks to {transformed_key}")
 
     except Exception as e:
-        logger.error(f"[{country}] S3 save failed: {e}")
-        summary["status"] = "failed_s3"
-        summary["error"]  = str(e)
-        update_run(registry, run_id, Status.FAILED, error=str(e)[:500])
-        return summary
+        logger.warning(f"[{country}] S3 save failed, continuing without audit copy: {e}")
 
     # ── Step 4 + 5: Embed and upsert to Pinecone ────────────────────────────
     logger.info(f"[{country}] Embedding and upserting to Pinecone...")

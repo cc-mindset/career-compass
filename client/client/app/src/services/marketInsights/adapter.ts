@@ -1,5 +1,7 @@
 import type {
   AdaptedFocusWeek,
+  AdaptedHiringTrend,
+  AdaptedHiringTrendPoint,
   AdaptedMarketInsight,
   AdaptedMarketReport,
   AdaptedMarketShift,
@@ -163,6 +165,43 @@ const mapEvidenceSource = (raw: unknown): AdaptedSource | null => {
     name,
     role: str(o.lens, 'Reference'),
     date: str(o.publishedAt, 'Recent'),
+  };
+};
+
+const UNAVAILABLE_HIRING_TREND: AdaptedHiringTrend = {
+  available: false,
+  windowLabel: '',
+  localLabel: '',
+  nationalLabel: '',
+  points: [],
+};
+
+/** Maps hiring_trend_series (see web-server hiringTrendService.ts) — real
+ * unemployment-rate data or an honest `available: false`, never LLM output. */
+const mapHiringTrend = (raw: unknown): AdaptedHiringTrend => {
+  const o = asObj(raw);
+  if (!o || o.available !== true) return UNAVAILABLE_HIRING_TREND;
+
+  const points = asArr(o.points)
+    .map((rawPoint): AdaptedHiringTrendPoint | null => {
+      const p = asObj(rawPoint);
+      if (!p) return null;
+      const period = str(p.period);
+      const localValue = p.local_index;
+      const nationalValue = p.national_index;
+      if (!period || typeof localValue !== 'number' || typeof nationalValue !== 'number') return null;
+      return { period, localValue, nationalValue };
+    })
+    .filter(Boolean) as AdaptedHiringTrendPoint[];
+
+  if (points.length < 2) return UNAVAILABLE_HIRING_TREND;
+
+  return {
+    available: true,
+    windowLabel: str(o.window_label),
+    localLabel: str(o.local_label),
+    nationalLabel: str(o.national_label),
+    points,
   };
 };
 
@@ -496,6 +535,7 @@ export function adaptMarketInsights(insights: MarketInsightsPayload | null | und
     sources: resolvedSources,
     evidenceTags,
     insights: deriveMarketInsights(insights, shifts, growth, risks, capabilities, resolvedSources),
+    hiringTrend: mapHiringTrend(insights.hiring_trend_series),
     fromLive: true,
   };
 }
