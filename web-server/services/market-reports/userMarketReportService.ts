@@ -77,21 +77,35 @@ export async function createUserMarketReport(
 
   if (previous) {
     // Append-only: never update an existing snapshot row for this reportId.
+    // The findOne-then-create below is a check-then-act race, not atomic — two
+    // concurrent calls for the same user (double-click, two tabs, or React
+    // StrictMode's double effect-invocation in dev) can both pass the "no
+    // existing snapshot" check before either inserts, then both attempt to
+    // create the same reportId. Whichever loses that race hits E11000 on the
+    // unique reportId index. That's not corruption — it means someone else
+    // already wrote the exact same snapshot row we were about to write — so
+    // treat it as a benign no-op instead of surfacing an error.
     const existingSnapshot = await UserMarketReportSnapshot.findOne({
       reportId: previous.reportId,
     });
     if (!existingSnapshot) {
-      await UserMarketReportSnapshot.create({
-        userId: previous.userId,
-        reportId: previous.reportId,
-        role: previous.role,
-        level: previous.level,
-        location: previous.location,
-        industry: previous.industry,
-        insights: previous.insights,
-        generatedAt: previous.generatedAt,
-        snapshottedAt: new Date(),
-      });
+      try {
+        await UserMarketReportSnapshot.create({
+          userId: previous.userId,
+          reportId: previous.reportId,
+          role: previous.role,
+          level: previous.level,
+          location: previous.location,
+          industry: previous.industry,
+          insights: previous.insights,
+          generatedAt: previous.generatedAt,
+          snapshottedAt: new Date(),
+        });
+      } catch (error) {
+        const isDuplicateKey =
+          error && typeof error === 'object' && (error as { code?: number }).code === 11000;
+        if (!isDuplicateKey) throw error;
+      }
     }
     snapshottedPrevious = true;
   }

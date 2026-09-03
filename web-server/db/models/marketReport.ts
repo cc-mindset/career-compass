@@ -1,7 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
 import {
-  CityVsRegionComparison,
-  ComparisonData,
   MarketReportSummary,
   MarketReportSignals,
   MarketReportVerdict,
@@ -47,17 +45,6 @@ const labourMarketSnapshotSchema = new Schema<LabourMarketSnapshot>({
   market_health: marketHealthSchema,
 });
 
-const comparisonDataSchema = new Schema<ComparisonData>({
-  factor: { type: String, required: true },
-  city: { type: String, required: true },
-  wider_region: { type: String, required: true },
-});
-
-const cityVsRegionComparisonSchema = new Schema<CityVsRegionComparison>({
-  title: { type: String, required: true },
-  data: { type: [comparisonDataSchema], required: true, default: [] },
-});
-
 const marketReportSignalsSchema = new Schema<MarketReportSignals>({
   role_demand: { type: String, enum: ['Stable', 'High', 'Low'], required: true },
   competition: { type: String, enum: ['Stable', 'High', 'Low'], required: true },
@@ -76,10 +63,6 @@ const marketReportDataSchema = new Schema<MarketReportData>({
   market_report_summary_brief: { type: String, required: true },
   market_report_summary: { type: marketReportSummarySchema, required: true },
   labour_market_snapshot: { type: labourMarketSnapshotSchema, required: true },
-  city_vs_region_comparison: {
-    type: cityVsRegionComparisonSchema,
-    required: true,
-  },
   report_sources: [{ type: String, required: true }],
   market_report_verdict: { type: marketReportVerdictSchema, required: false },
 });

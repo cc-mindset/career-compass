@@ -182,7 +182,9 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
             result = await Promise.all([
                 LlmMarketNews.updateOne(
                     { vars_id: cacheKey },
-                    { ...commonCacheData, data: response.market_news },
+                    // market_news is no longer requested from the LLM (see
+                    // marketInsightsService_multipart.ts) — always [] going forward.
+                    { ...commonCacheData, data: response.market_news || [] },
                     { upsert: true }
                 ),
                 LlmCareerIntel.updateOne(
@@ -191,6 +193,7 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
                         ...commonCacheData,
                         data: {
                             report_sources: response.report_sources || [],
+                            evidence_lens_coverage: response.evidence_lens_coverage || undefined,
                         }
                     },
                     { upsert: true }
@@ -272,7 +275,14 @@ export const getCachedLlmResponseFromDb = async (cacheKey: string, section: type
             const marketNewsData = marketNewsDoc?.data || [];
             const careerIntelData = careerIntelDoc?.data || null;
             if (marketNewsDoc || careerIntelDoc) {
-                doc = { data: { market_news: marketNewsData, report_sources: careerIntelData?.report_sources || [] }, status: getCombinedStatusForCache(marketNewsDoc?.status as LlmCacheStatus, careerIntelDoc?.status as LlmCacheStatus) };
+                doc = {
+                    data: {
+                        market_news: marketNewsData,
+                        report_sources: careerIntelData?.report_sources || [],
+                        evidence_lens_coverage: careerIntelData?.evidence_lens_coverage || undefined,
+                    },
+                    status: getCombinedStatusForCache(marketNewsDoc?.status as LlmCacheStatus, careerIntelDoc?.status as LlmCacheStatus),
+                };
             }
             break;
         default:

@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { CareerIntelData } from "../../types/careerIntel";
+import { CareerIntelData, EvidenceLensCoverage } from "../../types/careerIntel";
 import { LlmCacheStatus } from "../../constants/db";
 
 export interface ICareerIntel extends Document {
@@ -12,8 +12,18 @@ export interface ICareerIntel extends Document {
     updatedAt?: Date;
 }
 
+const evidenceLensCoverageSchema = new Schema<EvidenceLensCoverage>(
+    {
+        'Technology & regulation': [{ type: String }],
+        'Economy & industry': [{ type: String }],
+        'People & place': [{ type: String }],
+    },
+    { _id: false },
+);
+
 const careerIntelDataSchema = new Schema<CareerIntelData>({
     report_sources: [{ type: String, required: true }],
+    evidence_lens_coverage: { type: evidenceLensCoverageSchema, required: false, default: undefined },
 });
 
 const careerIntelSchema = new Schema<ICareerIntel>(

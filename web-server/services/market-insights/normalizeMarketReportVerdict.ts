@@ -1,9 +1,37 @@
 import type {
+  HiringTrendSeries,
   MarketReportVerdict,
   MarketSignalLevel,
 } from '../../types/marketReport';
 
 type MarketInsightsData = Record<string, unknown>;
+
+/**
+ * The Overview "Market direction" chart is not requested from the LLM (see
+ * docs/product/MarketReportPrompts.docx §3): building real local-vs-national
+ * series requires a geo-code + series-id resolution layer that doesn't exist
+ * yet, and letting the model fabricate a plausible-looking trend line is
+ * exactly the hallucination risk this whole effort is trying to remove.
+ * Always inject the honest "not available" placeholder until that
+ * resolution layer ships — the shipped chart already renders a static
+ * illustration regardless, so this changes the data contract, not what's on
+ * screen today.
+ */
+const HIRING_TREND_PLACEHOLDER: HiringTrendSeries = {
+  available: false,
+  window_label: '',
+  local_label: '',
+  national_label: '',
+  points: [],
+};
+
+const ensureHiringTrendSeries = (insights: MarketInsightsData): HiringTrendSeries => {
+  const existing = insights.hiring_trend_series as Partial<HiringTrendSeries> | undefined;
+  if (existing && typeof existing === 'object' && typeof existing.available === 'boolean') {
+    return existing as HiringTrendSeries;
+  }
+  return HIRING_TREND_PLACEHOLDER;
+};
 
 const SIGNAL_LEVELS: MarketSignalLevel[] = ['Stable', 'High', 'Low'];
 
@@ -168,10 +196,12 @@ export function normalizeMarketReportVerdict(
   // we have deterministic evidence_sources, it wins over whatever the LLM
   // says about its own evidence, in every branch below.
   const evidenceOverride = realEvidenceQuality(insights);
+  const hiring_trend_series = ensureHiringTrendSeries(insights);
   const parsed = parseVerdict(insights.market_report_verdict);
   if (parsed) {
     return {
       ...insights,
+      hiring_trend_series,
       market_report_verdict: {
         ...parsed,
         signals: {
@@ -203,6 +233,7 @@ export function normalizeMarketReportVerdict(
 
   return {
     ...insights,
+    hiring_trend_series,
     market_report_verdict,
   };
 }

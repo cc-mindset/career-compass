@@ -91,6 +91,17 @@ describe('generateMarketInsights', () => {
     [LLM_SECTION_LABELS.newsAndCareerIntel]: { market_news: [] },
   };
 
+  // normalizeMarketReportVerdict always injects this placeholder — the
+  // Overview chart is never requested from the LLM (see
+  // docs/product/MarketReportPrompts.docx §3).
+  const hiringTrendPlaceholder = {
+    available: false,
+    window_label: '',
+    local_label: '',
+    national_label: '',
+    points: [],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetTupleCache.mockResolvedValue(null);
@@ -115,6 +126,7 @@ describe('generateMarketInsights', () => {
         high_growth_sectors: [],
         market_news: [],
         evidence_sources: [],
+        hiring_trend_series: hiringTrendPlaceholder,
       }),
     );
     expect(result.failedSections).toEqual([]);
@@ -137,6 +149,7 @@ describe('generateMarketInsights', () => {
         high_growth_sectors: [],
         market_news: [],
         evidence_sources: [],
+        hiring_trend_series: hiringTrendPlaceholder,
       }),
     );
     expect(result.failedSections).toEqual([]);
@@ -218,6 +231,7 @@ describe('generateMarketInsights', () => {
         executive_summary: 'Summary',
         market_news: [],
         evidence_sources: [],
+        hiring_trend_series: hiringTrendPlaceholder,
       }),
     );
     expect(result.failedSections).toEqual(['industryTrends']);

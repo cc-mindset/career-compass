@@ -93,6 +93,21 @@ export interface EvidenceSourcePayload {
   publishedAt?: string;
 }
 
+export interface AdaptedFocusWeek {
+  label: string;
+  action: string;
+}
+
+/** One row of the "See all insights" (10-item) list. */
+export interface AdaptedMarketInsight {
+  title: string;
+  summary: string;
+  category: string;
+  meaning: string;
+  action: string;
+  source: string;
+}
+
 /** View-model consumed by Clarity Coach Market Report tabs. */
 export interface AdaptedMarketReport {
   verdictLabel: string;
@@ -105,10 +120,14 @@ export interface AdaptedMarketReport {
   path: { title: string; copy: string; tags: string[] };
   opportunities: AdaptedOpportunity[];
   emerging: AdaptedOpportunity[];
+  sectors: AdaptedOpportunity[];
+  locations: AdaptedOpportunity[];
   risks: AdaptedOpportunity[];
   skills: AdaptedSkill[];
+  capabilities: AdaptedSkill[];
+  focusWeeks: AdaptedFocusWeek[];
   sources: AdaptedSource[];
   evidenceTags: string[][];
-  newsTitles: string[];
+  insights: AdaptedMarketInsight[];
   fromLive: boolean;
 }

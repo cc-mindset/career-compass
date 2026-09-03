@@ -299,7 +299,11 @@ export const MarketWorkspaceGeneratingView: React.FC = () => {
       if (cancelled) return;
 
       if (result.ok && !result.fromFixtures) {
-        if (state.registered) {
+        // Guard against React StrictMode's double effect-invocation in dev (and any
+        // other stale-closure re-entry): only the still-current run should persist.
+        // Previously this call was unguarded, so both invocations saved concurrently
+        // and raced on the server's snapshot-insert (see createUserMarketReport).
+        if (state.registered && !cancelled) {
           try {
             setStatusMessage('Saving to your history');
             await saveUserMarketReport({
@@ -640,17 +644,14 @@ const MarketInsightList: React.FC = () => {
     );
   }
 
+  // Was: mapped live.shifts (capped at 3) with the same meaning/action text
+  // repeated across every item. live.insights (derived in adapter.ts from
+  // shifts + growth_sectors + at_risk_sectors + priority_capabilities) now
+  // provides up to 10 genuinely distinct items.
   const insights = useFixtures
     ? MARKET_INSIGHTS
-    : live
-      ? live.shifts.map((shift, index) => ({
-          title: shift.title,
-          summary: shift.copy,
-          category: 'Market shift',
-          meaning: live.recommendation.copy,
-          action: live.path.copy,
-          source: live.sources[index]?.name || 'Live market insights',
-        }))
+    : live?.insights.length
+      ? live.insights
       : MARKET_INSIGHTS;
 
   return (
@@ -1068,13 +1069,17 @@ const OpportunityRows: React.FC<OpportunityRowsProps> = ({ group }) => {
   const { state, toggleMarketOpportunityDetail } = useClarity();
   const live = useAdaptedMarketReport();
 
-  const liveItems =
-    live &&
-    (group === 'best'
-      ? live.opportunities
-      : group === 'emerging'
-        ? live.emerging
-        : live.risks);
+  // Was: every group other than 'best'/'emerging' fell through to live.risks —
+  // meaning "Hiring sectors" and "Locations" both silently showed risk data
+  // whenever live insights were present. Each group now maps to its own field.
+  const LIVE_GROUP_FIELDS = {
+    best: 'opportunities',
+    emerging: 'emerging',
+    sectors: 'sectors',
+    locations: 'locations',
+    risks: 'risks',
+  } as const;
+  const liveItems = live && live[LIVE_GROUP_FIELDS[group]];
 
   const items =
     liveItems && liveItems.length > 0
@@ -1288,15 +1293,21 @@ const OpportunitiesTab: React.FC = () => {
 const SkillsTab: React.FC = () => {
   const { openSkillsFromMarket } = useClarity();
   const live = useAdaptedMarketReport();
+  // Was: read live.skills directly (up to 8 raw entries from top_skills_demand).
+  // Now reads live.capabilities — an intentional top-3 pick from
+  // priority_capabilities (NEW field), matching the prototype's "3 capabilities" design.
   const capabilities =
-    live?.skills.length
-      ? live.skills.map((skill) => ({
+    live?.capabilities.length
+      ? live.capabilities.map((skill) => ({
           name: skill.name,
           demand: skill.demand,
           action: skill.action,
           width: skill.width,
         }))
       : CAPABILITIES;
+  const weeks: Array<[string, string]> = live?.focusWeeks.length
+    ? live.focusWeeks.map((w) => [w.label, w.action])
+    : FOCUS_WEEKS;
 
   return (
     <>
@@ -1326,7 +1337,7 @@ const SkillsTab: React.FC = () => {
           <h2>Turn evidence into a stronger market story</h2>
         </div>
         <div className="focusWeeks">
-          {FOCUS_WEEKS.map(([week, copy]) => (
+          {weeks.map(([week, copy]) => (
             <div key={week} className="focusWeek">
               <b>{week}</b>
               <span>{copy}</span>

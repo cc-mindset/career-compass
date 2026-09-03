@@ -105,4 +105,27 @@ describe('normalizeMarketReportVerdict', () => {
     // 1 legacy source would be 'Low'; 3 real evidence_sources is 'Stable' and wins.
     expect(result.market_report_verdict?.signals.evidence_quality).toBe('Stable');
   });
+
+  it('always injects the hiring_trend_series placeholder — never requested from the LLM', () => {
+    const result = normalizeMarketReportVerdict({});
+    expect(result.hiring_trend_series).toEqual({
+      available: false,
+      window_label: '',
+      local_label: '',
+      national_label: '',
+      points: [],
+    });
+  });
+
+  it('preserves a well-formed hiring_trend_series if one is already present', () => {
+    const preComputed = {
+      available: true,
+      window_label: 'Last 60 days',
+      local_label: 'Toronto',
+      national_label: 'Canada',
+      points: [{ period: 'Week 1', local_index: 101, national_index: 100 }],
+    };
+    const result = normalizeMarketReportVerdict({ hiring_trend_series: preComputed });
+    expect(result.hiring_trend_series).toEqual(preComputed);
+  });
 });
