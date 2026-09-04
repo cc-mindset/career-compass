@@ -3,12 +3,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# AWS / S3 — optional for pipelines that don't need S3 (e.g. IMF fetches
-# directly from a public API and only uses S3 as an audit-trail copy).
-# Same .get()-with-default pattern as Mongo/OpenAI/Pinecone below, so
-# importing this module never crashes just because AWS isn't configured.
-AWS_REGION = os.environ.get("AWS_REGION", "")
-S3_BUCKET  = os.environ.get("S3_BUCKET_NAME", "")
+# AWS / S3
+AWS_REGION = os.environ["AWS_REGION"]
+S3_BUCKET  = os.environ["S3_BUCKET_NAME"]
 
 # S3 folder structure — single source of truth
 S3_PATHS = {

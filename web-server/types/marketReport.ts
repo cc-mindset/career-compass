@@ -40,40 +40,28 @@ export interface LabourMarketSnapshot {
   market_health: MarketHealth;
 }
 
+export interface ComparisonData {
+  factor: string;
+  city: string;
+  wider_region: string;
+}
+
+export interface CityVsRegionComparison {
+  title: string;
+  data: ComparisonData[];
+}
+
 /** Overview UI: one row in "Three shifts affecting you". */
 export interface MarketShift {
   title: string;
   summary: string;
 }
 
-/**
- * Overview market-direction chart. NOT requested from the LLM — the shipped
- * Overview chart is currently a static illustration with no live data
- * consumer at all, and building real local-vs-national series requires a
- * geo-code + series-id resolution layer that doesn't exist yet (see
- * docs/product/MarketReportPrompts.docx §3). This type documents the
- * intended contract; normalizeMarketReportVerdict() always injects the
- * `available: false` placeholder shape below until that resolution layer
- * ships.
- */
-export interface HiringTrendPoint {
-  period: string;
-  local_index: number;
-  national_index: number;
-}
-
-export interface HiringTrendSeries {
-  available: boolean;
-  window_label: string;
-  local_label: string;
-  national_label: string;
-  points: HiringTrendPoint[];
-}
-
 export interface MarketReportData {
   market_report_summary_brief: string;
   market_report_summary: MarketReportSummary;
   labour_market_snapshot: LabourMarketSnapshot;
+  city_vs_region_comparison: CityVsRegionComparison;
   report_sources: string[];
   market_report_verdict?: MarketReportVerdict;
   market_shifts?: MarketShift[];

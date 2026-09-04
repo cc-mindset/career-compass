@@ -78,54 +78,6 @@ export interface AdaptedSource {
   date: string;
 }
 
-/**
- * Deterministic, retrieval-derived source provenance from web-server
- * (lib/evidenceSources.ts) — independent of whatever the LLM claims it used
- * in report_sources/sources. Ground truth for the Evidence tab.
- */
-export interface EvidenceSourcePayload {
-  id: string;
-  namespace: string;
-  lens: string;
-  label: string;
-  sourceCode: string;
-  title?: string;
-  publishedAt?: string;
-}
-
-export interface AdaptedFocusWeek {
-  label: string;
-  action: string;
-}
-
-/** One month of the Overview "Market direction" chart — real unemployment
- * rate, local vs national (see web-server hiringTrendService.ts). */
-export interface AdaptedHiringTrendPoint {
-  period: string;
-  localValue: number;
-  nationalValue: number;
-}
-
-/** Deterministic, retrieval-free — never LLM-generated. `available: false`
- * when the report's location has no metro/CMA coverage yet. */
-export interface AdaptedHiringTrend {
-  available: boolean;
-  windowLabel: string;
-  localLabel: string;
-  nationalLabel: string;
-  points: AdaptedHiringTrendPoint[];
-}
-
-/** One row of the "See all insights" (10-item) list. */
-export interface AdaptedMarketInsight {
-  title: string;
-  summary: string;
-  category: string;
-  meaning: string;
-  action: string;
-  source: string;
-}
-
 /** View-model consumed by Clarity Coach Market Report tabs. */
 export interface AdaptedMarketReport {
   verdictLabel: string;
@@ -138,15 +90,10 @@ export interface AdaptedMarketReport {
   path: { title: string; copy: string; tags: string[] };
   opportunities: AdaptedOpportunity[];
   emerging: AdaptedOpportunity[];
-  sectors: AdaptedOpportunity[];
-  locations: AdaptedOpportunity[];
   risks: AdaptedOpportunity[];
   skills: AdaptedSkill[];
-  capabilities: AdaptedSkill[];
-  focusWeeks: AdaptedFocusWeek[];
   sources: AdaptedSource[];
   evidenceTags: string[][];
-  insights: AdaptedMarketInsight[];
-  hiringTrend: AdaptedHiringTrend;
+  newsTitles: string[];
   fromLive: boolean;
 }

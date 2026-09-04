@@ -1,7 +1,7 @@
 """
 cleanup.py (market_stats)
 TTL-based cleanup for market_stats pipeline.
-- Deletes expired vectors from Pinecone (labor-market-stats, geo-labor-signals, forward-looking namespaces)
+- Deletes expired vectors from Pinecone market-stats namespace
 - Removes expired runs from MongoDB registry
 - Runs quarterly (not on every fetch)
 
@@ -21,13 +21,7 @@ from src.pipelines.market_stats.registry import (
 
 logger = logging.getLogger(__name__)
 
-# transformer.py's NAMESPACE_MAP is the single source of truth for where chunks
-# land; a run's pinecone_ids aren't tagged with namespace in the registry (they're
-# a flat list spanning whichever of these a run touched), so cleanup deletes each
-# expired ID from every real namespace. Pinecone's delete-by-id is a no-op for IDs
-# that don't exist in a given namespace, so this is safe — an ID only ever
-# actually lives in one of them.
-PINECONE_NAMESPACES = ["labor-market-stats", "geo-labor-signals", "forward-looking"]
+PINECONE_NAMESPACE = "market-stats"
 DELETE_BATCH_SIZE = 100
 
 
@@ -99,19 +93,15 @@ def run_cleanup(dry_run: bool = False) -> dict:
         }
 
     # ── Delete from Pinecone in batches ────────────────────────────────────────
-    # Each batch is deleted from every real namespace (see PINECONE_NAMESPACES
-    # comment above) since the registry doesn't track which namespace each ID
-    # landed in.
     deleted_vectors = 0
     for i in range(0, len(expired_vector_ids), DELETE_BATCH_SIZE):
         batch = expired_vector_ids[i : i + DELETE_BATCH_SIZE]
-        for namespace in PINECONE_NAMESPACES:
-            try:
-                pc._index.delete(ids=batch, namespace=namespace)
-            except Exception as e:
-                logger.error(f"Pinecone delete failed for batch {i} in '{namespace}': {e}")
-        deleted_vectors += len(batch)
-        logger.info(f"Deleted {deleted_vectors}/{len(expired_vector_ids)} vectors from Pinecone")
+        try:
+            pc._index.delete(ids=batch, namespace=PINECONE_NAMESPACE)
+            deleted_vectors += len(batch)
+            logger.info(f"Deleted {deleted_vectors}/{len(expired_vector_ids)} vectors from Pinecone")
+        except Exception as e:
+            logger.error(f"Pinecone delete failed for batch {i}: {e}")
 
     # ── Delete from MongoDB ────────────────────────────────────────────────────
     deleted_registry = 0

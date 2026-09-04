@@ -1,18 +1,15 @@
 import { LLM_SECTION_LABELS } from "../../constants";
 import { LlmCacheStatus } from "../../constants/db";
 import LlmCareerIntel from "../../db/models/careerIntel";
-import LlmEvidenceSources from "../../db/models/evidenceSources";
 import LlmIndustryTrend from "../../db/models/industryTrends";
 import LlmMarketNews from "../../db/models/marketNews";
 import LlmMarketReport from "../../db/models/marketReport";
 import LlmMarketReportVerdict from "../../db/models/marketReportVerdict";
 import { CareerIntelData } from "../../types/careerIntel";
-import { EvidenceSource } from "../../types/evidence";
 import { MarketNewsData } from "../../types/marketNews";
 import { getDistrictOfACity } from "../../utils/city";
 import { logger } from "../../utils/logger";
 import { normalizeMarketReportVerdict } from "../market-insights/normalizeMarketReportVerdict";
-import { resolveHiringTrendSeries } from "../market-insights/hiringTrendService.js";
 
 export const LLM_RESPONSE_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -49,13 +46,12 @@ export const getCachedMarketInsightsFromDb = async (
     seniority?: string,
 ) => {
     const cacheKey = getMarketInsightsCacheKey(location, job, seniority);
-    const [marketReportVerdict, marketReport, industryTrends, newsAndCareerIntel, evidenceSources] =
+    const [marketReportVerdict, marketReport, industryTrends, newsAndCareerIntel] =
         await Promise.all([
             getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.marketReportVerdict),
             getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.marketReport),
             getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.industryTrends),
             getCachedLlmResponseFromDb(cacheKey, LLM_SECTION_LABELS.newsAndCareerIntel),
-            getCachedEvidenceSourcesFromDb(cacheKey),
         ]);
 
     if (
@@ -71,16 +67,6 @@ export const getCachedMarketInsightsFromDb = async (
         return null;
     }
 
-    // evidenceSources is intentionally NOT part of the hit/miss gate above:
-    // it's a deterministic add-on, not one of the three LLM sections. A
-    // cache entry written before this existed should still hit — it just
-    // renders an empty Evidence tab instead of forcing a full regeneration.
-    // Same reasoning applies to hiringTrendSeries below: it's a cheap,
-    // independent Mongo lookup (not cached alongside the LLM sections),
-    // resolved fresh on every hit so it reflects the latest ingestion run
-    // rather than whatever was true when this cache entry was written.
-    const hiringTrendSeries = await resolveHiringTrendSeries(location);
-
     return {
         cacheKey,
         insights: normalizeMarketReportVerdict({
@@ -88,45 +74,9 @@ export const getCachedMarketInsightsFromDb = async (
             ...(marketReportVerdict.data || {}),
             ...(industryTrends.data || {}),
             ...(newsAndCareerIntel.data || {}),
-            evidence_sources: evidenceSources,
-            hiring_trend_series: hiringTrendSeries,
         }),
     };
 };
-
-/**
- * Persist the deterministic evidence-source list for a generation, keyed by
- * the same cache key as the LLM sections. See db/models/evidenceSources.ts
- * for why this is a separate collection rather than bolted onto a section.
- */
-export async function cacheEvidenceSourcesToDb(
-    cacheKey: string,
-    sources: EvidenceSource[],
-    region = "",
-): Promise<void> {
-    const locationToCache = getVariablesFromDbCacheKey(cacheKey)?.[0] || '';
-    const regionToCache = region || getDistrictOfACity(locationToCache) || "";
-
-    await LlmEvidenceSources.updateOne(
-        { vars_id: cacheKey },
-        {
-            vars_id: cacheKey,
-            status: LlmCacheStatus.ACTIVE,
-            location: locationToCache,
-            region: regionToCache,
-            data: sources,
-        },
-        { upsert: true },
-    );
-}
-
-/** Returns [] (not null) when nothing is cached — callers should degrade gracefully. */
-export async function getCachedEvidenceSourcesFromDb(
-    cacheKey: string,
-): Promise<EvidenceSource[]> {
-    const doc = await LlmEvidenceSources.findOne({ vars_id: cacheKey }).lean();
-    return (doc?.data as EvidenceSource[] | undefined) || [];
-}
 
 export const getVariablesFromDbCacheKey = (cacheKey: string): string[] => {
     const parts = cacheKey.split(':');
@@ -190,9 +140,7 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
             result = await Promise.all([
                 LlmMarketNews.updateOne(
                     { vars_id: cacheKey },
-                    // market_news is no longer requested from the LLM (see
-                    // marketInsightsService_multipart.ts) — always [] going forward.
-                    { ...commonCacheData, data: response.market_news || [] },
+                    { ...commonCacheData, data: response.market_news },
                     { upsert: true }
                 ),
                 LlmCareerIntel.updateOne(
@@ -201,7 +149,6 @@ export async function cacheLlmResponseToDb(cacheKey: string, response: Record<st
                         ...commonCacheData,
                         data: {
                             report_sources: response.report_sources || [],
-                            evidence_lens_coverage: response.evidence_lens_coverage || undefined,
                         }
                     },
                     { upsert: true }
@@ -283,14 +230,7 @@ export const getCachedLlmResponseFromDb = async (cacheKey: string, section: type
             const marketNewsData = marketNewsDoc?.data || [];
             const careerIntelData = careerIntelDoc?.data || null;
             if (marketNewsDoc || careerIntelDoc) {
-                doc = {
-                    data: {
-                        market_news: marketNewsData,
-                        report_sources: careerIntelData?.report_sources || [],
-                        evidence_lens_coverage: careerIntelData?.evidence_lens_coverage || undefined,
-                    },
-                    status: getCombinedStatusForCache(marketNewsDoc?.status as LlmCacheStatus, careerIntelDoc?.status as LlmCacheStatus),
-                };
+                doc = { data: { market_news: marketNewsData, report_sources: careerIntelData?.report_sources || [] }, status: getCombinedStatusForCache(marketNewsDoc?.status as LlmCacheStatus, careerIntelDoc?.status as LlmCacheStatus) };
             }
             break;
         default:
