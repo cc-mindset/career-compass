@@ -67,7 +67,7 @@ vi.mock('../../db/models/evidenceSources', () => ({
 }));
 
 const { resolveHiringTrendSeriesMock } = vi.hoisted(() => ({
-    resolveHiringTrendSeriesMock: vi.fn(() => Promise.resolve({
+    resolveHiringTrendSeriesMock: vi.fn<(location: string) => Promise<any>>(() => Promise.resolve({
         available: false,
         window_label: '',
         local_label: '',

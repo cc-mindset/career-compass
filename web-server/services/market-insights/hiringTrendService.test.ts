@@ -6,16 +6,27 @@ vi.mock('../../utils/logger.js', () => ({
 
 const docs: Record<string, unknown>[] = [];
 
+const matchesField = (value: unknown, field: unknown): boolean => {
+  if (value instanceof RegExp) return value.test(String(field));
+  if (value && typeof value === 'object' && '$in' in (value as Record<string, unknown>)) {
+    return ((value as { $in: unknown[] }).$in).includes(field);
+  }
+  return field === value;
+};
+
 vi.mock('../../db/models/geoHiringTrend.js', () => ({
   default: {
     findOne: vi.fn((query: Record<string, unknown>) => ({
       lean: async () => {
-        const match = docs.find((d) => {
-          if (query.series_id) return d.series_id === query.series_id;
-          return d.geo === query.geo && d.country === query.country && d.signal_type === query.signal_type;
-        });
+        const match = docs.find((d) =>
+          Object.entries(query).every(([key, value]) => matchesField(value, d[key])),
+        );
         return match || null;
       },
+    })),
+    find: vi.fn((query: Record<string, unknown>) => ({
+      lean: async () =>
+        docs.filter((d) => Object.entries(query).every(([key, value]) => matchesField(value, d[key]))),
     })),
   },
 }));
@@ -169,5 +180,106 @@ describe('resolveHiringTrendSeries', () => {
     const result = await resolveHiringTrendSeries('Toronto, Ontario, Canada');
     expect(result.available).toBe(false);
     expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('matches a non-curated metro city not in the alias table (e.g. Peoria)', async () => {
+    seedDoc({
+      series_id: 'LAUMT173790000000003',
+      geo: 'Peoria',
+      country: 'US',
+      geo_type: 'metro',
+      periods_history: [
+        { period: '2026-07', value: 4.9 },
+        { period: '2026-06', value: 5.0 },
+      ],
+    });
+    seedDoc({
+      series_id: 'LNU04000000',
+      geo: 'national',
+      geo_type: 'national',
+      country: 'US',
+      periods_history: [
+        { period: '2026-07', value: 4.4 },
+        { period: '2026-06', value: 4.6 },
+      ],
+    });
+
+    const result = await resolveHiringTrendSeries('Peoria, Illinois, USA');
+    expect(result.available).toBe(true);
+    expect(result.local_label).toBe('Peoria (unemployment rate)');
+  });
+
+  it('matches a city as a component of a compound metro name', async () => {
+    seedDoc({
+      series_id: 'LAUMT171698000000003',
+      geo: 'Chicago-Naperville-Elgin',
+      country: 'US',
+      geo_type: 'metro',
+      periods_history: [
+        { period: '2026-07', value: 4.9 },
+        { period: '2026-06', value: 5.0 },
+      ],
+    });
+    seedDoc({
+      series_id: 'LNU04000000',
+      geo: 'national',
+      geo_type: 'national',
+      country: 'US',
+      periods_history: [
+        { period: '2026-07', value: 4.4 },
+        { period: '2026-06', value: 4.6 },
+      ],
+    });
+
+    const result = await resolveHiringTrendSeries('Naperville, Illinois, USA');
+    expect(result.available).toBe(true);
+    expect(result.local_label).toBe('Chicago-Naperville-Elgin (unemployment rate)');
+  });
+
+  it('falls back to state data when no metro match exists', async () => {
+    seedDoc({
+      series_id: 'LASST200000000000003',
+      geo: 'Kansas',
+      country: 'US',
+      geo_type: 'state',
+      periods_history: [
+        { period: '2026-07', value: 3.8 },
+        { period: '2026-06', value: 3.9 },
+      ],
+    });
+    seedDoc({
+      series_id: 'LNU04000000',
+      geo: 'national',
+      geo_type: 'national',
+      country: 'US',
+      periods_history: [
+        { period: '2026-07', value: 4.4 },
+        { period: '2026-06', value: 4.6 },
+      ],
+    });
+
+    const result = await resolveHiringTrendSeries('Salina, Kansas, USA');
+    expect(result.available).toBe(true);
+    expect(result.local_label).toBe('Kansas (unemployment rate)');
+  });
+
+  it('returns available:false when neither metro nor state/province match', async () => {
+    const result = await resolveHiringTrendSeries('Nowhereville, Nowhere, USA');
+    expect(result.available).toBe(false);
+  });
+
+  it('disambiguates a same-named metro in different states using the parsed state', async () => {
+    const points = [
+      { period: '2026-07', value: 4.0 },
+      { period: '2026-06', value: 4.1 },
+    ];
+    seedDoc({ series_id: 'A', geo: 'Springfield (IL)', country: 'US', geo_type: 'metro', periods_history: points });
+    seedDoc({ series_id: 'B', geo: 'Springfield (MA)', country: 'US', geo_type: 'metro', periods_history: points });
+    seedDoc({
+      series_id: 'LNU04000000', geo: 'national', geo_type: 'national', country: 'US', periods_history: points,
+    });
+
+    const result = await resolveHiringTrendSeries('Springfield, Massachusetts, USA');
+    expect(result.local_label).toBe('Springfield (MA) (unemployment rate)');
   });
 });
