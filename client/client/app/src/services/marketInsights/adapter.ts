@@ -399,7 +399,7 @@ export function adaptMarketInsights(insights: MarketInsightsPayload | null | und
   const roles = flattenExampleRoles(asArr(insights.growth_sectors));
   const rolePool = roles.length ? roles : growth;
 
-  const opportunities = rolePool.slice(0, 6);
+  const opportunities = rolePool.slice(0, 3);
 
   // "Emerging roles to watch" used to just be growth.slice(0, 3) — literally the
   // first 3 of "Best matches" shown again. Prefer roles whose parent sector is
