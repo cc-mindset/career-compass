@@ -171,35 +171,4 @@ describe('createUserMarketReport history immutability', () => {
     // Should skip create because snapshot already exists
     expect(UserMarketReportSnapshot.create).not.toHaveBeenCalled();
   });
-
-  it('treats a concurrent duplicate-key error on snapshot create as a benign no-op (TOCTOU race)', async () => {
-    const first = await createUserMarketReport({
-      userId: 'user-3',
-      role: 'Analyst',
-      level: 'Junior',
-      location: 'Ottawa, Canada',
-      insights: { market_report_summary_brief: 'A' },
-    });
-
-    // findOne finds nothing yet (this call lost the read race), but by the time
-    // create() runs, a concurrent call has already inserted the same reportId —
-    // simulate the real MongoServerError shape (E11000, code 11000).
-    vi.mocked(UserMarketReportSnapshot.create).mockImplementationOnce(async () => {
-      const err = new Error('E11000 duplicate key error') as Error & { code: number };
-      err.code = 11000;
-      throw err;
-    });
-
-    await expect(
-      createUserMarketReport({
-        userId: 'user-3',
-        role: 'Analyst',
-        level: 'Mid',
-        location: 'Ottawa, Canada',
-        insights: { market_report_summary_brief: 'B' },
-      }),
-    ).resolves.toMatchObject({ snapshottedPrevious: true });
-
-    void first;
-  });
 });

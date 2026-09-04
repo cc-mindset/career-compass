@@ -1,37 +1,9 @@
 import type {
-  HiringTrendSeries,
   MarketReportVerdict,
   MarketSignalLevel,
 } from '../../types/marketReport';
 
 type MarketInsightsData = Record<string, unknown>;
-
-/**
- * The Overview "Market direction" chart is not requested from the LLM (see
- * docs/product/MarketReportPrompts.docx §3): building real local-vs-national
- * series requires a geo-code + series-id resolution layer that doesn't exist
- * yet, and letting the model fabricate a plausible-looking trend line is
- * exactly the hallucination risk this whole effort is trying to remove.
- * Always inject the honest "not available" placeholder until that
- * resolution layer ships — the shipped chart already renders a static
- * illustration regardless, so this changes the data contract, not what's on
- * screen today.
- */
-const HIRING_TREND_PLACEHOLDER: HiringTrendSeries = {
-  available: false,
-  window_label: '',
-  local_label: '',
-  national_label: '',
-  points: [],
-};
-
-const ensureHiringTrendSeries = (insights: MarketInsightsData): HiringTrendSeries => {
-  const existing = insights.hiring_trend_series as Partial<HiringTrendSeries> | undefined;
-  if (existing && typeof existing === 'object' && typeof existing.available === 'boolean') {
-    return existing as HiringTrendSeries;
-  }
-  return HIRING_TREND_PLACEHOLDER;
-};
 
 const SIGNAL_LEVELS: MarketSignalLevel[] = ['Stable', 'High', 'Low'];
 
@@ -110,18 +82,6 @@ const evidenceFromSourceCount = (count: number): MarketSignalLevel => {
   return 'Low';
 };
 
-/**
- * evidence_quality derived from the deterministic, retrieval-derived
- * evidence_sources list (see lib/evidenceSources.ts) — ground truth, not the
- * LLM's own opinion of its evidence. Returns null when evidence_sources is
- * absent/empty (e.g. cached entries from before this existed, or fixtures),
- * so callers can fall back to the legacy report_sources/sources heuristic.
- */
-const realEvidenceQuality = (insights: MarketInsightsData): MarketSignalLevel | null => {
-  const count = asArr(insights.evidence_sources).length;
-  return count > 0 ? evidenceFromSourceCount(count) : null;
-};
-
 const parseVerdict = (raw: unknown): MarketReportVerdict | null => {
   const verdict = asObj(raw);
   if (!verdict) return null;
@@ -156,7 +116,7 @@ const backfillVerdict = (insights: MarketInsightsData): MarketReportVerdict => {
   const trend = str(marketHealth?.trend, 'Stable');
   const pivotNecessity = str(keyStats?.pivot_necessity, 'High');
 
-  const legacySourceCount = [
+  const sourceCount = [
     ...asArr(insights.report_sources),
     ...asArr(insights.sources),
   ].length;
@@ -181,7 +141,7 @@ const backfillVerdict = (insights: MarketInsightsData): MarketReportVerdict => {
     signals: {
       role_demand: coerceSignalLevel(trend, 'Stable'),
       competition: coerceSignalLevel(pivotNecessity, 'High'),
-      evidence_quality: realEvidenceQuality(insights) ?? evidenceFromSourceCount(legacySourceCount),
+      evidence_quality: evidenceFromSourceCount(sourceCount),
     },
   };
 };
@@ -191,25 +151,9 @@ export function normalizeMarketReportVerdict(
   insights: MarketInsightsData,
 ): MarketInsightsData {
   const backfilled = backfillVerdict(insights);
-  // evidence_quality is a factual claim ("how much real source material backs
-  // this"), not a narrative judgment like role_demand/competition — so when
-  // we have deterministic evidence_sources, it wins over whatever the LLM
-  // says about its own evidence, in every branch below.
-  const evidenceOverride = realEvidenceQuality(insights);
-  const hiring_trend_series = ensureHiringTrendSeries(insights);
   const parsed = parseVerdict(insights.market_report_verdict);
   if (parsed) {
-    return {
-      ...insights,
-      hiring_trend_series,
-      market_report_verdict: {
-        ...parsed,
-        signals: {
-          ...parsed.signals,
-          evidence_quality: evidenceOverride ?? parsed.signals.evidence_quality,
-        },
-      },
-    };
+    return { ...insights, market_report_verdict: parsed };
   }
 
   const partial = asObj(insights.market_report_verdict);
@@ -224,16 +168,16 @@ export function normalizeMarketReportVerdict(
       ? {
           role_demand: coerceSignalLevel(partialSignals.role_demand, backfilled.signals.role_demand),
           competition: coerceSignalLevel(partialSignals.competition, backfilled.signals.competition),
-          evidence_quality:
-            evidenceOverride ??
-            coerceSignalLevel(partialSignals.evidence_quality, backfilled.signals.evidence_quality),
+          evidence_quality: coerceSignalLevel(
+            partialSignals.evidence_quality,
+            backfilled.signals.evidence_quality,
+          ),
         }
-      : { ...backfilled.signals, evidence_quality: evidenceOverride ?? backfilled.signals.evidence_quality },
+      : backfilled.signals,
   };
 
   return {
     ...insights,
-    hiring_trend_series,
     market_report_verdict,
   };
 }

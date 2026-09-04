@@ -2,13 +2,10 @@ import mongoose, { Document, Schema } from "mongoose";
 import {
   AtRiskSector,
   GrowthSector,
-  GrowthLocation,
   IndustryTrendData,
   MarketRisk,
-  PriorityCapability,
   SkillCategory,
   Skill,
-  ThirtyDayFocusItem,
   TopSkillsDemand,
 } from "../../types/industryTrend";
 import { LlmCacheStatus } from "../../constants/db";
@@ -66,32 +63,10 @@ const marketRiskSchema = new Schema<MarketRisk>({
   mitigation_strategy: { type: String, required: true },
 });
 
-const growthLocationSchema = new Schema<GrowthLocation>({
-  name: { type: String, required: true },
-  summary: { type: String, required: true },
-  signal: { type: String, required: true },
-  marketDetail: { type: String, required: true },
-  meaningDetail: { type: String, required: true },
-});
-
-const priorityCapabilitySchema = new Schema<PriorityCapability>({
-  name: { type: String, required: true },
-  demand_level: { type: String, required: true },
-  evidence_building_action: { type: String, required: true },
-});
-
-const thirtyDayFocusItemSchema = new Schema<ThirtyDayFocusItem>({
-  label: { type: String, required: true },
-  action: { type: String, required: true },
-});
-
 const industryTrendDataSchema = new Schema<IndustryTrendData>({
   growth_sectors: [growthSectorSchema],
   at_risk_sectors: [atRiskSectorSchema],
   top_skills_demand: topSkillsDemandSchema,
-  growth_locations: { type: [growthLocationSchema], required: false, default: undefined },
-  priority_capabilities: { type: [priorityCapabilitySchema], required: false, default: undefined },
-  thirty_day_focus: { type: [thirtyDayFocusItemSchema], required: false, default: undefined },
   market_risks: [marketRiskSchema],
   report_sources: [{ type: String, required: true }],
 });

@@ -11,8 +11,7 @@ export enum RagNamespace {
   MARKET_REPORTS = 'market-reports',     // PDF/document reports from rag-pipeline
   MARKET_NEWS = 'market-news',           // SERP news articles from market_news pipeline
   LABOR_MARKET_STATS = 'labor-market-stats',     // BLS/StatsCan data from market_stats pipeline
-  GEO_LABOR_SIGNALS = 'geo-labor-signals',       // Regional/geographic labor indicators (wage_level)
-  FORWARD_LOOKING = 'forward-looking',           // IMF WEO projections (unemployment_outlook, gdp_outlook)
+  GEO_LABOR_SIGNALS = 'geo-labor-signals',       // Regional/geographic labor indicators
 }
 
 /**
