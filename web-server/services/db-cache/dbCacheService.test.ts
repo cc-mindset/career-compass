@@ -5,12 +5,20 @@ import {
     cacheLlmResponseToDb,
     updateCacheResponseInDb,
     getCachedLlmResponseFromDb,
+    getCachedMarketInsightsFromDb,
     LLM_RESPONSE_EXPIRATION_MS
 } from './dbCacheService';
 import { LLM_SECTION_LABELS } from '../../constants';
 import { LlmCacheStatus } from '../../constants/db';
 
 // Mock the models
+vi.mock('../../db/models/marketReportVerdict', () => ({
+    default: {
+        updateOne: vi.fn(),
+        findOne: vi.fn()
+    }
+}));
+
 vi.mock('../../db/models/marketReport', () => ({
     default: {
         updateOne: vi.fn(),
@@ -51,10 +59,32 @@ vi.mock('../../utils/city', () => ({
     getDistrictOfACity: vi.fn(() => ''),
 }));
 
+vi.mock('../../db/models/evidenceSources', () => ({
+    default: {
+        updateOne: vi.fn(),
+        findOne: vi.fn(() => ({ lean: () => Promise.resolve(null) })),
+    }
+}));
+
+const { resolveHiringTrendSeriesMock } = vi.hoisted(() => ({
+    resolveHiringTrendSeriesMock: vi.fn<(location: string) => Promise<any>>(() => Promise.resolve({
+        available: false,
+        window_label: '',
+        local_label: '',
+        national_label: '',
+        points: [],
+    })),
+}));
+vi.mock('../market-insights/hiringTrendService.js', () => ({
+    resolveHiringTrendSeries: resolveHiringTrendSeriesMock,
+}));
+
+import LlmMarketReportVerdict from '../../db/models/marketReportVerdict';
 import LlmMarketReport from '../../db/models/marketReport';
 import LlmIndustryTrend from '../../db/models/industryTrends';
 import LlmMarketNews from '../../db/models/marketNews';
 import LlmCareerIntel from '../../db/models/careerIntel';
+import LlmEvidenceSources from '../../db/models/evidenceSources';
 import { logger } from '../../utils/logger';
 import { UpdateWriteOpResult } from 'mongoose';
 
@@ -492,6 +522,51 @@ describe('dbCacheService', () => {
 
             expect(result).toBeNull();
             expect(logger.warn).toHaveBeenCalledWith('⚠️  Unknown section: unknown');
+        });
+    });
+
+    describe('getCachedMarketInsightsFromDb', () => {
+        const recentDate = new Date(Date.now() - (12 * 60 * 60 * 1000));
+        const activeDoc = (data: any) => ({ data, status: LlmCacheStatus.ACTIVE, updatedAt: recentDate });
+        const asQuery = (value: any) => ({ lean: vi.fn().mockResolvedValue(value) });
+
+        beforeEach(() => {
+            vi.mocked(LlmMarketReportVerdict.findOne).mockReturnValue(asQuery(activeDoc({ market_report_verdict: {} })) as any);
+            vi.mocked(LlmMarketReport.findOne).mockReturnValue(asQuery(activeDoc({ market_report_summary_brief: 'x' })) as any);
+            vi.mocked(LlmIndustryTrend.findOne).mockReturnValue(asQuery(activeDoc({ growth_sectors: [] })) as any);
+            vi.mocked(LlmMarketNews.findOne).mockReturnValue(asQuery(activeDoc([])) as any);
+            vi.mocked(LlmCareerIntel.findOne).mockReturnValue(asQuery(activeDoc({ report_sources: [] })) as any);
+            vi.mocked(LlmEvidenceSources.findOne).mockReturnValue(asQuery(null) as any);
+        });
+
+        it('calls resolveHiringTrendSeries with the requested location and includes its result on a cache hit', async () => {
+            resolveHiringTrendSeriesMock.mockResolvedValueOnce({
+                available: true,
+                window_label: 'Last 2 months',
+                local_label: 'Toronto (unemployment rate)',
+                national_label: 'Canada (unemployment rate)',
+                points: [{ period: '2026-07', local_index: 6.8, national_index: 6.9 }],
+            });
+
+            const result = await getCachedMarketInsightsFromDb('Toronto, Ontario, Canada', 'Product Manager', 'Senior');
+
+            expect(resolveHiringTrendSeriesMock).toHaveBeenCalledWith('Toronto, Ontario, Canada');
+            expect(result?.insights.hiring_trend_series).toEqual({
+                available: true,
+                window_label: 'Last 2 months',
+                local_label: 'Toronto (unemployment rate)',
+                national_label: 'Canada (unemployment rate)',
+                points: [{ period: '2026-07', local_index: 6.8, national_index: 6.9 }],
+            });
+        });
+
+        it('returns null (cache miss) without calling resolveHiringTrendSeries when a section is missing', async () => {
+            vi.mocked(LlmMarketReport.findOne).mockReturnValue(asQuery(null) as any);
+
+            const result = await getCachedMarketInsightsFromDb('Toronto, Ontario, Canada');
+
+            expect(result).toBeNull();
+            expect(resolveHiringTrendSeriesMock).not.toHaveBeenCalled();
         });
     });
 });

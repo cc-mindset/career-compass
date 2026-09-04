@@ -1,8 +1,9 @@
 """
 Market Stats Transformer
 =========================
-Converts normalized fetcher dicts (from fetcher_bls.py or fetcher_statscan.py)
-into embeddable prose chunks — same logic, same output schema for both countries.
+Converts normalized fetcher dicts (from fetcher_bls.py, fetcher_statscan.py,
+fetcher_imf.py or fetcher_oecd_skills.py) into embeddable prose chunks — same
+logic, same output schema regardless of source.
 
 This is the most important stage: raw numbers embed poorly. The LLM needs
 interpretive language around the numbers to reason about career risk.
@@ -19,12 +20,13 @@ Namespace routing:
   signal_type → namespace
   contraction_indicator, employment_level, worker_confidence, hiring_rate
     → "labor-market-stats"
-  vacancy_rate, unemployment_rate
-    → "labor-market-stats"  (also)
+  vacancy_rate, unemployment_rate, skills_demand
+    → "labor-market-stats"  (also — skills_demand is a national labor-market
+                              health indicator, not geo-specific like wages)
   wage_level
     → "geo-labor-signals"   (wage data is inherently geo-relevant)
-  forward_looking
-    → "forward-looking"
+  unemployment_outlook, gdp_outlook (IMF WEO projections)
+    → "forward-looking"     (actuals-only sources can't produce this; IMF can)
 
 The text field follows the same context-prefix pattern as market_reports:
   "Country: {X} | Source: {Y} | Industry: {Z} | Signal: {A} | Period: {B} |
@@ -48,8 +50,10 @@ NAMESPACE_MAP = {
     "hiring_rate":           "labor-market-stats",
     "vacancy_rate":          "labor-market-stats",
     "unemployment_rate":     "labor-market-stats",
+    "skills_demand":         "labor-market-stats",
     "wage_level":            "geo-labor-signals",
-    "forward_looking":       "forward-looking",
+    "unemployment_outlook":  "forward-looking",
+    "gdp_outlook":           "forward-looking",
 }
 
 # ---------------------------------------------------------------------------
@@ -62,8 +66,10 @@ SIGNAL_LABELS = {
     "hiring_rate":           "hires rate",
     "vacancy_rate":          "job vacancy / openings rate",
     "unemployment_rate":     "unemployment rate",
+    "skills_demand":         "skill shortage/surplus index",
     "wage_level":            "average wage / earnings",
-    "forward_looking":       "employment outlook",
+    "unemployment_outlook":  "unemployment rate outlook",
+    "gdp_outlook":           "GDP growth outlook",
 }
 
 # ---------------------------------------------------------------------------
@@ -277,6 +283,74 @@ def _prose_hiring_rate(d: dict, v: dict) -> str:
     )
 
 
+def _prose_outlook(indicator_phrase: str, d: dict, v: dict) -> str:
+    """
+    Shared prose builder for IMF outlook signal types (unemployment_outlook,
+    gdp_outlook) — both have the same values shape: a current-year estimate
+    plus a list of future projected years.
+    """
+    country   = d["country_name"]
+    period    = d["period"]
+    source    = d["source"]
+    unit      = v["unit"]
+    current   = v["current_estimate"]
+    projected = v["projected"]
+
+    current_str = f"{current}{unit}" if current is not None else "not yet published"
+    lead = f"The IMF estimates {indicator_phrase} for {country} at {current_str} in {period} ({source})."
+
+    if not projected:
+        return lead
+
+    final = projected[-1]
+    if current is None:
+        direction = "projected at"
+    elif final["value"] > current:
+        direction = "rising to"
+    elif final["value"] < current:
+        direction = "easing to"
+    else:
+        direction = "holding near"
+
+    path = ", ".join(f"{p['year']}: {p['value']}{unit}" for p in projected)
+    return (
+        f"{lead} Its multi-year outlook has this {direction} {final['value']}{unit} "
+        f"by {final['year']} (path: {path})."
+    )
+
+
+def _prose_unemployment_outlook(d: dict, v: dict) -> str:
+    return _prose_outlook("the unemployment rate", d, v)
+
+
+def _prose_gdp_outlook(d: dict, v: dict) -> str:
+    return _prose_outlook("real GDP growth", d, v)
+
+
+def _prose_skills_demand(d: dict, v: dict) -> str:
+    country = d["country_name"]
+    period  = d["period"]
+    source  = d["source"]
+    skill   = v["skill_category"]
+    index   = v["index"]
+
+    if index >= 0.3:
+        reading = "a strong shortage — employers are struggling to fill roles needing this skill"
+    elif index >= 0.1:
+        reading = "a moderate shortage"
+    elif index <= -0.3:
+        reading = "a strong surplus — more workers have this skill than employers currently need"
+    elif index <= -0.1:
+        reading = "a moderate surplus"
+    else:
+        reading = "roughly balanced supply and demand"
+
+    return (
+        f"OECD's Skills for Jobs index rates {skill} in {country} at {index:+.3f} "
+        f"in the {period} edition ({source}), indicating {reading}."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
@@ -288,6 +362,9 @@ PROSE_GENERATORS = {
     "wage_level":            _prose_wage_level,
     "worker_confidence":     _prose_worker_confidence,
     "hiring_rate":           _prose_hiring_rate,
+    "unemployment_outlook":  _prose_unemployment_outlook,
+    "gdp_outlook":           _prose_gdp_outlook,
+    "skills_demand":         _prose_skills_demand,
 }
 
 

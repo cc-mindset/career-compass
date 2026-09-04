@@ -18,9 +18,11 @@ _index = _pc.Index(PINECONE_INDEX)
 
 UPSERT_BATCH_SIZE = 100
 
-# Namespace constants — single source of truth
+# Namespace constants — single source of truth for pipelines with one fixed namespace.
+# market_stats routes per-chunk instead (see transformer.NAMESPACE_MAP: signal_type ->
+# "labor-market-stats" / "geo-labor-signals" / "forward-looking") — there's no single
+# "stats" namespace, so no constant for it belongs here.
 NAMESPACE_REPORTS = "market-reports"
-NAMESPACE_STATS   = "market-stats"
 NAMESPACE_NEWS    = "market-news"
 
 

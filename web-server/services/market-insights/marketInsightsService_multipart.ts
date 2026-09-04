@@ -1,9 +1,10 @@
 import { retrieve } from '../ragRetrievalService.js';
 import { formatMarketInsightsContext } from '../../lib/ragContextFormatters.js';
+import { extractEvidenceSources } from '../../lib/evidenceSources.js';
 import { RagNamespace } from '../../types/rag.js';
 import { openaiClient, RateLimitError, QuotaExceededError, ConnectionTimeoutError } from '../../lib/openai.js';
 import { cacheLlmResponseToDb, getCachedLlmResponseFromDb, getUniqueDbCacheKeyForLlmResponse, updateCacheResponseInDb } from '../db-cache/dbCacheService.js';
-import { getCachedMarketInsightsFromDb, getMarketInsightsCacheKey } from '../db-cache/dbCacheService.js';
+import { getCachedMarketInsightsFromDb, getMarketInsightsCacheKey, cacheEvidenceSourcesToDb } from '../db-cache/dbCacheService.js';
 import { storeJobPartialResult } from '../../lib/redisQueue.js';
 import { generateSingleResponse } from '../llmService.js';
 import pLimit from 'p-limit';
@@ -15,6 +16,7 @@ import { fileURLToPath } from 'url';
 import { LlmCacheStatus } from '../../constants/db.js';
 import { LLM_SECTION_LABELS } from '../../constants/index.js';
 import { normalizeMarketReportVerdict } from './normalizeMarketReportVerdict.js';
+import { resolveHiringTrendSeries } from './hiringTrendService.js';
 
 type SectionName =
   | 'marketReportVerdict'
@@ -28,11 +30,27 @@ interface SectionState {
   error?: string;
 }
 
-export const SYSTEM_PROMPT = `You are a career development coach and labor market analyst.
+export const SYSTEM_PROMPT = `You are Clarity Coach, a labor market analyst and career coach.
 
-Treat the provided context as your research notes. Write as a knowledgeable analyst — weave the data naturally into your response without referencing where it came from. Supplement with your own knowledge where the context is thin.
+Treat the provided context as your research notes. Write as a knowledgeable
+analyst -- weave the data naturally into your response. Do NOT supplement thin
+context with general knowledge: if the retrieved context does not support a
+specific claim, say so in plain language instead of filling the gap.
 
-Use coaching language that normalizes career pivots and validates concerns. Your goal is to provide actionable, grounded career guidance.`;
+Grounding rules (hard constraints):
+- Never name a source, publisher, or report that is not present in the
+  context below.
+- Never state a precise statistic unless it is explicitly present in the
+  context. Use qualitative language (high/medium/low, strong/moderate/weak)
+  when the context does not support a precise number.
+- If sources conflict, say so explicitly rather than silently picking one.
+
+Tone: calm, plain language, coaching -- not alarmist, not clinical. This
+report may be read by someone recently laid off, someone anxious about
+layoffs while still employed, someone looking to grow, or a returning user
+checking what changed. Do not assume distress; do not assume comfort. When a
+role or sector is shrinking, say plainly that this is a market shift, not a
+personal failing -- without making every section carry that message.`;
 
 
 type MarketInsightsData = Record<string, unknown>;
@@ -99,7 +117,17 @@ CRITICAL:
 }
 
 /**
- * Lean Part 1: brief, summary, labour, comparison (no verdict / shifts — separate call).
+ * Lean Part 1: brief, summary, labour (no verdict / shifts — separate call).
+ *
+ * city_vs_region_comparison was removed (2026-09): it was marked
+ * "ALWAYS GENERATE" but verified to have zero UI consumer anywhere, in the
+ * prototype or the shipped client — pure token cost and hallucination
+ * surface for nothing displayed. See docs/product/MarketReportPrompts.docx §3.
+ *
+ * hiring_trend_series (the Overview "Market direction" chart) is
+ * intentionally NOT requested here — see normalizeMarketReportVerdict.ts,
+ * which always injects an honest "not available" placeholder instead of
+ * letting the model fabricate a trend line.
  */
 export function buildMarketReportPrompt(location: string, job?: string, seniority?: string): string {
   const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
@@ -136,29 +164,17 @@ Generate a JSON response with these sections:
      * job_growth_rate: Actual %
      * trend: "Growing", "Stable", or "Declining"
 
-4. city_vs_region_comparison (ALWAYS GENERATE - REQUIRED):
-   - title: "[City Name] vs Broader Region Comparison"
-   - data: Array of 4-5 comparison objects with:
-     * factor: Comparison category (e.g., "Overall job market trend", "Remote / hybrid work trend", "Notable structural shifts", "Cost of living / compensation", "Industry distribution")
-     * city: Conditions in the city (e.g., "${location}")
-     * wider_region: Conditions in the broader region (state/metro area outside the city)
-   - IMPORTANT: Generate this for ALL locations. Use regional data from context.
-   - Example for San Francisco:
-     {
-       "factor": "Overall job market trend",
-       "city": "High-skill, high-volatility – strong demand in AI, frontier tech, finance, product, design; repeated restructuring in big tech and startups.",
-       "wider_region": "Mixed but resilient – strong in healthcare, education, logistics, clean energy, advanced manufacturing and public services, with tech distributed across the region."
-     }
-
-CRITICAL: 
+CRITICAL:
 - Do NOT include market_report_verdict or market_shifts (generated in a separate call)
 - Reference specific local factors for ${location}
 - Return ONLY valid JSON with NO markdown formatting.`;
 }
 
 /**
- * Part 2: Industry Growth and Decline Trends Section (4 trend cards)
- * Focuses on: growth_sectors, at_risk_sectors, top_skills_demand, market_risks
+ * Part 2: Industry Growth and Decline Trends Section
+ * Focuses on: growth_sectors, at_risk_sectors, top_skills_demand, market_risks (unchanged),
+ * plus growth_locations, priority_capabilities, thirty_day_focus (NEW, 2026-09) — see
+ * docs/product/MarketReportPrompts.docx §4.
  */
 export function buildIndustryTrendsPrompt(location: string, job?: string, seniority?: string): string {
   const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
@@ -206,7 +222,31 @@ Provide a JSON response with these sections:
    Use GENERAL skill categories (e.g., "Cloud Platforms", "Modern Frameworks", "Database Technologies") not specific tools.
    Each category should have 3-4 concrete examples in the examples array.
 
-4. market_risks: Array of 4-6 risks with VARIED severity:
+4. growth_locations: Array of EXACTLY 3 locations:
+   - name: e.g. "Toronto, Ontario" -- the user's stated location plus up to 2 realistic
+     alternatives grounded in retrieved geographic/labor data. If fewer than 3 are
+     supportable by context, return fewer -- do NOT invent a location.
+   - summary: one sentence -- why this location fits this user
+   - signal: e.g. "Strongest market" | "High reach" | "Growing market"
+   - marketDetail: what the market actually shows for this location
+   - meaningDetail: what this means for the user's search
+
+5. priority_capabilities: Array of EXACTLY 3 capabilities:
+   - Select exactly the 3 skills from top_skills_demand most impactful for THIS user's
+     role, seniority and location. Do NOT introduce a skill that isn't already present
+     in top_skills_demand.
+   - name: skill name (must match a top_skills_demand entry)
+   - demand_level: "High demand" | "Growing" | "Medium demand"
+   - evidence_building_action: ONE concrete, specific action -- not generic advice --
+     the user can complete and add to their Career Profile
+
+6. thirty_day_focus: Array of EXACTLY 3 week-labeled steps:
+   - Sequence the 3 priority_capabilities' evidence_building_actions into a realistic
+     short plan. Exactly 3 items, no more.
+   - label: "Week 1" | "Week 2" | "Weeks 3-4"
+   - action: the concrete step for that week
+
+7. market_risks: Array of 4-6 risks with VARIED severity:
    - risk: Specific risk
    - severity: "High", "Medium", "Low" (MUST VARY - not all same!)
    - affected_sectors: Array of sectors
@@ -216,30 +256,49 @@ Use coaching language. Return ONLY valid JSON.`;
 }
 
 /**
- * Part 3: Market News & Sources
- * Focuses on: market_news, report_sources
+ * Part 3: Sources & Evidence
+ * Focuses on: report_sources (unchanged), plus evidence_lens_coverage (NEW, 2026-09).
+ *
+ * market_news was REMOVED (2026-09): verified it is never displayed as a news list
+ * anywhere (prototype or shipped client), and its only two client-side fallback
+ * consumers (shift-copy filler, evidenceTags filler) are both unreachable in normal
+ * operation now that market_shifts (Part 1) and evidence_lens_coverage (below) are
+ * both required fields that take priority over those fallbacks. Generating 5-8 full
+ * news items every report for paths that don't fire was pure token cost and
+ * hallucination surface — same reasoning already applied to city_vs_region_comparison.
+ * report_sources is a fallback for legacy cache/fixture paths that predate
+ * deterministic evidence_sources (see lib/evidenceSources.ts) -- do not expand it
+ * toward richer generation.
  */
 export function buildNewsAndCareerIntelPrompt(location: string, job?: string, seniority?: string): string {
   const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
     .filter(Boolean)
     .join('; ');
 
-  return `Generate market news and career intelligence for ${location}.
+  return `Generate career intelligence sources for ${location}.
 ${roleContext ? `Additional user context: ${roleContext}. Use this only to tailor the analysis and examples; do not change the output structure or add new fields.` : ''}
 
 Provide a JSON response with these sections:
 
-1. market_news: Array of 5-8 news items with:
-   - headline: Headline synthesized from available data
-   - summary: 2-3 sentences
-   - impact: "Positive", "Negative", "Mixed", "Neutral" (VARY THESE!)
-   - relevance_score: Number 1-10
-   - date: Date if available
+1. report_sources: Array of 3-8 source names, article titles, or URLs referenced across
+   this report.
 
-2. report_sources: Array of 3-8 source names, article titles, or URLs used to build the news items.
+2. evidence_lens_coverage: Object with EXACTLY these 3 fixed group keys. These 9 tags
+   are FIXED -- do not invent new ones and do not rename them. For each group, return
+   only the tags from its fixed list that are substantively covered by content actually
+   generated across Parts 1-3 of this report. A tag included here must be traceable to
+   specific content in this report, not included because it is plausible in general.
+   {
+     "Technology & regulation": [ /* subset of: "Generative AI & automation",
+       "Digital sovereignty", "Cybersecurity and regulation" */ ],
+     "Economy & industry": [ /* subset of: "Macroeconomic indicators",
+       "Supply-chain change", "Trade wars & reshoring" */ ],
+     "People & place": [ /* subset of: "Demographics & immigration",
+       "Local business trends", "Energy and infrastructure" */ ]
+   }
 
 CRITICAL REQUIREMENTS:
-- Keep the response focused on market_news and sources only.
+- Keep the response focused on sources and evidence_lens_coverage only.
 - Reference ACTUAL companies, programs, and resources in ${location}
 - Cite specific percentages and statistics where available
 
@@ -345,6 +404,8 @@ export async function generateMarketInsights(
         RagNamespace.LABOR_MARKET_STATS,
         RagNamespace.MARKET_NEWS,
         RagNamespace.MARKET_REPORTS,
+        RagNamespace.GEO_LABOR_SIGNALS,
+        RagNamespace.FORWARD_LOOKING,
       ];
 
       // Build combined query string with location, job, seniority, optional industry
@@ -383,12 +444,19 @@ export async function generateMarketInsights(
       const retrievalResp = await retrieve({
         query: combinedQuery,
         namespaces,
-        topK: 15,
+        topK: 10,
         useCache: true,
       });
 
       // Step B: Format context for the LLM using the consumer formatter
       const formattedContext = formatMarketInsightsContext(retrievalResp);
+
+      // Deterministic evidence provenance — derived from what was actually
+      // retrieved, independent of whatever the LLM later claims it used.
+      // Cached under the same key as the LLM sections so it also survives
+      // the full tuple-cache-hit path above (see dbCacheService).
+      const evidenceSources = extractEvidenceSources(retrievalResp);
+      void cacheEvidenceSourcesToDb(marketInsightsCacheKey, evidenceSources, locationDistrict || '');
 
       // Step C: Generate each section using existing LLM + DB cache logic
       const prompts = [
@@ -569,11 +637,17 @@ export async function generateMarketInsights(
       const newsAndCareerIntel =
         (results[LLM_SECTION_LABELS.newsAndCareerIntel] as MarketInsightsData) || {};
 
+      // Deterministic, retrieval-free — see hiringTrendService.ts. Never
+      // requested from the LLM (types/marketReport.ts HiringTrendSeries).
+      const hiringTrendSeries = await resolveHiringTrendSeries(location);
+
       const combinedInsights: MarketInsightsData = normalizeMarketReportVerdict({
         ...marketReport,
         ...marketReportVerdict,
         ...industryTrends,
         ...newsAndCareerIntel,
+        evidence_sources: evidenceSources,
+        hiring_trend_series: hiringTrendSeries,
       });
 
       const completedSections = Object.entries(sectionStates)
