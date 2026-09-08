@@ -1088,8 +1088,8 @@ const OpportunityRows: React.FC<OpportunityRowsProps> = ({ group }) => {
           name: item.name,
           summary: item.summary,
           signal: item.signal,
-          marketDetail: item.summary,
-          meaningDetail: item.summary,
+          marketDetail: item.marketDetail,
+          meaningDetail: item.meaningDetail,
         }))
       : MARKET_OPPORTUNITIES[group];
 

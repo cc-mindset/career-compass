@@ -63,6 +63,10 @@ export interface AdaptedOpportunity {
   name: string;
   summary: string;
   signal: string;
+  /** "What the market shows" detail panel content — distinct from meaningDetail. */
+  marketDetail: string;
+  /** "What this means for you" detail panel content — distinct from marketDetail. */
+  meaningDetail: string;
 }
 
 export interface AdaptedSkill {

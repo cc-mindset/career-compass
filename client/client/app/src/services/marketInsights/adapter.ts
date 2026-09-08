@@ -57,11 +57,12 @@ const flattenExampleRoles = (rawGrowthSectors: unknown[]): AdaptedOpportunity[] 
     if (!o) continue;
     const sectorSummary = str(o.why_it_matters, 'Growth outlook available in full report.');
     const signal = str(o.growth_outlook, 'Growing');
+    const meaningDetail = str(o.risk_reality_check, 'Weigh this against your own evidence and timeline before committing.');
     for (const roleRaw of asArr(o.example_roles)) {
       const name = str(roleRaw);
       if (!name || seen.has(name)) continue;
       seen.add(name);
-      rows.push({ name, summary: sectorSummary, signal });
+      rows.push({ name, summary: sectorSummary, signal, marketDetail: sectorSummary, meaningDetail });
     }
   }
   return rows;
@@ -72,10 +73,13 @@ const mapGrowthSector = (raw: unknown): AdaptedOpportunity | null => {
   if (!o) return null;
   const name = str(o.sector || o.name || o.title);
   if (!name) return null;
+  const marketDetail = str(o.why_it_matters || o.growth_outlook || o.summary, 'Growth outlook available in full report.');
   return {
     name,
-    summary: str(o.why_it_matters || o.growth_outlook || o.summary, 'Growth outlook available in full report.'),
+    summary: marketDetail,
     signal: str(o.growth_outlook || o.signal, 'Growing'),
+    marketDetail,
+    meaningDetail: str(o.risk_reality_check, 'Weigh this against your own evidence and timeline before committing.'),
   };
 };
 
@@ -84,10 +88,16 @@ const mapRiskSector = (raw: unknown): AdaptedOpportunity | null => {
   if (!o) return null;
   const name = str(o.sector || o.name || o.risk);
   if (!name) return null;
+  const marketDetail = str(o.automation_reason || o.mitigation_strategy || o.summary, 'Risk detail available in full report.');
   return {
     name,
-    summary: str(o.automation_reason || o.mitigation_strategy || o.summary, 'Risk detail available in full report.'),
-    signal: str(o.severity || o.risk_reality_check || o.signal, 'At risk'),
+    summary: marketDetail,
+    // relevance (at_risk_sectors, NEW) / severity (market_risks) are short labels.
+    // risk_reality_check is a full paragraph and must never land here — that was
+    // the bug: "High relevance" badge was showing 4-5 sentences instead of a label.
+    signal: str(o.relevance || o.severity || o.signal, 'Medium relevance'),
+    marketDetail,
+    meaningDetail: str(o.pivot_direction, 'Weigh this against your own evidence and timeline before committing.'),
   };
 };
 
@@ -115,6 +125,11 @@ const mapGrowthLocation = (raw: unknown): AdaptedOpportunity | null => {
     name,
     summary: str(o.summary || o.marketDetail, 'Location detail available in full report.'),
     signal: str(o.signal, 'Growing market'),
+    // The prompt already generates these as two distinct fields — previously
+    // discarded (only `summary` was read), so the detail panel silently
+    // duplicated one sentence into both "market shows" and "means for you".
+    marketDetail: str(o.marketDetail || o.summary, 'Location detail available in full report.'),
+    meaningDetail: str(o.meaningDetail, 'Weigh this against your own evidence and timeline before committing.'),
   };
 };
 
@@ -375,6 +390,8 @@ export function adaptMarketInsights(insights: MarketInsightsPayload | null | und
   if (!insights) return null;
 
   const verdict = asObj(insights.market_report_verdict);
+  const nextStep = asObj(insights.recommended_next_step);
+  const suggestedPath = asObj(insights.suggested_path);
   const summaryBrief = str(insights.market_report_summary_brief);
   const reportSummary = asObj(insights.market_report_summary);
   const keyStats = asObj(reportSummary?.summary_key_stats);
@@ -509,26 +526,33 @@ export function adaptMarketInsights(insights: MarketInsightsPayload | null | und
       ? shifts
       : [{ title: 'Market update', copy: summary }],
     recommendation: {
-      title: 'What this means for you',
+      title: str(nextStep?.title, 'Strengthen your next move'),
       copy: str(
-        keyStats?.pivot_necessity || labour?.local_vs_national,
+        nextStep?.copy,
         'Use the opportunities and skills tabs to prioritize your next move.',
       ),
     },
+    // suggested_path is a structural placeholder (see marketInsightsService_multipart.ts
+    // buildIndustryTrendsPrompt comment) — role-and-context-level, not a claim about the
+    // user's actual resume/experience. Falls back to the top growth sector only for
+    // cache entries written before this field existed.
     path: {
-      title: 'Suggested focus',
+      title: str(suggestedPath?.title || growth[0]?.name, 'Suggested focus'),
       copy: str(
-        growth[0]?.summary || skills[0]?.action,
+        suggestedPath?.fit_reason || growth[0]?.summary || skills[0]?.action,
         'Lean into the highest-demand skills and growth sectors in this report.',
       ),
-      tags: tags.length ? tags : ['Market skills'],
+      tags: (() => {
+        const pathTags = asArr(suggestedPath?.tags).map((t) => str(t)).filter(Boolean);
+        return pathTags.length ? pathTags : tags.length ? tags : ['Market skills'];
+      })(),
     },
     opportunities,
     emerging,
-    sectors: growth, // sector-level list — genuinely distinct from opportunities/emerging above
+    sectors: growth.slice(0, 3), // sector-level list — genuinely distinct from opportunities/emerging above
 
     locations,
-    risks: risks.slice(0, 6),
+    risks: risks.slice(0, 3),
     skills: skills.slice(0, 8),
     capabilities,
     focusWeeks,

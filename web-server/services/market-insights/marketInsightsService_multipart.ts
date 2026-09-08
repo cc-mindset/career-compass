@@ -56,7 +56,8 @@ personal failing -- without making every section carry that message.`;
 type MarketInsightsData = Record<string, unknown>;
 
 /**
- * Fast overview hero + "What changed" shifts (streams early for FE navigation).
+ * Fast overview hero + "What changed" shifts + the "Recommended next step"
+ * action card (streams early for FE navigation).
  */
 export function buildMarketReportVerdictPrompt(
   location: string,
@@ -94,6 +95,10 @@ Return ONLY a JSON object with these required keys:
     { "title": "Regulated-platform experience stays valuable", "summary": "Compliance and risk experience continue to differentiate candidates in financial services." }
   ]
 
+3. recommended_next_step (UI action card — REQUIRED):
+- title: A short, specific, action-oriented title (max ~60 characters), e.g. "Strengthen your AI product evidence" — NOT a generic label like "What this means for you"
+- copy: ONE sentence of specific coaching advice tied to this user's actual role/seniority/market position — not a restated statistic or a one-word label
+
 Example:
 {
   "market_report_verdict": {
@@ -107,11 +112,15 @@ Example:
     { "title": "AI-enabled delivery is becoming baseline", "summary": "Employers expect practical evidence of AI improving workflows and customer outcomes." },
     { "title": "Commercial ownership matters more", "summary": "Senior postings increasingly emphasize revenue, margin, and operating efficiency." },
     { "title": "Regulated-platform experience stays valuable", "summary": "Compliance and risk experience continue to differentiate candidates in financial services." }
-  ]
+  ],
+  "recommended_next_step": {
+    "title": "Strengthen your AI product evidence",
+    "copy": "Compare your current skills with what employers expect from AI-enabled product leaders."
+  }
 }
 
 CRITICAL:
-- Keep the response focused — verdict + market_shifts only, no other keys
+- Keep the response focused — verdict + market_shifts + recommended_next_step only, no other keys
 - Reference specific local factors for ${location}
 - Return ONLY valid JSON with NO markdown formatting.`;
 }
@@ -175,6 +184,16 @@ CRITICAL:
  * Focuses on: growth_sectors, at_risk_sectors, top_skills_demand, market_risks (unchanged),
  * plus growth_locations, priority_capabilities, thirty_day_focus (NEW, 2026-09) — see
  * docs/product/MarketReportPrompts.docx §4.
+ *
+ * at_risk_sectors also carries a `relevance` field (NEW) — separate from market_risks'
+ * `severity` — so "Risks to Watch" can show a real relevance badge instead of falling
+ * back to the full risk_reality_check paragraph.
+ *
+ * suggested_path (NEW) is a structural placeholder for "One path worth exploring", not
+ * true personalization: generateMarketInsights() never receives Career Profile/resume
+ * data (only location/job/seniority/industry), so fit_reason is role-and-context-level,
+ * not "your actual experience"-level. Real personalization is Career Pivot's job once
+ * that backend exists.
  */
 export function buildIndustryTrendsPrompt(location: string, job?: string, seniority?: string): string {
   const roleContext = [job ? `occupation: ${job}` : null, seniority ? `seniority: ${seniority}` : null]
@@ -195,13 +214,18 @@ Provide a JSON response with these sections:
    
    NOTE: Generate EXACTLY 10 sectors covering diverse areas.
 
-2. at_risk_sectors: Array of EXACTLY 10 role clusters / sectors with:
+2. at_risk_sectors: Array of EXACTLY 5 role clusters / sectors with:
    - sector: At-Risk Role Cluster name (e.g., "Traditional front-end / generalist software engineers")
    - automation_reason: Specific reason why this role is at risk (e.g., "AI coding tools, offshore talent, and shift toward AI/infra work")
    - pivot_direction: Where to pivot (e.g., "Aim for AI engineering, infra/platform, security engineering...")
    - risk_reality_check: 4-5 sentences grounded in recent 2025 news/reports about automation impact and hiring realities
-   
-   NOTE: Generate EXACTLY 10 at-risk clusters including realistic data about job cuts, AI adoption, and structural shifts.
+   - relevance: "High", "Medium", or "Low" — MUST VARY across the 5 items. How directly this specific
+     risk applies to someone with the user's stated occupation/seniority, not a generic severity rating.
+
+   NOTE: Generate EXACTLY 5 at-risk clusters, ranked most-relevant-first — unlike growth_sectors,
+   nothing downstream flattens these further (no role-level pool), so only "Risks to Watch" (top 3)
+   and the Overview insights list (top 2) ever consume this array. 5 covers both with a little
+   headroom instead of paying for 10 full risk_reality_check paragraphs per report.
 
 3. top_skills_demand: { title: "Top Skills Demand in 2025", categories: [
      {
@@ -251,6 +275,16 @@ Provide a JSON response with these sections:
    - severity: "High", "Medium", "Low" (MUST VARY - not all same!)
    - affected_sectors: Array of sectors
    - mitigation_strategy: Actionable advice
+
+8. suggested_path (UI "One path worth exploring" card — REQUIRED):
+   - title: ONE specific adjacent role title this ${roleContext || 'user'} could realistically pivot
+     into (e.g. "AI Product Lead") — a role name, NOT a sector name or a market-trend sentence.
+   - fit_reason: 1-2 sentences on why this role suits someone with this occupation, seniority and
+     industry background. Frame this around how the STATED occupation/seniority/industry maps to the
+     role — do NOT claim to know the user's specific resume, projects, or personal work history; we
+     do not have that data, so do not invent it.
+   - tags: Array of 3-4 short skill/experience tags relevant to this path
+     (e.g. ["Product strategy", "AI delivery", "Stakeholder leadership"])
 
 Use coaching language. Return ONLY valid JSON.`;
 }

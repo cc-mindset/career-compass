@@ -252,7 +252,13 @@ describe('adaptMarketInsights', () => {
   it('maps growth_locations, priority_capabilities and thirty_day_focus (NEW fields)', () => {
     const payload: MarketInsightsPayload = {
       growth_locations: [
-        { name: 'Toronto, Ontario', summary: 'Largest local market.', signal: 'Strongest market' },
+        {
+          name: 'Toronto, Ontario',
+          summary: 'Largest local market.',
+          signal: 'Strongest market',
+          marketDetail: 'Senior searches increasingly narrow around sector, platform and outcomes.',
+          meaningDetail: 'Lead with regulated platforms, AI delivery and commercial ownership.',
+        },
       ],
       priority_capabilities: [
         { name: 'AI workflow design', demand_level: 'High demand', evidence_building_action: 'Build one case study.' },
@@ -261,8 +267,16 @@ describe('adaptMarketInsights', () => {
     };
 
     const adapted = adaptMarketInsights(payload);
+    // marketDetail/meaningDetail were previously generated but discarded — the
+    // detail panel silently duplicated `summary` into both slots instead.
     expect(adapted!.locations).toEqual([
-      { name: 'Toronto, Ontario', summary: 'Largest local market.', signal: 'Strongest market' },
+      {
+        name: 'Toronto, Ontario',
+        summary: 'Largest local market.',
+        signal: 'Strongest market',
+        marketDetail: 'Senior searches increasingly narrow around sector, platform and outcomes.',
+        meaningDetail: 'Lead with regulated platforms, AI delivery and commercial ownership.',
+      },
     ]);
     expect(adapted!.capabilities[0]).toMatchObject({ name: 'AI workflow design', demand: 'High demand' });
     expect(adapted!.focusWeeks).toEqual([{ label: 'Week 1', action: 'Choose one AI-enabled example.' }]);
