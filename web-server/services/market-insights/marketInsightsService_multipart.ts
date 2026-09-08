@@ -186,8 +186,8 @@ CRITICAL:
  * docs/product/MarketReportPrompts.docx §4.
  *
  * at_risk_sectors also carries a `relevance` field (NEW) — separate from market_risks'
- * `severity` — so "Risks to Watch" can show a real relevance badge instead of falling
- * back to the full risk_reality_check paragraph.
+ * `severity` — a short badge label ("High"/"Medium"/"Low"), distinct from
+ * risk_reality_check, which is a multi-sentence paragraph.
  *
  * suggested_path (NEW) is a structural placeholder for "One path worth exploring", not
  * true personalization: generateMarketInsights() never receives Career Profile/resume
