@@ -208,11 +208,17 @@ Provide a JSON response with these sections:
 1. growth_sectors: Array of EXACTLY 10 sectors with:
    - sector: High-Growth Sector name (e.g., "AI & Advanced Tech (SF, Palo Alto, South Bay)")
    - growth_outlook: "Expanding" | "Growing" (one of these two)
-   - example_roles: Array of 4-6 specific job titles and specializations
+   - example_roles: Array of 4-6 specific job titles and specializations, ordered with the role
+     MOST realistically reachable from the user's stated occupation/seniority listed FIRST —
+     "Best matches for you" is built directly from example_roles[0] of each sector, so this
+     ordering is not cosmetic.
    - why_it_matters: 2-3 sentences on why this sector matters for ${location} job seekers
    - risk_reality_check: 3-4 sentences grounded in recent news/data about realistic challenges and risks in this sector
-   
-   NOTE: Generate EXACTLY 10 sectors covering diverse areas.
+
+   NOTE: Generate EXACTLY 10 sectors covering diverse areas, but order the array with sectors
+   most realistically reachable from the user's stated occupation/seniority FIRST. Do not just
+   rank by which sectors are objectively growing fastest — weight toward sectors a person in
+   the user's stated role could plausibly transition into.
 
 2. at_risk_sectors: Array of EXACTLY 5 role clusters / sectors with:
    - sector: At-Risk Role Cluster name (e.g., "Traditional front-end / generalist software engineers")
@@ -222,10 +228,12 @@ Provide a JSON response with these sections:
    - relevance: "High", "Medium", or "Low" — MUST VARY across the 5 items. How directly this specific
      risk applies to someone with the user's stated occupation/seniority, not a generic severity rating.
 
-   NOTE: Generate EXACTLY 5 at-risk clusters, ranked most-relevant-first — unlike growth_sectors,
-   nothing downstream flattens these further (no role-level pool), so only "Risks to Watch" (top 3)
-   and the Overview insights list (top 2) ever consume this array. 5 covers both with a little
-   headroom instead of paying for 10 full risk_reality_check paragraphs per report.
+   NOTE: Generate EXACTLY 5 at-risk clusters, ranked with the cluster most relevant to the user's
+   stated occupation/seniority FIRST (same ordering rule as growth_sectors above) — unlike
+   growth_sectors, nothing downstream flattens these further (no role-level pool), so only
+   "Risks to Watch" (top 3) and the Overview insights list (top 2) ever consume this array. 5
+   covers both with a little headroom instead of paying for 10 full risk_reality_check
+   paragraphs per report.
 
 3. top_skills_demand: { title: "Top Skills Demand in 2025", categories: [
      {

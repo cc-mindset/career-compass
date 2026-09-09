@@ -285,34 +285,35 @@ describe('adaptMarketInsights', () => {
   it('"Best matches"/"Emerging" read specific job titles (example_roles), not sector names — genuinely distinct from "Sectors"', () => {
     const payload: MarketInsightsPayload = {
       growth_sectors: [
-        {
-          sector: 'AI & Advanced Tech',
-          growth_outlook: 'Expanding',
-          why_it_matters: 'AI investment is broad-based.',
-          example_roles: ['AI Product Lead', 'ML Platform Engineer'],
-        },
-        {
-          sector: 'FinTech & Payments',
-          growth_outlook: 'Growing',
-          why_it_matters: 'Payments modernization continues.',
-          example_roles: ['Payments Product Manager', 'Risk Platform Lead'],
-        },
+        { sector: 'AI & Advanced Tech', growth_outlook: 'Expanding', why_it_matters: 'AI investment is broad-based.', example_roles: ['AI Product Lead', 'ML Platform Engineer'] },
+        { sector: 'FinTech & Payments', growth_outlook: 'Expanding', why_it_matters: 'Payments modernization continues.', example_roles: ['Payments Product Manager', 'Risk Platform Lead'] },
+        { sector: 'Cloud Infrastructure', growth_outlook: 'Expanding', why_it_matters: 'Cloud spend keeps rising.', example_roles: ['Cloud Platform Lead'] },
+        { sector: 'Sustainable Finance', growth_outlook: 'Growing', why_it_matters: 'ESG investing accelerates.', example_roles: ['ESG Product Manager'] },
+        { sector: 'Open Banking', growth_outlook: 'Growing', why_it_matters: 'Open banking APIs expand.', example_roles: ['Open Banking Lead'] },
+        { sector: 'RegTech', growth_outlook: 'Growing', why_it_matters: 'Compliance automation grows.', example_roles: ['RegTech Product Manager'] },
       ],
     };
 
     const adapted = adaptMarketInsights(payload);
-    // "Best matches" shows specific job titles, not sector names — capped at
-    // 3 to match the prototype (previously 6, inconsistent with "emerging").
+    // "Best matches" takes only example_roles[0] per sector, never a second role
+    // from the same sector — multiple roles from one sector share that sector's
+    // one why_it_matters/risk_reality_check, so taking more than one duplicates text.
     expect(adapted!.opportunities.map((o) => o.name)).toEqual([
       'AI Product Lead',
-      'ML Platform Engineer',
       'Payments Product Manager',
+      'Cloud Platform Lead',
     ]);
     // "Sectors" shows sector names — a genuinely different list.
-    expect(adapted!.sectors.map((s) => s.name)).toEqual(['AI & Advanced Tech', 'FinTech & Payments']);
-    // "Emerging" prefers roles from a "Growing"-flagged parent sector.
+    expect(adapted!.sectors.map((s) => s.name)).toEqual([
+      'AI & Advanced Tech',
+      'FinTech & Payments',
+      'Cloud Infrastructure',
+    ]);
+    // "Emerging" never repeats a name already shown in "Best matches".
+    const opportunityNames = new Set(adapted!.opportunities.map((o) => o.name));
+    expect(adapted!.emerging.some((e) => opportunityNames.has(e.name))).toBe(false);
     expect(adapted!.emerging.map((e) => e.name)).toEqual(
-      expect.arrayContaining(['Payments Product Manager', 'Risk Platform Lead']),
+      expect.arrayContaining(['ESG Product Manager', 'Open Banking Lead', 'RegTech Product Manager']),
     );
   });
 
@@ -332,13 +333,22 @@ describe('adaptMarketInsights', () => {
   it('"emerging" prefers growth_outlook === "Growing" instead of duplicating "best matches"', () => {
     const payload: MarketInsightsPayload = {
       growth_sectors: [
-        { sector: 'Fintech product', growth_outlook: 'Expanding', why_it_matters: 'a' },
-        { sector: 'AI product ops', growth_outlook: 'Growing', why_it_matters: 'b' },
+        // First 3 become "opportunities" (any outlook).
+        { sector: 'Fintech product', growth_outlook: 'Expanding', why_it_matters: 'a', example_roles: ['Fintech PM'] },
+        { sector: 'Cloud ops', growth_outlook: 'Expanding', why_it_matters: 'b', example_roles: ['Cloud PM'] },
+        { sector: 'Data platform', growth_outlook: 'Expanding', why_it_matters: 'c', example_roles: ['Data PM'] },
+        // Remainder pool for "emerging": one Expanding sector listed BEFORE three
+        // Growing ones — if position alone decided the slice, Logistics PM would
+        // make the cut instead of one of the Growing roles. It shouldn't.
+        { sector: 'Logistics tech', growth_outlook: 'Expanding', why_it_matters: 'd', example_roles: ['Logistics PM'] },
+        { sector: 'AI product ops', growth_outlook: 'Growing', why_it_matters: 'e', example_roles: ['AI Ops PM'] },
+        { sector: 'Sustainable finance', growth_outlook: 'Growing', why_it_matters: 'f', example_roles: ['ESG PM'] },
+        { sector: 'Open banking', growth_outlook: 'Growing', why_it_matters: 'g', example_roles: ['Open Banking PM'] },
       ],
     };
 
     const adapted = adaptMarketInsights(payload);
-    expect(adapted!.emerging[0]?.name).toBe('AI product ops');
+    expect(adapted!.emerging.map((e) => e.name)).toEqual(['AI Ops PM', 'ESG PM', 'Open Banking PM']);
   });
 
   it('builds evidenceTags from evidence_lens_coverage, in the fixed 3-group order', () => {

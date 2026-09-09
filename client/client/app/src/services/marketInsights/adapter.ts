@@ -48,6 +48,13 @@ const demandWidth = (demand: string): string => {
  * job titles, not sector names — so they're genuinely distinct from the
  * "Hiring sectors" view (which reads growth_sectors directly, see sectors: growth
  * below). Same source field, different sub-field, no new LLM cost.
+ *
+ * Takes only example_roles[0] per sector, not all 4-6 — every role from one
+ * sector shares that sector's single why_it_matters/risk_reality_check, so
+ * taking more than one per sector means multiple differently-named cards
+ * showing identical detail text. One per sector guarantees each pool entry
+ * has genuinely distinct text, and the prompt orders example_roles by fit to
+ * the user's stated occupation, so index 0 is also the best one to surface.
  */
 const flattenExampleRoles = (rawGrowthSectors: unknown[]): AdaptedOpportunity[] => {
   const seen = new Set<string>();
@@ -55,15 +62,13 @@ const flattenExampleRoles = (rawGrowthSectors: unknown[]): AdaptedOpportunity[] 
   for (const raw of rawGrowthSectors) {
     const o = asObj(raw);
     if (!o) continue;
+    const name = str(asArr(o.example_roles)[0]);
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
     const sectorSummary = str(o.why_it_matters, 'Growth outlook available in full report.');
     const signal = str(o.growth_outlook, 'Growing');
     const meaningDetail = str(o.risk_reality_check, 'Weigh this against your own evidence and timeline before committing.');
-    for (const roleRaw of asArr(o.example_roles)) {
-      const name = str(roleRaw);
-      if (!name || seen.has(name)) continue;
-      seen.add(name);
-      rows.push({ name, summary: sectorSummary, signal, marketDetail: sectorSummary, meaningDetail });
-    }
+    rows.push({ name, summary: sectorSummary, signal, marketDetail: sectorSummary, meaningDetail });
   }
   return rows;
 };
@@ -419,10 +424,13 @@ export function adaptMarketInsights(insights: MarketInsightsPayload | null | und
   // first 3 of "Best matches" shown again. Prefer roles whose parent sector is
   // flagged growth_outlook === "Growing" (distinct signal from "Expanding"),
   // then fill remaining slots from the rest of the pool so this never comes
-  // back empty.
-  const growingRoles = rolePool.filter((r) => r.signal.toLowerCase() === 'growing');
+  // back empty. Excludes names already used in `opportunities` — same pool,
+  // must not show the same role in both lists.
+  const opportunityNames = new Set(opportunities.map((r) => r.name));
+  const emergingPool = rolePool.filter((r) => !opportunityNames.has(r.name));
+  const growingRoles = emergingPool.filter((r) => r.signal.toLowerCase() === 'growing');
   const growingNames = new Set(growingRoles.map((r) => r.name));
-  const emerging = [...growingRoles, ...rolePool.filter((r) => !growingNames.has(r.name))].slice(0, 3);
+  const emerging = [...growingRoles, ...emergingPool.filter((r) => !growingNames.has(r.name))].slice(0, 3);
 
   // Opportunities tab "Locations" view — NEW field. Previously this view (and
   // "Hiring sectors") both fell through to risk data in a client routing bug;
