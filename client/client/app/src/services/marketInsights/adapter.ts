@@ -92,7 +92,9 @@ const mapRiskSector = (raw: unknown): AdaptedOpportunity | null => {
   return {
     name,
     summary: marketDetail,
-    // signal renders as a short badge — keep risk_reality_check (a paragraph) out of this chain.
+    // relevance (at_risk_sectors, NEW) / severity (market_risks) are short labels.
+    // risk_reality_check is a full paragraph and must never land here — that was
+    // the bug: "High relevance" badge was showing 4-5 sentences instead of a label.
     signal: str(o.relevance || o.severity || o.signal, 'Medium relevance'),
     marketDetail,
     meaningDetail: str(o.pivot_direction, 'Weigh this against your own evidence and timeline before committing.'),
@@ -123,8 +125,9 @@ const mapGrowthLocation = (raw: unknown): AdaptedOpportunity | null => {
     name,
     summary: str(o.summary || o.marketDetail, 'Location detail available in full report.'),
     signal: str(o.signal, 'Growing market'),
-    // marketDetail/meaningDetail must stay distinct fields — collapsing both to
-    // `summary` makes the detail panel show the same sentence in both slots.
+    // The prompt already generates these as two distinct fields — previously
+    // discarded (only `summary` was read), so the detail panel silently
+    // duplicated one sentence into both "market shows" and "means for you".
     marketDetail: str(o.marketDetail || o.summary, 'Location detail available in full report.'),
     meaningDetail: str(o.meaningDetail, 'Weigh this against your own evidence and timeline before committing.'),
   };
@@ -529,9 +532,10 @@ export function adaptMarketInsights(insights: MarketInsightsPayload | null | und
         'Use the opportunities and skills tabs to prioritize your next move.',
       ),
     },
-    // fit_reason is role-and-context-level, not personalized — generateMarketInsights()
-    // has no Career Profile/resume data to draw on (see buildIndustryTrendsPrompt).
-    // Falls back to the top growth sector when suggested_path is absent from the payload.
+    // suggested_path is a structural placeholder (see marketInsightsService_multipart.ts
+    // buildIndustryTrendsPrompt comment) — role-and-context-level, not a claim about the
+    // user's actual resume/experience. Falls back to the top growth sector only for
+    // cache entries written before this field existed.
     path: {
       title: str(suggestedPath?.title || growth[0]?.name, 'Suggested focus'),
       copy: str(
