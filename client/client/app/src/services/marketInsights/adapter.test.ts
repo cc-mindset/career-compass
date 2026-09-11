@@ -287,12 +287,12 @@ describe('adaptMarketInsights', () => {
     };
 
     const adapted = adaptMarketInsights(payload);
-    // "Best matches" shows specific job titles, not sector names.
+    // "Best matches" shows specific job titles, not sector names — capped at
+    // 3 to match the prototype (previously 6, inconsistent with "emerging").
     expect(adapted!.opportunities.map((o) => o.name)).toEqual([
       'AI Product Lead',
       'ML Platform Engineer',
       'Payments Product Manager',
-      'Risk Platform Lead',
     ]);
     // "Sectors" shows sector names — a genuinely different list.
     expect(adapted!.sectors.map((s) => s.name)).toEqual(['AI & Advanced Tech', 'FinTech & Payments']);
