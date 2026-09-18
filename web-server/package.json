@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch server/index.ts",
-    "start": "tsx server/index.ts",
+    "dev": "node api.js && tsx watch server/index.ts",
+    "start": "node api.js && tsx server/index.ts",
     "build": "tsc",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
